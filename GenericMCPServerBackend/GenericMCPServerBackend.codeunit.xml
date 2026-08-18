@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cps:codeunit
+    xmlns:cps="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure"
+    codeunitspecificationversion="3.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/raw/v3.0.0/Conventions/RepositoryStructure/CommonProjectStructure/codeunit.xsd" enabled="true">
+    <cps:name>GenericMCPServerBackend</cps:name>
+    <cps:version>0.1.0</cps:version>
+    <cps:codeunitownername>Marius Göcke</cps:codeunitownername>
+    <cps:codeunitowneremailaddress>marius.goecke@gmail.com</cps:codeunitowneremailaddress>
+    <cps:properties codeunithastestablesourcecode="true" codeunithasupdatabledependencies="true"
+        throwexceptionifcodeunitfilecannotbevalidated="false"
+        developmentstate="Active development"
+        description="GenericMCPServerBackend is the backend for GenericMCPServer.">
+        <cps:testsettings minimalcodecoverageinpercent="1" />
+        <cps:pipelinedemands>
+        </cps:pipelinedemands>
+        <cps:updatesettings>
+            <cps:ignoreddependencies>
+            </cps:ignoreddependencies>
+        </cps:updatesettings>
+    </cps:properties>
+    <cps:dependentcodeunits />
+    <cps:developerteam>
+        <cps:developer>
+            <cps:developername>Marius Göcke</cps:developername>
+            <cps:developeremailaddress>marius.goecke@gmail.com</cps:developeremailaddress>
+        </cps:developer>
+    </cps:developerteam>
+</cps:codeunit>
