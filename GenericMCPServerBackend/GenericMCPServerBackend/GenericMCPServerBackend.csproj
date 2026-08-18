@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Authors>Marius Göcke</Authors>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <FileVersion>0.1.0</FileVersion>
+    <SelfContained>false</SelfContained>
+    <IsPackable>false</IsPackable>
+    <PreserveCompilationContext>false</PreserveCompilationContext>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <Copyright>Copyright © 2026 Marius Göcke</Copyright>
+    <Description>GenericMCPServerBackend is the backend for GenericMCPServer.</Description>
+    <PackageProjectUrl>https://projects.aniondev.de/AnionsProjects/DSS/GenericMCPServer</PackageProjectUrl>
+    <RepositoryUrl>https://projects.aniondev.de/AnionsProjects/DSS/GenericMCPServer.git</RepositoryUrl>
+    <RootNamespace>GenericMCPServerBackend.Core</RootNamespace>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <Nullable>disable</Nullable>
+    <Configurations>Development;QualityCheck;Productive</Configurations>
+    <IsTestProject>false</IsTestProject>
+    <LangVersion>11.0</LangVersion>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>..\Other\Artifacts\BuildResult_DotNet_win-x64</OutputPath>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <NoWarn>1701;1702;CA1822;CS1591;CS1573;IDE0045;IDE0046;IDE0054;IDE0058;IDE0074;IDE0090;CA1859;IDE0017;IDE0034;CS8632</NoWarn>
+    <WarningsAsErrors>NU1605</WarningsAsErrors>
+    <ErrorLog>..\Other\Resources\CodeAnalysisResult\GenericMCPServerBackend.sarif</ErrorLog>
+    <OutputType>Exe</OutputType>
+    <DocumentationFile>..\Other\Artifacts\MetaInformation\GenericMCPServerBackend.xml</DocumentationFile>
+    <StartupObject>GenericMCPServerBackend.Core.Program</StartupObject>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Development'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <DefineConstants>TRACE;DEBUG;Development</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='QualityCheck'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <DefineConstants>TRACE;QualityCheck</DefineConstants>
+    <ErrorReport>none</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Productive'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <DefineConstants>Productive</DefineConstants>
+    <ErrorReport>none</ErrorReport>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="[2.9.1]" />
+    <PackageReference Include="ExtendedXmlSerializer" Version="[3.10.0]" />
+    <PackageReference Include="GRYLibrary" Version="[2.0.30]" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" Version="[2.3.9]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="[10.0.3]" />
+    <PackageReference Include="ModelContextProtocol" Version="[2.2.0]" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="[2.2.0]" />
+    <PackageReference Include="ModelContextProtocol.Core" Version="[2.2.0]" />
+    <PackageReference Include="NJsonSchema" Version="[11.5.2]" />
+    <PackageReference Include="NSwag.AspNetCore" Version="[14.6.3]" />
+    <PackageReference Include="prometheus-net.AspNetCore" Version="[8.2.1]" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="[10.2.1]" />
+    <PackageReference Include="System.Reactive" Version="[6.1.0]" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The scripts which implement tools are copied into the build-result, because the BusinessLogicService runs them
+         from there at runtime (and because that build-result is what is copied into the container-image). -->
+    <Content Include="Resources\Tools\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

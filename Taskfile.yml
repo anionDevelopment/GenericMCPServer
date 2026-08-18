@@ -1,0 +1,23 @@
+version: '3'
+
+tasks:
+
+  BaseBuildAllCodeunits:
+    desc: "Base: Build all codeunits"
+    silent: true
+    dir: "."
+    cmds:
+      - "scbuildcodeunits {{.CLI_ARGS}}"
+    aliases:
+      - basebuildallcodeunits
+      - bb
+
+  RunExample:
+    desc: "Run: the example which starts the built image"
+    silent: true
+    dir: "./GenericMCPServer/Other/Examples/MinimalDockerComposeFile"
+    cmds:
+      - "python RunExample.py {{.CLI_ARGS}}"
+    aliases:
+      - runexample
+      - re

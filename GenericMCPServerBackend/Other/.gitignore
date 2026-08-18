@@ -1,0 +1,17 @@
+Artifacts
+Resources/TestCoverageBadges/**
+!Resources/TestCoverageBadges/badge_shieldsio_linecoverage_blue.svg
+Reference/ReferenceContent/API/**
+!Reference/ReferenceContent/API/index.md
+Resources/DependentCodeUnits
+Resources/Constants/CodeUnitDescription.*
+Resources/Constants/CodeUnitName.*
+Resources/Constants/CodeUnitVersion.*
+Resources/Constants/CodeUnitMajorVersion.*
+Resources/Constants/CommitDate.*
+Resources/Constants/CommitId.*
+Resources/Constants/CurrentTimestamp.*
+Resources/CodeAnalysisResult/**
+!Resources/CodeAnalysisResult/.gitkeep
+Resources/GRYLibrary
+Workspace

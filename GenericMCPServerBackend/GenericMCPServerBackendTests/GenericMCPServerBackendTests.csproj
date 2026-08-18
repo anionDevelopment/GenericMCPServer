@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Authors>Marius Göcke</Authors>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <FileVersion>0.1.0</FileVersion>
+    <SelfContained>false</SelfContained>
+    <IsPackable>false</IsPackable>
+    <PreserveCompilationContext>false</PreserveCompilationContext>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <Copyright>Copyright © 2026 Marius Göcke</Copyright>
+    <Description>GenericMCPServerBackendTests is the test-project for GenericMCPServerBackend.</Description>
+    <PackageProjectUrl>https://projects.aniondev.de/AnionsProjects/DSS/GenericMCPServer</PackageProjectUrl>
+    <RepositoryUrl>https://projects.aniondev.de/AnionsProjects/DSS/GenericMCPServer.git</RepositoryUrl>
+    <RootNamespace>GenericMCPServerBackend.Tests</RootNamespace>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <Nullable>enable</Nullable>
+    <Configurations>Development;QualityCheck;Productive</Configurations>
+    <IsTestProject>true</IsTestProject>
+    <LangVersion>11.0</LangVersion>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>..\Other\Artifacts\BuildResultTests_DotNet_win-x64</OutputPath>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <NoWarn>1701;1702;CA1822;CS1591;CS1573;IDE0045;IDE0046;IDE0054;IDE0058;IDE0074;IDE0090;CA1859;CA1860;IDE0039;IDE0063;CS8632</NoWarn>
+    <WarningsAsErrors>NU1605</WarningsAsErrors>
+    <ErrorLog>..\Other\Resources\CodeAnalysisResult\GenericMCPServerBackendTests.sarif</ErrorLog>
+    <OutputType>Library</OutputType>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Development'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <DefineConstants>TRACE;DEBUG;Development</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='QualityCheck'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <DefineConstants>TRACE;QualityCheck</DefineConstants>
+    <ErrorReport>none</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Productive'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>false</Optimize>
+    <DefineConstants>Productive</DefineConstants>
+    <ErrorReport>none</ErrorReport>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GenericMCPServerBackend\GenericMCPServerBackend.csproj" />
+    <PackageReference Include="coverlet.collector" Version="[6.0.4]" />
+    <PackageReference Include="GRYLibrary" Version="[2.0.30]" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="[17.14.1]" />
+    <PackageReference Include="MSTest.TestAdapter" Version="[3.9.3]" />
+    <PackageReference Include="MSTest.TestFramework" Version="[3.9.3]" />
+    <PackageReference Include="ModelContextProtocol.Core" Version="[2.2.0]" />
+  </ItemGroup>
+</Project>

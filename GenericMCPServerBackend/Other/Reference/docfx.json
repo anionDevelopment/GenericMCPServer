@@ -1,0 +1,32 @@
+{
+    "metadata": [],
+    "build": {
+        "content": [
+            {
+                "files": [
+                    "**.md",
+                    "**.yml"
+                ],
+                "src": "./ReferenceContent"
+            }
+        ],
+        "resource": [
+            {
+                "files": [
+                    "Images/**"
+                ],
+                "src": "./ReferenceContent"
+            }
+        ],
+        "overwrite": [
+            {
+                "files": [],
+                "exclude": []
+            }
+        ],
+        "dest": "../Artifacts/Reference",
+        "globalMetadata": {
+            "_appTitle": "GenericMCPServerBackend"
+        }
+    }
+}

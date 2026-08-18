@@ -1,0 +1,11 @@
+version: '3.2'
+
+services:
+  genericmcpserver:
+    image: genericmcpserver:0.1.0
+    container_name: 'genericmcpserver'
+    environment:
+      # The server listens on plain HTTP, so the example is reachable without a certificate.
+      EnforceVerbose: 'true'
+    ports:
+      - "8080:80"
