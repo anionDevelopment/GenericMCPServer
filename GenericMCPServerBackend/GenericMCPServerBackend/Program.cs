@@ -14,14 +14,18 @@ using GRYLibrary.Core.APIServer.Settings.Configuration;
 using GRYLibrary.Core.APIServer.Utilities;
 using GRYLibrary.Core.Logging.GRYLogger;
 using GenericMCPServerBackend.Core.Configuration;
+using GenericMCPServerBackend.Core.Misc;
+using GenericMCPServerBackend.Core.Model;
 using GenericMCPServerBackend.Core.Constants;
 using GenericMCPServerBackend.Core.Services;
 using Microsoft.AspNetCore.Builder;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace GenericMCPServerBackend.Core
@@ -61,11 +65,15 @@ namespace GenericMCPServerBackend.Core
         /// <returns>An integer exit code; <c>0</c> indicates success.</returns>
         internal int MainImplementation(string[] commandlineArguments)
         {
+            // The file which declares the tools is read from the commandline-parameters, which are only available
+            // once the initialization ran, so it is remembered here and used when the services are registered.
+            string toolDefinitionsFile = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
                 apiServerConfiguration.SetInitializationInformationAction = (initializationInformation) =>
                 {
+                    toolDefinitionsFile = initializationInformation.CommandlineParameter.InitialToolDefinitionsFile;
                     string domain = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialDomain) ? Tools.GetDefaultDomainValue(GeneralConstants.CodeUnitName) : initializationInformation.CommandlineParameter.InitialDomain;
                     initializationInformation.InitialApplicationConfiguration.ServerConfiguration.SetDomainAndPublichUrlToDefault(domain);
                     initializationInformation.ApplicationConstants.ListenOnEveryIP = this.ListenOnEveryIP;
@@ -113,21 +121,22 @@ namespace GenericMCPServerBackend.Core
                     this._Log.Log("Run initialization...");
 
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<ITimeService, TimeService>();
-                    // The concrete type is registered as well and the interface is resolved from it, because the
-                    // MCP-SDK looks up the concrete type to call the tool-methods on it, while the rest of the
-                    // application uses the interface. Both therefore have to be the same instance.
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<BusinessLogicService>();
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(serviceProvider => serviceProvider.GetRequiredService<BusinessLogicService>());
+                    // The tools are not known at compile-time: they are created here, one per declaration in the
+                    // tool-definitions-file. The service is constructed directly (and not by the container), because
+                    // the tools have to exist before the container is built and both have to use the same instance.
+                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile);
+                    IReadOnlyList<ToolDefinition> toolDefinitions = businessLogicService.GetToolDefinitions();
+                    this._Log.Log($"{toolDefinitions.Count} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
 
-                    // The whole MCP-protocol (the initialize-handshake, the sessions, "tools/list", "tools/call", the
-                    // generation of the argument-schemas and the error-handling) is implemented by the SDK. This
-                    // codeunit only tells it which type carries the tools.
+                    // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
+                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools.
                     functionalInformation.WebApplicationBuilder.Services.AddMcpServer()
                         // Stateless: every request is answered on its own, so no session-id has to be kept by the
                         // client. That makes the server usable with a plain http-request and is sufficient here,
                         // because the tools hold no state between two calls.
                         .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-                        .WithTools<BusinessLogicService>();
+                        .WithTools(toolDefinitions.Select(definition => (McpServerTool)new ScriptTool(businessLogicService, definition)).ToList());
 
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<ICommonRoutesInformation>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.CommonRoutesInformation);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IMaintenanceRoutesInformation>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.MaintenanceRoutesInformation);

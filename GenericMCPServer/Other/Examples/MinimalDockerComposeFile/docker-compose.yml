@@ -5,7 +5,12 @@ services:
     image: genericmcpserver:0.1.0
     container_name: 'genericmcpserver'
     environment:
-      # The server listens on plain HTTP, so the example is reachable without a certificate.
+      # The server offers exactly the tools which this file declares. Without it, it offers none.
+      InitialToolDefinitionsFile: '/Workspace/Configuration/Tools/Tools.json'
       EnforceVerbose: 'true'
+    volumes:
+      # The declarations and the scripts they point to are mounted together, because a script is resolved relative to
+      # the file which declares it.
+      - ./Tools:/Workspace/Configuration/Tools:ro
     ports:
       - "8080:80"

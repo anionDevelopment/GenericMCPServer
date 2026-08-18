@@ -1,0 +1,80 @@
+components: {}
+info:
+  contact:
+    name: Contact
+    url: https://genericmcpserverbackend.test.local:443/API/Other/Resources/Information/Contact
+  description: GenericMCPServerBackend is the backend for GenericMCPServer.
+  license:
+    name: License
+    url: https://genericmcpserverbackend.test.local:443/API/Other/Resources/Information/License
+  termsOfService: https://genericmcpserverbackend.test.local:443/API/Other/Resources/Information/TermsOfService
+  title: GenericMCPServerBackend v1.0.0 API documentation
+  version: v1.0.0
+openapi: 3.0.4
+paths:
+  /API/Other/Maintenance/AvailabilityCheck:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - MaintenanceRoutes
+  /API/Other/Maintenance/CurrentVersion:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - MaintenanceRoutes
+  /API/Other/Maintenance/HealthCheck:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - MaintenanceRoutes
+  /API/Other/Maintenance/InitializationState:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - MaintenanceRoutes
+  /API/Other/Maintenance/Metrics:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - MaintenanceRoutes
+  /API/Other/Maintenance/ShowAllEndpoints:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - MaintenanceRoutes
+  /API/Other/Resources/Information/Contact:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - CommonRoutes
+  /API/Other/Resources/Information/License:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - CommonRoutes
+  /API/Other/Resources/Information/TermsOfService:
+    get:
+      responses:
+        '200':
+          description: OK
+      tags:
+      - CommonRoutes
+tags:
+- name: CommonRoutes
+- name: MaintenanceRoutes

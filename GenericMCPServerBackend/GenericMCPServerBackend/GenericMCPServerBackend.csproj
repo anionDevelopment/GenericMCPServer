@@ -2,9 +2,9 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Authors>Marius Göcke</Authors>
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0</AssemblyVersion>
-    <FileVersion>0.1.0</FileVersion>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0</AssemblyVersion>
+    <FileVersion>0.2.0</FileVersion>
     <SelfContained>false</SelfContained>
     <IsPackable>false</IsPackable>
     <PreserveCompilationContext>false</PreserveCompilationContext>
@@ -12,8 +12,8 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <Copyright>Copyright © 2026 Marius Göcke</Copyright>
     <Description>GenericMCPServerBackend is the backend for GenericMCPServer.</Description>
-    <PackageProjectUrl>https://projects.aniondev.de/AnionsProjects/DSS/GenericMCPServer</PackageProjectUrl>
-    <RepositoryUrl>https://projects.aniondev.de/AnionsProjects/DSS/GenericMCPServer.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/anionDevelopment/GenericMCPServer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/anionDevelopment/GenericMCPServer.git</RepositoryUrl>
     <RootNamespace>GenericMCPServerBackend.Core</RootNamespace>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <Nullable>disable</Nullable>
@@ -70,12 +70,5 @@
     <PackageReference Include="prometheus-net.AspNetCore" Version="[8.2.1]" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="[10.2.1]" />
     <PackageReference Include="System.Reactive" Version="[6.1.0]" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- The scripts which implement tools are copied into the build-result, because the BusinessLogicService runs them
-         from there at runtime (and because that build-result is what is copied into the container-image). -->
-    <Content Include="Resources\Tools\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 </Project>

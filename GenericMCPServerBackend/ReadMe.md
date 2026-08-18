@@ -2,8 +2,8 @@
 
 GenericMCPServerBackend is the backend for GenericMCPServer.
 
-It implements a MCP-server which is reachable over HTTP: the `MCPController` implements the protocol (JSON-RPC 2.0)
-and the `BusinessLogicService` implements the tools which the server offers.
+It implements a MCP-server which is reachable over HTTP and which offers exactly the tools an administrator declares
+in a tool-definitions-file. The codeunit itself contains no tool.
 
 ## Reference
 
