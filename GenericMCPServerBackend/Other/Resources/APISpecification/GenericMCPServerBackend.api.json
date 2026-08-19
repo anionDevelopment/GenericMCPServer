@@ -1,0 +1,136 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "GenericMCPServerBackend v1.0.0 API documentation",
+    "description": "GenericMCPServerBackend is the backend for GenericMCPServer.",
+    "termsOfService": "https://genericmcpserverbackend.test.local:443/API/Other/Resources/Information/TermsOfService",
+    "contact": {
+      "name": "Contact",
+      "url": "https://genericmcpserverbackend.test.local:443/API/Other/Resources/Information/Contact"
+    },
+    "license": {
+      "name": "License",
+      "url": "https://genericmcpserverbackend.test.local:443/API/Other/Resources/Information/License"
+    },
+    "version": "v1.0.0"
+  },
+  "paths": {
+    "/API/Other/Resources/Information/TermsOfService": {
+      "get": {
+        "tags": [
+          "CommonRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Resources/Information/Contact": {
+      "get": {
+        "tags": [
+          "CommonRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Resources/Information/License": {
+      "get": {
+        "tags": [
+          "CommonRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Maintenance/AvailabilityCheck": {
+      "get": {
+        "tags": [
+          "MaintenanceRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Maintenance/InitializationState": {
+      "get": {
+        "tags": [
+          "MaintenanceRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Maintenance/CurrentVersion": {
+      "get": {
+        "tags": [
+          "MaintenanceRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Maintenance/ShowAllEndpoints": {
+      "get": {
+        "tags": [
+          "MaintenanceRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Maintenance/HealthCheck": {
+      "get": {
+        "tags": [
+          "MaintenanceRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/Other/Maintenance/Metrics": {
+      "get": {
+        "tags": [
+          "MaintenanceRoutes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {},
+  "tags": [
+    {
+      "name": "CommonRoutes"
+    },
+    {
+      "name": "MaintenanceRoutes"
+    }
+  ]
+}
