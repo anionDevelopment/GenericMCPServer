@@ -12,6 +12,7 @@ using GRYLibrary.Core.APIServer.Mid.M05DLog;
 using GRYLibrary.Core.APIServer.MidT.Exception;
 using GRYLibrary.Core.APIServer.MidT.RLog;
 using GRYLibrary.Core.APIServer.Services.Init;
+using GRYLibrary.Core.APIServer.Services.Init;
 using GRYLibrary.Core.APIServer.Services.Interfaces;
 using GRYLibrary.Core.APIServer.Services.Logger;
 using GRYLibrary.Core.APIServer.Services.OtherServices;
@@ -123,6 +124,11 @@ namespace GenericMCPServerBackend.Core
                     this._Log.Log("Run initialization...");
 
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<ITimeService, TimeService>();
+                    // The maintenance-health-check-route of GRYLibrary resolves the health-check-service of
+                    // ASP.NET, so it has to be registered even though this codeunit contributes no check of its own:
+                    // without it that route answers with 500, and it is the route the container-image checks itself
+                    // with (see the HEALTHCHECK of the Dockerfile and Other/OnBuildingFinished.py).
+                    functionalInformation.WebApplicationBuilder.Services.AddHealthChecks();
                     // The tools are not known at compile-time: they are created here, one per declaration in the
                     // tool-definitions-file. The service is constructed directly (and not by the container), because
                     // the tools have to exist before the container is built and both have to use the same instance.
@@ -130,6 +136,11 @@ namespace GenericMCPServerBackend.Core
                     IReadOnlyList<ToolDefinition> toolDefinitions = businessLogicService.GetToolDefinitions();
                     this._Log.Log($"{toolDefinitions.Count} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
+                    // The maintenance-route which reports the initialization-state asks this service, so it has to
+                    // exist as soon as that route is enabled. It is registered under both interfaces, because the route
+                    // resolves the non-generic one while the program calls the generic one to start the initialization.
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IInitializationService<CommandlineParameter>, InitializationService>();
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IInitializationService>(serviceProvider => serviceProvider.GetRequiredService<IInitializationService<CommandlineParameter>>());
 
                     // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
                     // error-handling) is implemented by the SDK. This codeunit only hands it the tools.
@@ -154,6 +165,11 @@ namespace GenericMCPServerBackend.Core
                     this._HostApplicationLifetime = functionalInformationForWebApplication.WebApplication.Services.GetService<IHostApplicationLifetime>();
                     this._BusinessLogicService = functionalInformationForWebApplication.WebApplication.Services.GetService<IBusinessLogicService>();
                     functionalInformationForWebApplication.RunAsync = this.RunAsync;
+                    IInitializationService<CommandlineParameter> initializationService = functionalInformationForWebApplication.WebApplication.Services.GetRequiredService<IInitializationService<CommandlineParameter>>();
+                    functionalInformationForWebApplication.PreRun = () =>
+                    {
+                        initializationService.Initialize(apiServerConfiguration.CommandlineParameter);
+                    };
                     // This is the one endpoint a MCP-client is configured with. It is mapped with its full route,
                     // because it is not a controller and therefore does not get the route-prefix of the API-server.
                     functionalInformationForWebApplication.WebApplication.MapMcp(CodeUnitSpecificConstants.MCPRoute);
