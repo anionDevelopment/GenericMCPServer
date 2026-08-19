@@ -1,30 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<cps:codeunit
-    xmlns:cps="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure"
-    codeunitspecificationversion="3.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/raw/v3.0.0/Conventions/RepositoryStructure/CommonProjectStructure/codeunit.xsd" enabled="true">
-    <cps:name>GenericMCPServer</cps:name>
-    <cps:version>0.1.0</cps:version>
-    <cps:codeunitownername>Marius Göcke</cps:codeunitownername>
-    <cps:codeunitowneremailaddress>marius.goecke@gmail.com</cps:codeunitowneremailaddress>
-    <cps:properties codeunithastestablesourcecode="false" codeunithasupdatabledependencies="true"
-        throwexceptionifcodeunitfilecannotbevalidated="false"
-        developmentstate="Active development"
-        description="GenericMCPServer is a simple MCP-server which is reachable over HTTP.">
-        <cps:pipelinedemands>
-        </cps:pipelinedemands>
-        <cps:updatesettings>
-            <cps:ignoreddependencies>
-            </cps:ignoreddependencies>
-        </cps:updatesettings>
-    </cps:properties>
-    <cps:dependentcodeunits>
-        <cps:dependentcodeunit>GenericMCPServerBackend</cps:dependentcodeunit>
-    </cps:dependentcodeunits>
-    <cps:developerteam>
-        <cps:developer>
-            <cps:developername>Marius Göcke</cps:developername>
-            <cps:developeremailaddress>marius.goecke@gmail.com</cps:developeremailaddress>
-        </cps:developer>
-    </cps:developerteam>
-</cps:codeunit>
+<?xml version='1.0' encoding='utf-8'?>
+<codeunit xmlns="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" codeunitspecificationversion="3.0.0" xsi:schemaLocation="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/raw/v3.0.0/Conventions/RepositoryStructure/CommonProjectStructure/codeunit.xsd" enabled="true">
+    <name>GenericMCPServer</name>
+    <version>0.2.0</version>
+    <codeunitownername>Marius Göcke</codeunitownername>
+    <codeunitowneremailaddress>marius.goecke@gmail.com</codeunitowneremailaddress>
+    <properties codeunithastestablesourcecode="false" codeunithasupdatabledependencies="true" throwexceptionifcodeunitfilecannotbevalidated="false" developmentstate="Active development" description="GenericMCPServer is a simple MCP-server which is reachable over HTTP.">
+        <pipelinedemands>
+        </pipelinedemands>
+        <updatesettings>
+            <ignoreddependencies>
+            </ignoreddependencies>
+        </updatesettings>
+    </properties>
+    <dependentcodeunits>
+        <dependentcodeunit>GenericMCPServerBackend</dependentcodeunit>
+    </dependentcodeunits>
+    <developerteam>
+        <developer>
+            <developername>Marius Göcke</developername>
+            <developeremailaddress>marius.goecke@gmail.com</developeremailaddress>
+        </developer>
+    </developerteam>
+</codeunit>

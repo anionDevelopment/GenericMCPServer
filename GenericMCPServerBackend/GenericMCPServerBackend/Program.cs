@@ -1,3 +1,8 @@
+using GenericMCPServerBackend.Core.Configuration;
+using GenericMCPServerBackend.Core.Constants;
+using GenericMCPServerBackend.Core.Misc;
+using GenericMCPServerBackend.Core.Model;
+using GenericMCPServerBackend.Core.Services;
 using GRYLibrary.Core.APIServer.CommonRoutes;
 using GRYLibrary.Core.APIServer.ConcreteEnvironments;
 using GRYLibrary.Core.APIServer.ExecutionModes;
@@ -6,6 +11,7 @@ using GRYLibrary.Core.APIServer.Mid.Ex;
 using GRYLibrary.Core.APIServer.Mid.M05DLog;
 using GRYLibrary.Core.APIServer.MidT.Exception;
 using GRYLibrary.Core.APIServer.MidT.RLog;
+using GRYLibrary.Core.APIServer.Services.Init;
 using GRYLibrary.Core.APIServer.Services.Interfaces;
 using GRYLibrary.Core.APIServer.Services.Logger;
 using GRYLibrary.Core.APIServer.Services.OtherServices;
@@ -13,16 +19,13 @@ using GRYLibrary.Core.APIServer.Settings;
 using GRYLibrary.Core.APIServer.Settings.Configuration;
 using GRYLibrary.Core.APIServer.Utilities;
 using GRYLibrary.Core.Logging.GRYLogger;
-using GenericMCPServerBackend.Core.Configuration;
-using GenericMCPServerBackend.Core.Misc;
-using GenericMCPServerBackend.Core.Model;
-using GenericMCPServerBackend.Core.Constants;
-using GenericMCPServerBackend.Core.Services;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using OpenDMSBackend.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -142,6 +145,8 @@ namespace GenericMCPServerBackend.Core
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IMaintenanceRoutesInformation>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.MaintenanceRoutesInformation);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IRequestLoggingConfiguration>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ConfigurationForLoggingMiddleware);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IDRequestLoggingConfiguration>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ConfigurationForDLoggingMiddleware);
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IInitializationService<CommandlineParameter>, InitializationService>();
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IHealthCheck, HealthCheck>();
                 };
                 apiServerConfiguration.ConfigureWebApplication = (functionalInformationForWebApplication) =>
                 {
