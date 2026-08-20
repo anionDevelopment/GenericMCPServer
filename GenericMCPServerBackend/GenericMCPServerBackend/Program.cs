@@ -5,7 +5,9 @@ using GenericMCPServerBackend.Core.Model;
 using GenericMCPServerBackend.Core.Services;
 using GRYLibrary.Core.APIServer.CommonRoutes;
 using GRYLibrary.Core.APIServer.ConcreteEnvironments;
+using CommandLine;
 using GRYLibrary.Core.APIServer.ExecutionModes;
+using GRYLibrary.Core.APIServer.ExecutionModes.Visitors;
 using GRYLibrary.Core.APIServer.MaintenanceRoutes;
 using GRYLibrary.Core.APIServer.Mid.Ex;
 using GRYLibrary.Core.APIServer.Mid.M05DLog;
@@ -29,6 +31,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 
 namespace GenericMCPServerBackend.Core
@@ -68,11 +71,18 @@ namespace GenericMCPServerBackend.Core
         /// <returns>An integer exit code; <c>0</c> indicates success.</returns>
         internal int MainImplementation(string[] commandlineArguments)
         {
+            if (0 < commandlineArguments.Length && commandlineArguments[0] == CreateAccessTokenParameter.VerbName)
+            {
+                // This call does not start a server: it is what an administrator uses to create the first access at
+                // all, so it is handled before anything of the server is set up.
+                return CreateAccessToken(commandlineArguments);
+            }
             // The file which declares the tools is read from the commandline-parameters, which are only available
             // once the initialization ran, so it is remembered here and used when the services are registered. The
             // same holds for the folder of the virtual environments of the python-tools.
             string toolDefinitionsFile = null;
             string virtualEnvironmentsFolder = null;
+            string accessTokensFile = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
@@ -84,6 +94,14 @@ namespace GenericMCPServerBackend.Core
                     virtualEnvironmentsFolder = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialVirtualEnvironmentsFolder)
                         ? Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments")
                         : initializationInformation.CommandlineParameter.InitialVirtualEnvironmentsFolder;
+                    // The access-tokens belong to the configuration of the server, so they are kept in its
+                    // configuration-folder unless another file was stated.
+                    accessTokensFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialAccessTokensFile)
+                        ? AccessTokenService.GetDefaultFile(initializationInformation.ApplicationConstants.GetConfigurationFolder())
+                        : initializationInformation.CommandlineParameter.InitialAccessTokensFile;
+                    // The check of the token is the outer of the two custom middlewares: a request which is not
+                    // allowed must not reach anything behind it.
+                    initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
                     // The middleware which answers a failed tool-call with 502 has to wrap the endpoint of the
                     // protocol, so it is registered as the innermost custom middleware.
                     initializationInformation.ApplicationConstants.CustomMiddlewares2.Add(typeof(ToolCallFailureStatusCodeMiddleware));
@@ -145,6 +163,9 @@ namespace GenericMCPServerBackend.Core
                     // A tool reaches the http-request it is running in through this accessor, which is what lets a
                     // failed tool-call decide the status-code of the answer.
                     functionalInformation.WebApplicationBuilder.Services.AddHttpContextAccessor();
+                    // Only a client with a valid access-token reaches the protocol. The file is created here when it
+                    // does not exist yet, so that an administrator finds the place where the tokens belong.
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAccessTokenService>(new AccessTokenService(accessTokensFile));
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
                     IReadOnlyList<ToolDefinition> toolDefinitions = businessLogicService.GetToolDefinitions();
                     this._Log.Log($"{toolDefinitions.Count} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
@@ -190,6 +211,49 @@ namespace GenericMCPServerBackend.Core
             }, this._Log);
             this.IsRunning = false;
             return result;
+        }
+
+        /// <summary>
+        /// Creates an access-token for a client and writes it to the standard-output.
+        ///
+        /// The token is written there and never into the log: a log is kept, copied and read by more people than the
+        /// one who creates the token, and the token exists in a readable form only in this moment.
+        /// </summary>
+        /// <returns>0 if the token was created.</returns>
+        private static int CreateAccessToken(string[] commandlineArguments)
+        {
+            int result = 1;
+            new Parser(settings => settings.HelpWriter = Console.Error).ParseArguments<CreateAccessTokenParameter>(commandlineArguments).WithParsed(parameter =>
+            {
+                try
+                {
+                    string file = string.IsNullOrWhiteSpace(parameter.AccessTokensFile) ? AccessTokenService.GetDefaultFile(GetConfigurationFolder()) : parameter.AccessTokensFile;
+                    IAccessTokenService accessTokenService = new AccessTokenService(file);
+                    string token = accessTokenService.CreateAccessToken(parameter.Client, parameter.ValidForDays);
+                    Console.WriteLine($"Created an access-token for the client \"{parameter.Client}\" which is valid for {parameter.ValidForDays} day(s) and which is stored in \"{accessTokenService.GetFile()}\".");
+                    Console.WriteLine("The token is shown now and never again, because only its hash is stored:");
+                    Console.WriteLine(token);
+                    result = 0;
+                }
+                catch (Exception exception)
+                {
+                    Console.Error.WriteLine(exception.Message);
+                    result = 1;
+                }
+            });
+            return result;
+        }
+
+        /// <summary>
+        /// The folder the server keeps its configuration in. The way to it is the one the server itself takes, so that
+        /// a token which is created here is a token which the server reads.
+        /// </summary>
+        private static string GetConfigurationFolder()
+        {
+            // The mode is stated as a real run, because the folder of a real server is meant here and not the
+            // temporary one of a test-run. "Configuration" is the name which GRYLibrary gives that folder.
+            string baseFolder = GetBaseFolder.GetBaseFolderForProjectInCommonProjectStructure(GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetValue(System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)), RunProgram.Instance, false);
+            return Path.Combine(baseFolder, "Configuration");
         }
 
         /// <summary>

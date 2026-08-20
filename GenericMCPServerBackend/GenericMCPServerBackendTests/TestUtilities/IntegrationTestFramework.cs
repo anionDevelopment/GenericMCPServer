@@ -1,5 +1,6 @@
 using GRYLibrary.Core.APIServer.Settings.Configuration;
 using GenericMCPServerBackend.Core;
+using GenericMCPServerBackend.Core.Services;
 using System;
 using System.Linq;
 using System.Net;
@@ -25,6 +26,14 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// <summary>The tools the started server offers come from this example-data.</summary>
         public ExampleDataCreator ExampleData => this._ExampleDataCreator;
 
+        /// <summary>The name of the client the testcases reach the server as.</summary>
+        public const string ClientName = "integration-test";
+
+        /// <summary>
+        /// The access-token of that client. Every request needs one, so it is created before the server is started.
+        /// </summary>
+        public string AccessToken { get; }
+
         public IntegrationTestFramework()
         {
             // The port is fixed, so a port which is occupied here is held by something outside the test-run (a running
@@ -35,6 +44,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 throw new InvalidOperationException($"The port {HTTP.DefaultPort} which the test-server uses is already in use by a process outside the test-run.");
             }
             this._ExampleDataCreator = new ExampleDataCreator();
+            this.AccessToken = new AccessTokenService(this._ExampleDataCreator.AccessTokensFile).CreateAccessToken(ClientName, 1);
             this._Program = new Program()
             {
                 // The server runs in its own thread and blocks there, so it stays up until Stop is called. Running it
@@ -54,6 +64,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // The virtual environment of the example-tool belongs to the example-data, so that the test-run leaves
                 // nothing behind in the data-folder of the server.
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialVirtualEnvironmentsFolder)}", this._ExampleDataCreator.VirtualEnvironmentsFolder,
+                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialAccessTokensFile)}", this._ExampleDataCreator.AccessTokensFile,
             }));
             thread.Start();
             if (!GRYLibrary.Core.Misc.Utilities.RunWithTimeout(() =>
@@ -129,9 +140,22 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </remarks>
         public (HttpStatusCode StatusCode, string Answer) SendMCPMessageAndGetStatusCode(string message)
         {
+            return this.SendMCPMessageAndGetStatusCode(message, this.AccessToken);
+        }
+
+        /// <summary>
+        /// Sends one JSON-RPC-message with the given access-token.
+        /// </summary>
+        /// <param name="accessToken">The token, or null to send no token at all.</param>
+        public (HttpStatusCode StatusCode, string Answer) SendMCPMessageAndGetStatusCode(string message, string? accessToken)
+        {
             using HttpClient client = new HttpClient();
             using StringContent content = new StringContent(message, Encoding.UTF8, "application/json");
             client.DefaultRequestHeaders.Add("Accept", "application/json, text/event-stream");
+            if (accessToken != null)
+            {
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+            }
             HttpResponseMessage response = client.PostAsync(this.GetMCPEndpointURL(), content).GetAwaiter().GetResult();
             return (response.StatusCode, response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
         }

@@ -28,6 +28,13 @@ namespace GenericMCPServerBackend.Core.Configuration
         [Option(nameof(InitialVirtualEnvironmentsFolder), Required = false)]
         public string? InitialVirtualEnvironmentsFolder { get; set; }
 
+        /// <summary>
+        /// The file which holds the access-tokens of the clients. Without this parameter it is the file of the
+        /// configuration-folder of the server, which is created when it does not exist yet.
+        /// </summary>
+        [Option(nameof(InitialAccessTokensFile), Required = false)]
+        public string? InitialAccessTokensFile { get; set; }
+
         [Option(nameof(InitialEnableEndpointAvailabilityCheckValue), Required = false, Default = true)]
         public bool InitialEnableEndpointAvailabilityCheckValue { get; set; }
 

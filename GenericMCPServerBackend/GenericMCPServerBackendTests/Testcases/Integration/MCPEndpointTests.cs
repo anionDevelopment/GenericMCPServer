@@ -32,6 +32,27 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             IntegrationTestServerLock.Exit();
         }
 
+        /// <remarks>
+        /// Every client is a known one: without a valid access-token the protocol is not reachable at all, so a server
+        /// which is exposed by accident hands nothing out - not even which tools it offers.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void WithoutAValidAccessTokenTheEndpointIsNotReachable()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+            string message = @"{""jsonrpc"":""2.0"",""id"":1,""method"":""tools/list""}";
+
+            // act
+            (HttpStatusCode withoutAToken, string _) = framework.SendMCPMessageAndGetStatusCode(message, null);
+            (HttpStatusCode withAnUnknownToken, string _) = framework.SendMCPMessageAndGetStatusCode(message, "gmcp_0000000000000000000000000000000000000000000000000000000000000000");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.Unauthorized, withoutAToken);
+            Assert.AreEqual(HttpStatusCode.Unauthorized, withAnUnknownToken);
+        }
+
         [TestMethod]
         [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
         public void TheDeclaredToolsAreOfferedOverHTTP()
