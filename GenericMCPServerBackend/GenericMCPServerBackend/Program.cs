@@ -34,6 +34,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GenericMCPServerBackend.Core
 {
@@ -168,8 +169,20 @@ namespace GenericMCPServerBackend.Core
                     // does not exist yet, so that an administrator finds the place where the tokens belong.
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAccessTokenService>(new AccessTokenService(accessTokensFile));
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
-                    IReadOnlyList<ToolDefinition> toolDefinitions = businessLogicService.GetToolDefinitions();
-                    this._Log.Log($"{toolDefinitions.Count} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
+                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace
+                    // of its route, so the same tool-name may exist in two mcp-servers without becoming ambiguous.
+                    Dictionary<string, McpServerPrimitiveCollection<McpServerTool>> toolsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerTool>>(StringComparer.OrdinalIgnoreCase);
+                    foreach (MCPServerDefinition mcpServer in mcpServers)
+                    {
+                        McpServerPrimitiveCollection<McpServerTool> tools = new McpServerPrimitiveCollection<McpServerTool>();
+                        foreach (ToolDefinition definition in mcpServer.Tools)
+                        {
+                            tools.Add(new ScriptTool(businessLogicService, mcpServer.UrlNamespace, definition));
+                        }
+                        toolsOfTheMCPServers[mcpServer.UrlNamespace] = tools;
+                    }
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
                     // The maintenance-route which reports the initialization-state asks this service, so it has to
                     // exist as soon as that route is enabled. It is registered under both interfaces, because the route
@@ -179,24 +192,23 @@ namespace GenericMCPServerBackend.Core
 
                     // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
                     // error-handling) is implemented by the SDK. This codeunit only hands it the tools.
-                    functionalInformation.WebApplicationBuilder.Services.AddMcpServer(options =>
-                        // A caller without an access-token sees exactly the tools which are declared as anonymous. A
-                        // tool which needs a token is not even visible to it, so a server which is exposed by accident
-                        // does not tell what it could do.
-                        options.Filters.Request.ListToolsFilters.Add(next => async (listToolsRequest, cancellationToken) =>
+                    functionalInformation.WebApplicationBuilder.Services.AddMcpServer()
+                        .WithHttpTransport(options =>
                         {
-                            ListToolsResult listToolsResult = await next(listToolsRequest, cancellationToken);
-                            if (!AccessTokenValidatorMiddleware.RequestIsAuthenticated(listToolsRequest.Services))
+                            // Stateless: every request is answered on its own, so no session-id has to be kept by the
+                            // client. That makes the server usable with a plain http-request and is sufficient here,
+                            // because the tools hold no state between two calls.
+                            options.SessionMode = HttpServerSessionMode.Stateless;
+                            // The tools are not registered once for the whole process: which of them exist is decided
+                            // per request by the mcp-server its route belongs to. That is what makes several
+                            // mcp-servers in one process possible, each with its own tools and its own clients.
+                            options.ConfigureSessionOptions = (httpContext, serverOptions, cancellationToken) =>
                             {
-                                listToolsResult.Tools = listToolsResult.Tools.Where(tool => businessLogicService.ToolIsAnonymous(tool.Name)).ToList();
-                            }
-                            return listToolsResult;
-                        }))
-                        // Stateless: every request is answered on its own, so no session-id has to be kept by the
-                        // client. That makes the server usable with a plain http-request and is sufficient here,
-                        // because the tools hold no state between two calls.
-                        .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-                        .WithTools(toolDefinitions.Select(definition => (McpServerTool)new ScriptTool(businessLogicService, definition)).ToList());
+                                MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
+                                serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
+                                return Task.CompletedTask;
+                            };
+                        });
 
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<ICommonRoutesInformation>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.CommonRoutesInformation);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IMaintenanceRoutesInformation>(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.MaintenanceRoutesInformation);
@@ -217,9 +229,13 @@ namespace GenericMCPServerBackend.Core
                     {
                         initializationService.Initialize(apiServerConfiguration.CommandlineParameter);
                     };
-                    // This is the one endpoint a MCP-client is configured with. It is mapped with its full route,
-                    // because it is not a controller and therefore does not get the route-prefix of the API-server.
-                    functionalInformationForWebApplication.WebApplication.MapMcp(CodeUnitSpecificConstants.MCPRoute);
+                    // One endpoint per declared mcp-server; such an endpoint is what a MCP-client is configured with.
+                    // They are mapped with their full route, because they are no controllers and therefore do not get
+                    // the route-prefix of the API-server.
+                    foreach (MCPServerDefinition mcpServer in this._BusinessLogicService.GetMCPServers())
+                    {
+                        functionalInformationForWebApplication.WebApplication.MapMcp(CodeUnitSpecificConstants.GetMCPRoute(mcpServer.UrlNamespace));
+                    }
                 };
             }, this._Log);
             this.IsRunning = false;
@@ -242,8 +258,8 @@ namespace GenericMCPServerBackend.Core
                 {
                     string file = string.IsNullOrWhiteSpace(parameter.AccessTokensFile) ? AccessTokenService.GetDefaultFile(GetConfigurationFolder()) : parameter.AccessTokensFile;
                     IAccessTokenService accessTokenService = new AccessTokenService(file);
-                    string token = accessTokenService.CreateAccessToken(parameter.Client, parameter.ValidForDays);
-                    Console.WriteLine($"Created an access-token for the client \"{parameter.Client}\" which is valid for {parameter.ValidForDays} day(s) and which is stored in \"{accessTokenService.GetFile()}\".");
+                    string token = accessTokenService.CreateAccessToken(parameter.Client, parameter.McpServer, parameter.ValidForDays);
+                    Console.WriteLine($"Created an access-token for the client \"{parameter.Client}\" of the mcp-server \"{parameter.McpServer}\" which is valid for {parameter.ValidForDays} day(s) and which is stored in \"{accessTokenService.GetFile()}\".");
                     Console.WriteLine("The token is shown now and never again, because only its hash is stored:");
                     Console.WriteLine(token);
                     result = 0;

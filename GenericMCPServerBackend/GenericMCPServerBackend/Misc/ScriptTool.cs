@@ -21,11 +21,19 @@ namespace GenericMCPServerBackend.Core.Misc
     {
         private readonly IBusinessLogicService _BusinessLogicService;
         private readonly ToolDefinition _Definition;
+
+        /// <summary>
+        /// The mcp-server this tool belongs to. A tool-name is unambiguous within its mcp-server and not beyond it, so
+        /// the namespace is part of what identifies this tool.
+        /// </summary>
+        private readonly string _UrlNamespace;
+
         private readonly Tool _ProtocolTool;
 
-        public ScriptTool(IBusinessLogicService businessLogicService, ToolDefinition definition)
+        public ScriptTool(IBusinessLogicService businessLogicService, string urlNamespace, ToolDefinition definition)
         {
             this._BusinessLogicService = businessLogicService;
+            this._UrlNamespace = urlNamespace;
             this._Definition = definition;
             this._ProtocolTool = new Tool()
             {
@@ -87,7 +95,7 @@ namespace GenericMCPServerBackend.Core.Misc
                         arguments[argument.Key] = argument.Value.ValueKind == JsonValueKind.String ? argument.Value.GetString() : argument.Value.GetRawText();
                     }
                 }
-                string output = this._BusinessLogicService.RunTool(this._Definition.ToolName, arguments);
+                string output = this._BusinessLogicService.RunTool(this._UrlNamespace, this._Definition.ToolName, arguments);
                 return new ValueTask<CallToolResult>(CreateResult(output, false));
             }
             catch (Exception exception)

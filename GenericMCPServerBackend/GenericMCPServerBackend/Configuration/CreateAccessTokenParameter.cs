@@ -17,6 +17,13 @@ namespace GenericMCPServerBackend.Core.Configuration
         [Option(nameof(Client), Required = true, HelpText = "The name of the client the token belongs to.")]
         public string Client { get; set; }
 
+        /// <summary>
+        /// The mcp-server the token is valid for. A token is valid for all tools of that mcp-server and for no tool of
+        /// another one.
+        /// </summary>
+        [Option(nameof(McpServer), Required = true, HelpText = "The url-namespace of the mcp-server the token is valid for.")]
+        public string McpServer { get; set; }
+
         /// <summary>The amount of days the token is valid. Every token has an end; there is no endless one.</summary>
         [Option(nameof(ValidForDays), Required = false, Default = 365, HelpText = "The amount of days the token is valid.")]
         public int ValidForDays { get; set; }

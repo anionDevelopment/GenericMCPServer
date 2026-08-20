@@ -1,5 +1,5 @@
 using GenericMCPServerBackend.Core.Configuration;
-using GenericMCPServerBackend.Core.Constants;
+using GenericMCPServerBackend.Core.Model;
 using GenericMCPServerBackend.Core.Services;
 using GRYLibrary.Core.APIServer.Mid.M01APIK;
 using GRYLibrary.Core.APIServer.Services.Logger;
@@ -72,7 +72,8 @@ namespace GenericMCPServerBackend.Core.Misc
 
         public override bool APIKeyIsAuthorized(string apiKey, HttpContext context)
         {
-            if (this._AccessTokenService.TryGetClient(apiKey, out string client))
+            MCPServerDefinition mcpServer = this._BusinessLogicService.GetMCPServerOfRoute(context.Request.Path);
+            if (mcpServer != null && this._AccessTokenService.TryGetClient(apiKey, mcpServer.UrlNamespace, out string client))
             {
                 context.Items[ClientInformationName] = client;
                 return true;
@@ -80,95 +81,23 @@ namespace GenericMCPServerBackend.Core.Misc
             return false;
         }
 
-        public override async Task Invoke(HttpContext context)
+        public override Task Invoke(HttpContext context)
         {
-            // Only the route of the protocol is protected. The health-check has to stay reachable without a token,
-            // because the image checks itself with it (see the HEALTHCHECK of the Dockerfile).
-            if (!context.Request.Path.StartsWithSegments(CodeUnitSpecificConstants.MCPRoute))
+            // Only the route of an mcp-server is protected. Everything else - above all the health-check, which the
+            // image checks itself with (see the HEALTHCHECK of the Dockerfile) - stays reachable without a token.
+            MCPServerDefinition mcpServer = this._BusinessLogicService.GetMCPServerOfRoute(context.Request.Path);
+            if (mcpServer == null)
             {
-                await this._Next(context);
-                return;
+                return this._Next(context);
             }
-            if (this.IsAuthorized(context) || await this.IsAllowedWithoutAnAccessTokenAsync(context))
+            // An mcp-server is either one which everybody may use or one which only its own clients may use. That is
+            // decided per mcp-server and not per tool, so the route already answers the question.
+            if (mcpServer.Anonymous || this.IsAuthorized(context))
             {
-                await this._Next(context);
-                return;
+                return this._Next(context);
             }
             throw new BadRequestException(StatusCodes.Status401Unauthorized);
         }
 
-        /// <summary>
-        /// States whether the request may be answered although it carries no valid token.
-        ///
-        /// A tool which is declared as anonymous is usable by everybody, so a client has to be able to reach it: it
-        /// has to be able to start the protocol, to see that tool and to call it. Everything else stays behind the
-        /// token - what an anonymous caller sees in the list is decided where the list is built, so a tool which is
-        /// not anonymous is not even visible.
-        /// </summary>
-        private async Task<bool> IsAllowedWithoutAnAccessTokenAsync(HttpContext context)
-        {
-            (string method, string toolName) = await ReadMessageAsync(context);
-            if (method == null)
-            {
-                return false;
-            }
-            if (method == "initialize" || method == "ping" || method == "tools/list" || method.StartsWith("notifications/", StringComparison.Ordinal))
-            {
-                return true;
-            }
-            if (method == "tools/call")
-            {
-                return this._BusinessLogicService.ToolIsAnonymous(toolName);
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Reads which method the message asks for and, if it is a call of a tool, which tool it asks for.
-        ///
-        /// The body is buffered before it is read, because the SDK reads it afterwards as well. A message which can
-        /// not be read at all yields nothing, which makes the request one which needs a token - the safe direction.
-        /// </summary>
-        private static async Task<(string Method, string ToolName)> ReadMessageAsync(HttpContext context)
-        {
-            if (!HttpMethods.IsPost(context.Request.Method))
-            {
-                return (null, null);
-            }
-            context.Request.EnableBuffering();
-            try
-            {
-                using (JsonDocument document = await JsonDocument.ParseAsync(context.Request.Body))
-                {
-                    if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("method", out JsonElement method) || method.ValueKind != JsonValueKind.String)
-                    {
-                        return (null, null);
-                    }
-                    string toolName = null;
-                    if (document.RootElement.TryGetProperty("params", out JsonElement parameters) && parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("name", out JsonElement name) && name.ValueKind == JsonValueKind.String)
-                    {
-                        toolName = name.GetString();
-                    }
-                    return (method.GetString(), toolName);
-                }
-            }
-            catch (JsonException)
-            {
-                return (null, null);
-            }
-            finally
-            {
-                context.Request.Body.Position = 0;
-            }
-        }
-
-        /// <summary>
-        /// States whether the request which is currently answered belongs to a client which authenticated itself.
-        /// </summary>
-        internal static bool RequestIsAuthenticated(IServiceProvider services)
-        {
-            HttpContext httpContext = services?.GetService<IHttpContextAccessor>()?.HttpContext;
-            return httpContext != null && httpContext.Items.ContainsKey(ClientInformationName);
-        }
     }
 }

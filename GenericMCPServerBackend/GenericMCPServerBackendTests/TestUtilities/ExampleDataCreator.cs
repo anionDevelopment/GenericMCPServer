@@ -30,6 +30,12 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </summary>
         public const string AnonymousExampleToolName = "anonymous_example_tool";
 
+        /// <summary>The mcp-server which only a client with an access-token reaches.</summary>
+        public const string UrlNamespace = "Example";
+
+        /// <summary>The mcp-server which everybody may use.</summary>
+        public const string AnonymousUrlNamespace = "PublicExample";
+
         /// <summary>
         /// A script which answers with the value it got, and fails with a readable reason when that value does not have
         /// the expected format. It is the smallest thing which still shows both directions a tool can end in.
@@ -84,21 +90,31 @@ sys.stdout.write('the answer is ' + arguments.value)
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");
             File.WriteAllText(this.ToolDefinitionsFile, @"{
-    ""tools"": [
+    ""mcp-servers"": [
         {
-            ""tool-name"": """ + ExampleToolName + @""",
-            ""type"": ""python"",
-            ""calls"": ""ExampleTool.py"",
-            ""description"": ""Answers with the value it got."",
-            ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+            ""url-namespace"": """ + UrlNamespace + @""",
+            ""tools"": [
+                {
+                    ""tool-name"": """ + ExampleToolName + @""",
+                    ""type"": ""python"",
+                    ""calls"": ""ExampleTool.py"",
+                    ""description"": ""Answers with the value it got."",
+                    ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+                }
+            ]
         },
         {
-            ""tool-name"": """ + AnonymousExampleToolName + @""",
-            ""type"": ""python"",
+            ""url-namespace"": """ + AnonymousUrlNamespace + @""",
             ""anonymous"": true,
-            ""calls"": ""ExampleTool.py"",
-            ""description"": ""Answers with the value it got and may be used by everybody."",
-            ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+            ""tools"": [
+                {
+                    ""tool-name"": """ + AnonymousExampleToolName + @""",
+                    ""type"": ""python"",
+                    ""calls"": ""ExampleTool.py"",
+                    ""description"": ""Answers with the value it got and may be used by everybody."",
+                    ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+                }
+            ]
         }
     ]
 }");

@@ -27,7 +27,7 @@ namespace GenericMCPServerBackend.Core.Services
 
         private const char Separator = ';';
 
-        private const string Header = "client;tokenhash;validuntil";
+        private const string Header = "client;mcpserver;tokenhash;validuntil";
 
         /// <summary>
         /// The beginning of a token. It makes a token recognizable as one - in a log, in a configuration-file of a
@@ -40,6 +40,12 @@ namespace GenericMCPServerBackend.Core.Services
         /// log, so it stays at characters which mean the same everywhere.
         /// </summary>
         private static readonly Regex ClientRegex = new Regex("^[A-Za-z0-9_-]{1,128}$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// The form of the namespace of an mcp-server. It is the same one which a declaration has to use, so a token
+        /// can not be created for a namespace which no mcp-server could ever have.
+        /// </summary>
+        private static readonly Regex UrlNamespaceRegex = new Regex("^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$", RegexOptions.Compiled);
 
         private readonly string _File;
 
@@ -83,10 +89,10 @@ namespace GenericMCPServerBackend.Core.Services
             File.WriteAllLines(this._File, new string[] { Header }, Encoding.UTF8);
         }
 
-        public bool TryGetClient(string token, out string client)
+        public bool TryGetClient(string token, string urlNamespace, out string client)
         {
             client = null;
-            if (string.IsNullOrWhiteSpace(token))
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(urlNamespace))
             {
                 return false;
             }
@@ -96,7 +102,9 @@ namespace GenericMCPServerBackend.Core.Services
             // immediately, without a restart of the server, and the file stays the only place which decides.
             foreach (AccessToken accessToken in this.ReadAll())
             {
-                if (string.Equals(accessToken.Hash, hash, StringComparison.OrdinalIgnoreCase) && accessToken.IsValidAt(now))
+                // The token has to belong to the mcp-server which is asked for: a token of one mcp-server is no access
+                // to another one, even though both are hosted by the same process.
+                if (string.Equals(accessToken.Hash, hash, StringComparison.OrdinalIgnoreCase) && string.Equals(accessToken.UrlNamespace, urlNamespace, StringComparison.OrdinalIgnoreCase) && accessToken.IsValidAt(now))
                 {
                     client = accessToken.Client;
                     return true;
@@ -105,11 +113,15 @@ namespace GenericMCPServerBackend.Core.Services
             return false;
         }
 
-        public string CreateAccessToken(string client, int validForDays)
+        public string CreateAccessToken(string client, string urlNamespace, int validForDays)
         {
             if (client == null || !ClientRegex.IsMatch(client))
             {
                 throw new ArgumentException($"\"{client}\" is not a usable name of a client. Such a name may consist of letters, digits, underscores and hyphens.", nameof(client));
+            }
+            if (urlNamespace == null || !UrlNamespaceRegex.IsMatch(urlNamespace))
+            {
+                throw new ArgumentException($"\"{urlNamespace}\" is not a usable url-namespace of an mcp-server. It may consist of parts of letters, digits, underscores and hyphens which are separated by \"/\".", nameof(urlNamespace));
             }
             if (validForDays < 1)
             {
@@ -118,7 +130,7 @@ namespace GenericMCPServerBackend.Core.Services
             string token = TokenPrefix + Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
             DateTime validUntil = DateTime.UtcNow.AddDays(validForDays);
             this.EnsureFileExists();
-            File.AppendAllLines(this._File, new string[] { $"{client}{Separator}{GetHash(token)}{Separator}{FormatPointInTime(validUntil)}" }, Encoding.UTF8);
+            File.AppendAllLines(this._File, new string[] { $"{client}{Separator}{urlNamespace}{Separator}{GetHash(token)}{Separator}{FormatPointInTime(validUntil)}" }, Encoding.UTF8);
             return token;
         }
 
@@ -142,15 +154,15 @@ namespace GenericMCPServerBackend.Core.Services
                     continue;
                 }
                 string[] parts = line.Split(Separator);
-                if (parts.Length != 3)
+                if (parts.Length != 4)
                 {
-                    throw new InvalidOperationException($"Line {index + 1} of \"{this._File}\" does not consist of the three values \"{Header}\".");
+                    throw new InvalidOperationException($"Line {index + 1} of \"{this._File}\" does not consist of the four values \"{Header}\".");
                 }
-                if (!DateTime.TryParse(parts[2].Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTime validUntil))
+                if (!DateTime.TryParse(parts[3].Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTime validUntil))
                 {
-                    throw new InvalidOperationException($"Line {index + 1} of \"{this._File}\" states \"{parts[2].Trim()}\" as the point in time up to which the token is valid, which is not a readable point in time.");
+                    throw new InvalidOperationException($"Line {index + 1} of \"{this._File}\" states \"{parts[3].Trim()}\" as the point in time up to which the token is valid, which is not a readable point in time.");
                 }
-                result.Add(new AccessToken(parts[0].Trim(), parts[1].Trim(), validUntil));
+                result.Add(new AccessToken(parts[0].Trim(), parts[1].Trim(), parts[2].Trim(), validUntil));
             }
             return result;
         }

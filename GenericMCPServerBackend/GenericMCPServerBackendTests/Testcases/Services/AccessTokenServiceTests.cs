@@ -47,7 +47,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
 
                 // assert
                 Assert.IsTrue(File.Exists(file));
-                Assert.AreEqual("client;tokenhash;validuntil", File.ReadAllLines(file)[0]);
+                Assert.AreEqual("client;mcpserver;tokenhash;validuntil", File.ReadAllLines(file)[0]);
                 Assert.AreEqual(0, new AccessTokenService(file).ReadAll().Count, "A file which was just created contains no token.");
             }
             finally
@@ -67,10 +67,10 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IAccessTokenService accessTokenService = new AccessTokenService(file);
 
                 // act
-                string token = accessTokenService.CreateAccessToken("team-a", 30);
+                string token = accessTokenService.CreateAccessToken("team-a", "teamA", 30);
 
                 // assert
-                Assert.IsTrue(accessTokenService.TryGetClient(token, out string client));
+                Assert.IsTrue(accessTokenService.TryGetClient(token, "teamA", out string client));
                 Assert.AreEqual("team-a", client);
             }
             finally
@@ -93,7 +93,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IAccessTokenService accessTokenService = new AccessTokenService(file);
 
                 // act
-                string token = accessTokenService.CreateAccessToken("team-a", 30);
+                string token = accessTokenService.CreateAccessToken("team-a", "teamA", 30);
 
                 // assert
                 Assert.IsFalse(File.ReadAllText(file).Contains(token, StringComparison.Ordinal), "The file must contain the hash of the token and not the token.");
@@ -119,12 +119,12 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IAccessTokenService accessTokenService = new AccessTokenService(file);
 
                 // act
-                string firstToken = accessTokenService.CreateAccessToken("team-a", 30);
-                string secondToken = accessTokenService.CreateAccessToken("team-a", 60);
+                string firstToken = accessTokenService.CreateAccessToken("team-a", "teamA", 30);
+                string secondToken = accessTokenService.CreateAccessToken("team-a", "teamA", 60);
 
                 // assert
-                Assert.IsTrue(accessTokenService.TryGetClient(firstToken, out string clientOfTheFirstToken));
-                Assert.IsTrue(accessTokenService.TryGetClient(secondToken, out string clientOfTheSecondToken));
+                Assert.IsTrue(accessTokenService.TryGetClient(firstToken, "teamA", out string clientOfTheFirstToken));
+                Assert.IsTrue(accessTokenService.TryGetClient(secondToken, "teamA", out string clientOfTheSecondToken));
                 Assert.AreEqual("team-a", clientOfTheFirstToken);
                 Assert.AreEqual("team-a", clientOfTheSecondToken);
                 Assert.AreNotEqual(firstToken, secondToken);
@@ -144,12 +144,12 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
             try
             {
                 IAccessTokenService accessTokenService = new AccessTokenService(file);
-                accessTokenService.CreateAccessToken("team-a", 30);
+                accessTokenService.CreateAccessToken("team-a", "teamA", 30);
 
                 // act & assert
-                Assert.IsFalse(accessTokenService.TryGetClient("gmcp_0000000000000000000000000000000000000000000000000000000000000000", out string _));
-                Assert.IsFalse(accessTokenService.TryGetClient(string.Empty, out string _));
-                Assert.IsFalse(accessTokenService.TryGetClient(null, out string _));
+                Assert.IsFalse(accessTokenService.TryGetClient("gmcp_0000000000000000000000000000000000000000000000000000000000000000", "teamA", out string _));
+                Assert.IsFalse(accessTokenService.TryGetClient(string.Empty, "teamA", out string _));
+                Assert.IsFalse(accessTokenService.TryGetClient(null, "teamA", out string _));
             }
             finally
             {
@@ -170,13 +170,13 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
             try
             {
                 AccessTokenService accessTokenService = new AccessTokenService(file);
-                string token = accessTokenService.CreateAccessToken("team-a", 30);
+                string token = accessTokenService.CreateAccessToken("team-a", "teamA", 30);
                 // the end of the token is moved into the past, which is what happens by itself when time passes
                 IReadOnlyList<AccessToken> tokens = accessTokenService.ReadAll();
-                File.WriteAllLines(file, new string[] { "client;tokenhash;validuntil", $"{tokens[0].Client};{tokens[0].Hash};2020-01-01T00:00:00Z" });
+                File.WriteAllLines(file, new string[] { "client;mcpserver;tokenhash;validuntil", $"{tokens[0].Client};{tokens[0].UrlNamespace};{tokens[0].Hash};2020-01-01T00:00:00Z" });
 
                 // act & assert
-                Assert.IsFalse(accessTokenService.TryGetClient(token, out string _));
+                Assert.IsFalse(accessTokenService.TryGetClient(token, "teamA", out string _));
             }
             finally
             {
@@ -199,9 +199,9 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IAccessTokenService accessTokenService = new AccessTokenService(file);
 
                 // act & assert
-                Assert.ThrowsException<ArgumentException>(() => accessTokenService.CreateAccessToken("team;a", 30));
-                Assert.ThrowsException<ArgumentException>(() => accessTokenService.CreateAccessToken(string.Empty, 30));
-                Assert.ThrowsException<ArgumentException>(() => accessTokenService.CreateAccessToken("team-a", 0), "A token which is valid for no day is no token.");
+                Assert.ThrowsException<ArgumentException>(() => accessTokenService.CreateAccessToken("team;a", "teamA", 30));
+                Assert.ThrowsException<ArgumentException>(() => accessTokenService.CreateAccessToken(string.Empty, "teamA", 30));
+                Assert.ThrowsException<ArgumentException>(() => accessTokenService.CreateAccessToken("team-a", "teamA", 0), "A token which is valid for no day is no token.");
             }
             finally
             {
@@ -222,7 +222,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
             try
             {
                 AccessTokenService accessTokenService = new AccessTokenService(file);
-                File.WriteAllLines(file, new string[] { "client;tokenhash;validuntil", "team-a;abc" });
+                File.WriteAllLines(file, new string[] { "client;mcpserver;tokenhash;validuntil", "team-a;teamA;abc" });
 
                 // act & assert
                 Assert.ThrowsException<InvalidOperationException>(() => accessTokenService.ReadAll());

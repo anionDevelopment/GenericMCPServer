@@ -1,52 +1,68 @@
 {
-    "tools": [
+    "mcp-servers": [
         {
-            "tool-name": "get_cve_details",
-            "type": "python",
-            "calls": "GetCVEDetails.py",
-            "description": "Returns the details of a CVE (description, severity and references) from the national vulnerability database.",
-            "parameters": [ "cve-identifier" ]
+            "url-namespace": "GeneralTools",
+            "anonymous": true,
+            "tools": [
+                {
+                    "tool-name": "get_current_utc_time",
+                    "type": "shell",
+                    "calls": "GetCurrentUTCTime.sh",
+                    "description": "Returns the current point in time in utc.",
+                    "parameters": [ ]
+                }
+            ]
         },
         {
-            "tool-name": "get_maven_versions",
-            "type": "python",
-            "calls": "GetAvailableMavenVersions.py",
-            "description": "Returns the versions of a maven-package which are available on maven-central.",
-            "parameters": [ "group-id", "artifact-id" ]
+            "url-namespace": "Security",
+            "tools": [
+                {
+                    "tool-name": "get_cve_details",
+                    "type": "python",
+                    "calls": "GetCVEDetails.py",
+                    "description": "Returns the details of a CVE (description, severity and references) from the national vulnerability database.",
+                    "parameters": [ "cve-identifier" ]
+                }
+            ]
         },
         {
-            "tool-name": "get_nuget_versions",
-            "type": "python",
-            "calls": "GetAvailableNuGetVersions.py",
-            "description": "Returns the versions of a nuget-package which are available on nuget.org.",
-            "parameters": [ "package-id" ]
-        },
-        {
-            "tool-name": "get_pypi_versions",
-            "type": "python",
-            "calls": "GetAvailablePyPIVersions.py",
-            "description": "Returns the versions of a python-package which are available on pypi.",
-            "parameters": [ "package-name" ]
-        },
-        {
-            "tool-name": "get_npm_versions",
-            "type": "python",
-            "calls": "GetAvailableNPMVersions.py",
-            "description": "Returns the versions of a npm-package which are available on the npm-registry.",
-            "parameters": [ "package-name" ]
-        },
-        {
-            "tool-name": "get_current_utc_time",
-            "type": "shell",
-            "calls": "GetCurrentUTCTime.sh",
-            "description": "Returns the current point in time in utc.",
-            "parameters": [ ]
-        },
-        {
-            "tool-name": "get_pypi_package_metadata",
-            "type": "web-request",
-            "description": "Returns the metadata which pypi publishes about a python-package. The address of the package is \"pypi.org/pypi/<package-name>/json\".",
-            "allowed-urls": [ "pypi\\.org/pypi/.*" ]
+            "url-namespace": "DeveloperTools",
+            "tools": [
+                {
+                    "tool-name": "get_maven_versions",
+                    "type": "python",
+                    "calls": "GetAvailableMavenVersions.py",
+                    "description": "Returns the versions of a maven-package which are available on maven-central.",
+                    "parameters": [ "group-id", "artifact-id" ]
+                },
+                {
+                    "tool-name": "get_nuget_versions",
+                    "type": "python",
+                    "calls": "GetAvailableNuGetVersions.py",
+                    "description": "Returns the versions of a nuget-package which are available on nuget.org.",
+                    "parameters": [ "package-id" ]
+                },
+                {
+                    "tool-name": "get_pypi_versions",
+                    "type": "python",
+                    "calls": "GetAvailablePyPIVersions.py",
+                    "description": "Returns the versions of a python-package which are available on pypi.",
+                    "parameters": [ "package-name" ]
+                },
+                {
+                    "tool-name": "get_npm_versions",
+                    "type": "python",
+                    "calls": "GetAvailableNPMVersions.py",
+                    "description": "Returns the versions of a npm-package which are available on the npm-registry.",
+                    "parameters": [ "package-name" ]
+                },
+                {
+                    "tool-name": "get_pypi_package_metadata",
+                    "type": "web-request",
+                    "description": "Returns the metadata which pypi publishes about a python-package. The address of the package is \"pypi.org/pypi/<package-name>/json\".",
+                    "allowed-urls": [ "pypi\\.org/pypi/.*" ]
+                }
+            ]
         }
     ]
 }

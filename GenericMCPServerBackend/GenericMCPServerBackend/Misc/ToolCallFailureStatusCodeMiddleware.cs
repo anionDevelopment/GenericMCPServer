@@ -1,4 +1,4 @@
-using GenericMCPServerBackend.Core.Constants;
+using GenericMCPServerBackend.Core.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using System.IO;
@@ -25,9 +25,12 @@ namespace GenericMCPServerBackend.Core.Misc
 
         private readonly RequestDelegate _Next;
 
-        public ToolCallFailureStatusCodeMiddleware(RequestDelegate next)
+        private readonly IBusinessLogicService _BusinessLogicService;
+
+        public ToolCallFailureStatusCodeMiddleware(RequestDelegate next, IBusinessLogicService businessLogicService)
         {
             this._Next = next;
+            this._BusinessLogicService = businessLogicService;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -35,7 +38,7 @@ namespace GenericMCPServerBackend.Core.Misc
             // Only a message of the protocol is collected. Every other route answers directly, and a request which is
             // no message (a stream which a client opens with GET, for example) would never end, so collecting its
             // answer would hold it back forever.
-            if (!HttpMethods.IsPost(context.Request.Method) || !context.Request.Path.StartsWithSegments(CodeUnitSpecificConstants.MCPRoute))
+            if (!HttpMethods.IsPost(context.Request.Method) || this._BusinessLogicService.GetMCPServerOfRoute(context.Request.Path) == null)
             {
                 await this._Next(context);
                 return;

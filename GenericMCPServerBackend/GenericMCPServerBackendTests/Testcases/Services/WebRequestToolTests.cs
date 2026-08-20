@@ -1,5 +1,6 @@
 using GenericMCPServerBackend.Core.Model;
 using GenericMCPServerBackend.Core.Services;
+using GenericMCPServerBackend.Tests.TestUtilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,8 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
     [TestClass]
     public class WebRequestToolTests
     {
+        private const string UrlNamespace = MCPServerWrapper.UrlNamespace;
+
         private const string OneTool = @"{
             ""tools"": [
                 {
@@ -38,7 +41,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
         {
             Directory.CreateDirectory(folder);
             string file = Path.Combine(folder, "Tools.json");
-            File.WriteAllText(file, toolDefinitions);
+            File.WriteAllText(file, MCPServerWrapper.WrapInAnMCPServer(toolDefinitions));
             return new BusinessLogicService(file, Path.Combine(folder, "VirtualEnvironments"));
         }
 
@@ -55,7 +58,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
             try
             {
                 // act
-                IReadOnlyList<ToolDefinition> definitions = CreateBusinessLogicService(folder, OneTool).GetToolDefinitions();
+                IList<ToolDefinition> definitions = CreateBusinessLogicService(folder, OneTool).GetMCPServers()[0].Tools;
 
                 // assert
                 CollectionAssert.AreEqual(new string[] { WebRequestService.UrlParameterName }, new List<string>(definitions[0].Parameters));
@@ -81,7 +84,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool("example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/something" } }));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/something" } }));
 
                 // assert
                 StringAssert.Contains(exception.Message, "does not allow");
@@ -107,8 +110,8 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act & assert
-                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool("example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/?x=example.com/page" } }), "An address which contains an allowed one must not be allowed.");
-                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool("example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com.other.com/page" } }), "A host which only starts with an allowed one must not be allowed.");
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/?x=example.com/page" } }), "An address which contains an allowed one must not be allowed.");
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com.other.com/page" } }), "A host which only starts with an allowed one must not be allowed.");
             }
             finally
             {
@@ -131,7 +134,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool("example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "http://example.com/page" } }));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "http://example.com/page" } }));
 
                 // assert
                 StringAssert.Contains(exception.Message, WebRequestService.Protocol);
@@ -157,7 +160,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act & assert
-                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool("example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com@other.com/page" } }));
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com@other.com/page" } }));
             }
             finally
             {

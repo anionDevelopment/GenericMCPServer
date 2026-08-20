@@ -1,5 +1,6 @@
 using GenericMCPServerBackend.Core.Model;
 using GenericMCPServerBackend.Core.Services;
+using GenericMCPServerBackend.Tests.TestUtilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,8 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
     [TestClass]
     public class CredentialsTests
     {
+        private const string UrlNamespace = MCPServerWrapper.UrlNamespace;
+
         /// <summary>A script which answers with the credentials it can see.</summary>
         private const string ScriptContent = @"import os
 import sys
@@ -64,7 +67,7 @@ sys.exit(1)
             File.WriteAllText(Path.Combine(folder, "Credentials.py"), ScriptContent);
             File.WriteAllText(Path.Combine(folder, "Leaking.py"), LeakingScriptContent);
             string file = Path.Combine(folder, "Tools.json");
-            File.WriteAllText(file, toolDefinitions);
+            File.WriteAllText(file, MCPServerWrapper.WrapInAnMCPServer(toolDefinitions));
             return file;
         }
 
@@ -103,7 +106,7 @@ sys.exit(1)
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, ToolWithACredential);
 
                 // act
-                string answer = businessLogicService.RunTool("credentials", new Dictionary<string, string>());
+                string answer = businessLogicService.RunTool(UrlNamespace, "credentials", new Dictionary<string, string>());
 
                 // assert
                 Assert.AreEqual($"{Value}|<none>", answer);
@@ -152,7 +155,7 @@ sys.exit(1)
                 }");
 
                 // act
-                string answer = businessLogicService.RunTool("credentials", new Dictionary<string, string>());
+                string answer = businessLogicService.RunTool(UrlNamespace, "credentials", new Dictionary<string, string>());
 
                 // assert
                 Assert.AreEqual($"{Value}|<none>", answer, "The variable which the credential of the other tool is read from must not be visible here.");
@@ -185,7 +188,7 @@ sys.exit(1)
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, ToolWithACredential);
 
                 // act
-                string answer = businessLogicService.RunTool("credentials", new Dictionary<string, string>());
+                string answer = businessLogicService.RunTool(UrlNamespace, "credentials", new Dictionary<string, string>());
 
                 // assert
                 Assert.AreEqual($"{Value}|<none>", answer);
@@ -247,7 +250,7 @@ sys.exit(1)
                         }
                     ]
                 }");
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool("leaking", new Dictionary<string, string>()));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "leaking", new Dictionary<string, string>()));
                 StringAssert.Contains(exception.Message, Value, "The script really has to have written its credential, otherwise this testcase would prove nothing.");
 
                 // act: this is what ScriptTool does before the message becomes the result of the call

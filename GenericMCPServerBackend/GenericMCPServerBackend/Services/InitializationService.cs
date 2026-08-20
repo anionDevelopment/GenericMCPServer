@@ -36,10 +36,14 @@ namespace GenericMCPServerBackend.Core.Services
             try
             {
                 this._InitializationState = new Initializing();
-                // There is nothing to prepare here: the tools are read while the business-logic-service is created, and
-                // a declaration which is broken already made the start fail at that point. What is worth stating is how
-                // many tools this server offers, because that is the first thing to look at when a client sees none.
-                this._Logger.Logger.Log($"{this._BusinessLogicService.GetToolDefinitions().Count} tool(s) are offered.", Microsoft.Extensions.Logging.LogLevel.Information);
+                // There is nothing to prepare here: the declarations are read while the business-logic-service is
+                // created, and a declaration which is broken already made the start fail at that point. What is worth
+                // stating is which mcp-servers this process hosts and how many tools each of them offers, because that
+                // is the first thing to look at when a client sees none.
+                foreach (Model.MCPServerDefinition mcpServer in this._BusinessLogicService.GetMCPServers())
+                {
+                    this._Logger.Logger.Log($"The mcp-server \"{mcpServer.UrlNamespace}\" offers {mcpServer.Tools.Count} tool(s) under \"{Constants.CodeUnitSpecificConstants.GetMCPRoute(mcpServer.UrlNamespace)}\".", Microsoft.Extensions.Logging.LogLevel.Information);
+                }
                 this._InitializationState = new Initialized();
             }
             catch (Exception exception)

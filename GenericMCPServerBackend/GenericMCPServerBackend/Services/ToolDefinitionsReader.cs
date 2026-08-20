@@ -30,6 +30,11 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         private static readonly Regex CredentialNameRegex = new Regex("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
+        /// <summary>
+        /// The form of the namespace of an mcp-server: parts which are usable in an url, separated by "/".
+        /// </summary>
+        private static readonly Regex UrlNamespaceRegex = new Regex("^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$", RegexOptions.Compiled);
+
         /// <summary>How a header refers to a credential of its tool.</summary>
         private static readonly Regex CredentialReferenceRegex = new Regex(@"\$\{([^}]*)\}", RegexOptions.Compiled);
 
@@ -39,7 +44,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="file">The tool-definitions-file.</param>
         /// <exception cref="FileNotFoundException">Thrown when the file does not exist. That is an error and not an empty list of tools, because a configured-but-missing file is a mistake which would otherwise stay unnoticed.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the file is not a valid json-document or a declaration in it is incomplete, contradictory or ambiguous.</exception>
-        public static IReadOnlyList<ToolDefinition> Read(string file)
+        public static IReadOnlyList<MCPServerDefinition> Read(string file)
         {
             if (!File.Exists(file))
             {
@@ -54,17 +59,50 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 throw new InvalidOperationException($"The tool-definitions-file \"{file}\" is not a valid json-document: {exception.Message}", exception);
             }
-            List<ToolDefinition> result = new List<ToolDefinition>(definitions?.Tools ?? new List<ToolDefinition>());
-            foreach (ToolDefinition definition in result)
+            List<MCPServerDefinition> result = new List<MCPServerDefinition>(definitions?.MCPServers ?? new List<MCPServerDefinition>());
+            if (result.Count == 0 && 0 < (definitions?.ToolsOfTheFormerForm?.Count ?? 0))
+            {
+                // A file of the former form would otherwise silently declare nothing at all, because a tool now
+                // belongs to an mcp-server.
+                throw new InvalidOperationException($"The tool-definitions-file \"{file}\" declares tools directly. Every tool belongs to an mcp-server now, so the tools have to be moved into an entry of \"mcp-servers\" which states its \"url-namespace\".");
+            }
+            foreach (MCPServerDefinition mcpServer in result)
+            {
+                Validate(mcpServer, file);
+            }
+            string duplicatedNamespace = result.GroupBy(mcpServer => mcpServer.UrlNamespace, StringComparer.OrdinalIgnoreCase).Where(group => 1 < group.Count()).Select(group => group.Key).FirstOrDefault();
+            if (duplicatedNamespace != null)
+            {
+                throw new InvalidOperationException($"The tool-definitions-file \"{file}\" declares the url-namespace \"{duplicatedNamespace}\" more than once, so it would not be decidable which mcp-server is meant by it.");
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Checks one mcp-server: its namespace decides its address, so it has to be usable as a part of an url, and
+        /// its tools have to be unambiguous within it. Two mcp-servers may use the same tool-name, because a client of
+        /// one of them never sees the other one.
+        /// </summary>
+        private static void Validate(MCPServerDefinition mcpServer, string file)
+        {
+            if (string.IsNullOrWhiteSpace(mcpServer.UrlNamespace))
+            {
+                throw new InvalidOperationException($"The tool-definitions-file \"{file}\" contains an mcp-server without a url-namespace, which is what its address consists of.");
+            }
+            if (!UrlNamespaceRegex.IsMatch(mcpServer.UrlNamespace))
+            {
+                throw new InvalidOperationException($"The url-namespace \"{mcpServer.UrlNamespace}\" in \"{file}\" is not usable. It may consist of parts of letters, digits, underscores and hyphens which are separated by \"/\" (for example \"teamA\" or \"teamA/mcpserver1\").");
+            }
+            mcpServer.Tools ??= new List<ToolDefinition>();
+            foreach (ToolDefinition definition in mcpServer.Tools)
             {
                 Validate(definition, file);
             }
-            string duplicate = result.GroupBy(definition => definition.ToolName).Where(group => 1 < group.Count()).Select(group => group.Key).FirstOrDefault();
+            string duplicate = mcpServer.Tools.GroupBy(definition => definition.ToolName).Where(group => 1 < group.Count()).Select(group => group.Key).FirstOrDefault();
             if (duplicate != null)
             {
-                throw new InvalidOperationException($"The tool-definitions-file \"{file}\" declares the tool \"{duplicate}\" more than once.");
+                throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" declares the tool \"{duplicate}\" more than once.");
             }
-            return result;
         }
 
         private static void Validate(ToolDefinition definition, string file)

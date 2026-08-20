@@ -44,7 +44,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 throw new InvalidOperationException($"The port {HTTP.DefaultPort} which the test-server uses is already in use by a process outside the test-run.");
             }
             this._ExampleDataCreator = new ExampleDataCreator();
-            this.AccessToken = new AccessTokenService(this._ExampleDataCreator.AccessTokensFile).CreateAccessToken(ClientName, 1);
+            this.AccessToken = new AccessTokenService(this._ExampleDataCreator.AccessTokensFile).CreateAccessToken(ClientName, ExampleDataCreator.UrlNamespace, 1);
             this._Program = new Program()
             {
                 // The server runs in its own thread and blocks there, so it stays up until Stop is called. Running it
@@ -108,10 +108,12 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
             return $"http://127.0.0.1:{HTTP.DefaultPort}";
         }
 
-        /// <summary>The one endpoint over which every message of the MCP-protocol is exchanged.</summary>
-        public string GetMCPEndpointURL()
+        /// <summary>
+        /// The endpoint of one mcp-server, over which every message of the MCP-protocol with it is exchanged.
+        /// </summary>
+        public string GetMCPEndpointURL(string urlNamespace)
         {
-            return $"{this.GetServerURL()}/API/v1/MCP";
+            return $"{this.GetServerURL()}/{urlNamespace}/message";
         }
 
         /// <summary>
@@ -123,7 +125,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </remarks>
         public string SendMCPMessage(string message)
         {
-            (HttpStatusCode statusCode, string answer) = this.SendMCPMessageAndGetStatusCode(message);
+            (HttpStatusCode statusCode, string answer) = this.SendMCPMessageAndGetStatusCode(message, ExampleDataCreator.UrlNamespace, this.AccessToken);
             if (!Enumerable.Range(200, 100).Contains((int)statusCode))
             {
                 throw new InvalidOperationException($"The server answered with the status-code {(int)statusCode}: {answer}");
@@ -140,14 +142,14 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </remarks>
         public (HttpStatusCode StatusCode, string Answer) SendMCPMessageAndGetStatusCode(string message)
         {
-            return this.SendMCPMessageAndGetStatusCode(message, this.AccessToken);
+            return this.SendMCPMessageAndGetStatusCode(message, ExampleDataCreator.UrlNamespace, this.AccessToken);
         }
 
         /// <summary>
         /// Sends one JSON-RPC-message with the given access-token.
         /// </summary>
         /// <param name="accessToken">The token, or null to send no token at all.</param>
-        public (HttpStatusCode StatusCode, string Answer) SendMCPMessageAndGetStatusCode(string message, string? accessToken)
+        public (HttpStatusCode StatusCode, string Answer) SendMCPMessageAndGetStatusCode(string message, string urlNamespace, string? accessToken)
         {
             using HttpClient client = new HttpClient();
             using StringContent content = new StringContent(message, Encoding.UTF8, "application/json");
@@ -156,7 +158,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
             {
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
             }
-            HttpResponseMessage response = client.PostAsync(this.GetMCPEndpointURL(), content).GetAwaiter().GetResult();
+            HttpResponseMessage response = client.PostAsync(this.GetMCPEndpointURL(urlNamespace), content).GetAwaiter().GetResult();
             return (response.StatusCode, response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
         }
 

@@ -1,3 +1,4 @@
+using GenericMCPServerBackend.Core.Constants;
 using GenericMCPServerBackend.Core.Misc;
 using GenericMCPServerBackend.Core.Model;
 using System;
@@ -35,7 +36,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         private const string ShellInterpreter = "/bin/sh";
 
-        private readonly IReadOnlyList<ToolDefinition> _ToolDefinitions;
+        private readonly IReadOnlyList<MCPServerDefinition> _MCPServers;
 
         /// <summary>
         /// The folder the scripts are resolved against: the folder of the tool-definitions-file.
@@ -60,18 +61,18 @@ namespace GenericMCPServerBackend.Core.Services
             this._VirtualEnvironmentService = new VirtualEnvironmentService(virtualEnvironmentsFolder);
             if (string.IsNullOrWhiteSpace(toolDefinitionsFile))
             {
-                this._ToolDefinitions = new List<ToolDefinition>();
+                this._MCPServers = new List<MCPServerDefinition>();
                 this._ScriptFolder = AppContext.BaseDirectory;
             }
             else
             {
                 string file = Path.GetFullPath(toolDefinitionsFile);
                 this._ScriptFolder = Path.GetDirectoryName(file);
-                this._ToolDefinitions = ToolDefinitionsReader.Read(file);
+                this._MCPServers = ToolDefinitionsReader.Read(file);
             }
             // The credentials are read after the declarations, because the declarations are what states which ones are
             // needed at all.
-            this._CredentialsService = new CredentialsService(this._ToolDefinitions.SelectMany(definition => definition.Credentials.Values));
+            this._CredentialsService = new CredentialsService(this._MCPServers.SelectMany(mcpServer => mcpServer.Tools).SelectMany(definition => definition.Credentials.Values));
             this._WebRequestService = new WebRequestService(this._CredentialsService);
         }
 
@@ -80,16 +81,15 @@ namespace GenericMCPServerBackend.Core.Services
             return this._CredentialsService.RemoveValuesFrom(text);
         }
 
-        public bool ToolIsAnonymous(string toolName)
+
+        public IReadOnlyList<MCPServerDefinition> GetMCPServers()
         {
-            ToolDefinition definition = this._ToolDefinitions.FirstOrDefault(tool => tool.ToolName == toolName);
-            // A tool which is not declared is not anonymous: a name which nobody declared must not open a door.
-            return definition != null && definition.Anonymous;
+            return this._MCPServers;
         }
 
-        public IReadOnlyList<ToolDefinition> GetToolDefinitions()
+        public MCPServerDefinition GetMCPServerOfRoute(string route)
         {
-            return this._ToolDefinitions;
+            return this._MCPServers.FirstOrDefault(mcpServer => string.Equals(CodeUnitSpecificConstants.GetMCPRoute(mcpServer.UrlNamespace), route?.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -99,12 +99,17 @@ namespace GenericMCPServerBackend.Core.Services
         /// <exception cref="FileNotFoundException">Thrown when the script of the tool does not exist.</exception>
         /// <exception cref="PlatformNotSupportedException">Thrown when the tool can not run on this system.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the tool failed. The message contains what it reported.</exception>
-        public string RunTool(string toolName, IReadOnlyDictionary<string, string> arguments)
+        public string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments)
         {
-            ToolDefinition definition = this._ToolDefinitions.FirstOrDefault(tool => tool.ToolName == toolName);
+            MCPServerDefinition mcpServer = this._MCPServers.FirstOrDefault(server => string.Equals(server.UrlNamespace, urlNamespace, StringComparison.OrdinalIgnoreCase));
+            if (mcpServer == null)
+            {
+                throw new KeyNotFoundException($"No mcp-server with the url-namespace \"{urlNamespace}\" is declared.");
+            }
+            ToolDefinition definition = mcpServer.Tools.FirstOrDefault(tool => tool.ToolName == toolName);
             if (definition == null)
             {
-                throw new KeyNotFoundException($"No tool with the name \"{toolName}\" is declared.");
+                throw new KeyNotFoundException($"The mcp-server \"{urlNamespace}\" declares no tool with the name \"{toolName}\".");
             }
             // The type was already checked while the declarations were read, so it is known to be one of the possible
             // ones here.
