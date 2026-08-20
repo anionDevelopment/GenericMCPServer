@@ -1,24 +1,22 @@
 <?xml version='1.0' encoding='utf-8'?>
 <codeunit xmlns="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" codeunitspecificationversion="3.0.0" xsi:schemaLocation="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/raw/v3.0.0/Conventions/RepositoryStructure/CommonProjectStructure/codeunit.xsd" enabled="true">
-    <name>GenericMCPServer</name>
-    <version>0.2.1</version>
-    <codeunitownername>Marius Göcke</codeunitownername>
-    <codeunitowneremailaddress>marius.goecke@gmail.com</codeunitowneremailaddress>
-    <properties codeunithastestablesourcecode="false" codeunithasupdatabledependencies="true" throwexceptionifcodeunitfilecannotbevalidated="false" developmentstate="Active development" description="GenericMCPServer is a simple MCP-server which is reachable over HTTP.">
-        <pipelinedemands>
-        </pipelinedemands>
-        <updatesettings>
-            <ignoreddependencies>
-            </ignoreddependencies>
-        </updatesettings>
-    </properties>
-    <dependentcodeunits>
-        <dependentcodeunit>GenericMCPServerBackend</dependentcodeunit>
-    </dependentcodeunits>
-    <developerteam>
-        <developer>
-            <developername>Marius Göcke</developername>
-            <developeremailaddress>marius.goecke@gmail.com</developeremailaddress>
-        </developer>
-    </developerteam>
+  <name>GenericMCPServer</name>
+  <version>0.2.1</version>
+  <codeunitownername>Marius Göcke</codeunitownername>
+  <codeunitowneremailaddress>marius.goecke@gmail.com</codeunitowneremailaddress>
+  <properties codeunithastestablesourcecode="false" codeunithasupdatabledependencies="true" throwexceptionifcodeunitfilecannotbevalidated="false" developmentstate="Active development" description="GenericMCPServer is a simple MCP-server which is reachable over HTTP.">
+    <pipelinedemands />
+    <updatesettings>
+      <ignoreddependencies />
+    </updatesettings>
+  </properties>
+  <dependentcodeunits>
+    <dependentcodeunit>GenericMCPServerBackend</dependentcodeunit>
+  </dependentcodeunits>
+  <developerteam>
+    <developer>
+      <developername>Marius Göcke</developername>
+      <developeremailaddress>marius.goecke@gmail.com</developeremailaddress>
+    </developer>
+  </developerteam>
 </codeunit>

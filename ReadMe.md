@@ -33,6 +33,10 @@ and mounts them into the container. The MCP-endpoint is then available under
 How a tool is declared is described in the
 [reference of the backend](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
 
+## Reference
+
+The reference of the repository as a whole can be found [here](./Other/Reference/ReadMe.md).
+
 ## Development-state
 
 Active development.
