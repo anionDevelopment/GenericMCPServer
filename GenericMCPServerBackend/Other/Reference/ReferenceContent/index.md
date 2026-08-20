@@ -58,6 +58,7 @@ These fields belong to every tool:
 | `tool-name` | The name under which the tool is offered. This is what the client and the model behind it see. It may consist of letters, digits, underscores and hyphens. |
 | `type` | What implements the tool: `python`, `shell` or `web-request`. It has to be declared, it is not guessed from the extension of a file. |
 | `description` | What the tool does. The model reads this to decide whether the tool fits a task, so it should describe the answer and not the implementation. |
+| `anonymous` | Optional, `false` by default. `true` makes the tool usable without an access-token. See [Access-tokens](#access-tokens). |
 
 The remaining fields depend on the type. A field which does not belong to the declared type is an error and not
 something which is ignored, because ignoring it would let an administrator believe in an effect which does not exist.
@@ -184,6 +185,49 @@ The answer of the tool is a json-document with the status-code and the body of t
 ```json
 {"status-code":200,"body":"..."}
 ```
+
+## Access-tokens
+
+A client reaches a tool only with an access-token. An administrator creates one per client; a client can hold more
+than one valid token at the same time, which is what makes an exchange possible without an interruption: the new token
+is created, the client is switched over, and only then the old one is removed.
+
+```
+dotnet GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90
+```
+
+In the running container:
+
+```
+docker exec genericmcpserver dotnet /Workspace/Application/Backend/GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90
+```
+
+The call writes the token into `AccessTokens.csv` in the configuration-folder of the server (in the image
+`/Workspace/Configuration/AccessTokens.csv`, movable with `--InitialAccessTokensFile`) and shows the token once:
+
+```
+client;tokenhash;validuntil
+team-a;9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08;2026-11-18T09:12:44Z
+```
+
+- **Only the hash is stored.** The token exists in a readable form exactly once, namely in the moment it is created.
+  A token which somebody lost can therefore not be looked up but only replaced.
+- **Every token ends.** `--ValidForDays` states when; a token without an end does not exist.
+- **A token which was just created works immediately.** The file is read for every request, so the server does not
+  have to be restarted for it. Removing a line takes an access away just as immediately.
+- **The file is created when it does not exist yet**, so an administrator finds the place where the tokens belong.
+
+The client sends its token as a header:
+
+```
+Authorization: Bearer gmcp_7f3a9c2e...
+```
+
+A tool which everybody may use is declared with `"anonymous": true`. Such a tool is reachable without a token, and it
+is also the only thing a caller without a token sees: a `tools/list` without a token contains exactly the anonymous
+tools, so a server which is exposed by accident does not even tell what else it could do.
+
+Everything else answers with the status-code 401.
 
 ## Credentials
 
