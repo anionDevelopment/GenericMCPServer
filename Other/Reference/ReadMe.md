@@ -47,6 +47,14 @@ Only *no* configured file means "no tools".
 The exact format of the file and the meaning of each field is documented in the
 [reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
 
+## Who may use a tool
+
+A client reaches a tool only with an access-token. An administrator creates one per client with the call
+`CreateAccessToken` of the backend; a client can hold several valid tokens at the same time, every token ends at a
+stated point in time, and only the hash of a token is stored - in a csv-file in the configuration-folder of the server,
+which is created when it does not exist yet. A tool which everybody may use is declared with `"anonymous": true`; such
+a tool is also the only thing which a caller without a token sees.
+
 ## Where the accesses of a tool come from
 
 A tool which uses a foreign service needs an access to it. Such an access belongs to the administrator and never to

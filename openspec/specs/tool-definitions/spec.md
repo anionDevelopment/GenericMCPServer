@@ -114,6 +114,38 @@ answer with the status-code and the body of that request.
 - **THEN** the redirect is handed to the client as the answer it is and is not followed, because the address it points
   to was never checked against the rules
 
+### Requirement: A tool is reachable only for a client which is allowed to reach it
+
+The server SHALL answer a call of a tool only when the request carries a valid access-token or the tool is declared as
+one which everybody may use.
+
+#### Scenario: A client calls a tool without a valid access-token
+
+- **WHEN** a tool which is not declared as anonymous is called without a valid access-token
+- **THEN** the request is answered with the status-code 401 and the tool is not run
+
+#### Scenario: A client asks which tools exist without a valid access-token
+
+- **WHEN** the list of the tools is asked for without a valid access-token
+- **THEN** it contains exactly the tools which are declared as anonymous, so that a server which is reachable by
+  accident does not tell what else it could do
+
+#### Scenario: An administrator creates an access-token
+
+- **WHEN** an administrator creates an access-token for a client
+- **THEN** the token is shown once, only its hash is stored, it is valid up to a stated point in time and it is usable
+  immediately without restarting the server
+
+#### Scenario: A client needs a second access-token
+
+- **WHEN** a client is given a second access-token while its first one is still valid
+- **THEN** both tokens work, so that a token can be exchanged without an interruption
+
+#### Scenario: An access-token expires
+
+- **WHEN** the point in time up to which a token is valid has passed
+- **THEN** the token is no access anymore
+
 ### Requirement: A tool receives exactly the credentials which are assigned to it
 
 An access to a foreign service SHALL be configured at the server and assigned to a tool by its declaration. The server
