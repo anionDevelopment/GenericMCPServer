@@ -26,6 +26,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using System;
 using System.Collections.Generic;
@@ -178,7 +179,19 @@ namespace GenericMCPServerBackend.Core
 
                     // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
                     // error-handling) is implemented by the SDK. This codeunit only hands it the tools.
-                    functionalInformation.WebApplicationBuilder.Services.AddMcpServer()
+                    functionalInformation.WebApplicationBuilder.Services.AddMcpServer(options =>
+                        // A caller without an access-token sees exactly the tools which are declared as anonymous. A
+                        // tool which needs a token is not even visible to it, so a server which is exposed by accident
+                        // does not tell what it could do.
+                        options.Filters.Request.ListToolsFilters.Add(next => async (listToolsRequest, cancellationToken) =>
+                        {
+                            ListToolsResult listToolsResult = await next(listToolsRequest, cancellationToken);
+                            if (!AccessTokenValidatorMiddleware.RequestIsAuthenticated(listToolsRequest.Services))
+                            {
+                                listToolsResult.Tools = listToolsResult.Tools.Where(tool => businessLogicService.ToolIsAnonymous(tool.Name)).ToList();
+                            }
+                            return listToolsResult;
+                        }))
                         // Stateless: every request is answered on its own, so no session-id has to be kept by the
                         // client. That makes the server usable with a plain http-request and is sufficient here,
                         // because the tools hold no state between two calls.

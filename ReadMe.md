@@ -10,8 +10,7 @@ restricts.
 
 ## Features which are not implemented yet
 
-- allow admins in the tool-definition for a tool to be accessed without accesstoken (anonymous access).
-- allow (or enforce) hosting multiple mcp server at once using separation (some kind like a namespace) in the domain (url "<domain>/teamA/message" as mcp-server for team A and "<domain>/teamB/message" as mcp-server for team B)
+- allow (or enforce) hosting multiple mcp server at once using separation (some kind like a namespace) in the domain (url "<domain>/teamA/message" as mcp-server for team A and "<domain>/teamB/message" as mcp-server for team B). so the tools-list in tools.json should be wrapped in a list of mcp-server-properties which has the tool-list and a this properties must also declare for each mcp server its url-namespace (for example `teamA` or `teamA/mcpserver1`). the access-token must then be valid for a specific mcp server (instead of a specific tool). when an access-token is valid for a mcp-server, then it is automatically valid for all of its tools. the option for anonymous access should also be available only for mcp-server and not for a single tool.
 
 ## Codeunits
 

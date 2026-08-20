@@ -80,6 +80,13 @@ namespace GenericMCPServerBackend.Core.Services
             return this._CredentialsService.RemoveValuesFrom(text);
         }
 
+        public bool ToolIsAnonymous(string toolName)
+        {
+            ToolDefinition definition = this._ToolDefinitions.FirstOrDefault(tool => tool.ToolName == toolName);
+            // A tool which is not declared is not anonymous: a name which nobody declared must not open a door.
+            return definition != null && definition.Anonymous;
+        }
+
         public IReadOnlyList<ToolDefinition> GetToolDefinitions()
         {
             return this._ToolDefinitions;

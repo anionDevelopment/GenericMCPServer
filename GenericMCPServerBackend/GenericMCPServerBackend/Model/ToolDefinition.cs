@@ -16,6 +16,16 @@ namespace GenericMCPServerBackend.Core.Model
         public string ToolName { get; set; }
 
         /// <summary>
+        /// Whether the tool can be used without an access-token. Without this, a tool is only available to a client
+        /// which authenticated itself.
+        ///
+        /// It is stated per tool and not per server, so that a server can offer a tool which everybody may use next to
+        /// tools which only a known client may use.
+        /// </summary>
+        [JsonPropertyName("anonymous")]
+        public bool Anonymous { get; set; }
+
+        /// <summary>
         /// The kind of script which implements the tool. The allowed values are the ones of <see cref="ToolTypes"/>.
         /// The type has to be declared for every tool.
         /// </summary>

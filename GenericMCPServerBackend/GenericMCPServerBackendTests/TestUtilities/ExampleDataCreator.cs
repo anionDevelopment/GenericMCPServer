@@ -24,6 +24,13 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         public const string ExampleToolParameterName = "value";
 
         /// <summary>
+        /// The name of the tool which this creator declares as one which everybody may use. It exists next to the
+        /// other one, because the interesting question is what a caller without an access-token sees and reaches while
+        /// both kinds are declared.
+        /// </summary>
+        public const string AnonymousExampleToolName = "anonymous_example_tool";
+
+        /// <summary>
         /// A script which answers with the value it got, and fails with a readable reason when that value does not have
         /// the expected format. It is the smallest thing which still shows both directions a tool can end in.
         /// </summary>
@@ -83,6 +90,14 @@ sys.stdout.write('the answer is ' + arguments.value)
             ""type"": ""python"",
             ""calls"": ""ExampleTool.py"",
             ""description"": ""Answers with the value it got."",
+            ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+        },
+        {
+            ""tool-name"": """ + AnonymousExampleToolName + @""",
+            ""type"": ""python"",
+            ""anonymous"": true,
+            ""calls"": ""ExampleTool.py"",
+            ""description"": ""Answers with the value it got and may be used by everybody."",
             ""parameters"": [ """ + ExampleToolParameterName + @""" ]
         }
     ]

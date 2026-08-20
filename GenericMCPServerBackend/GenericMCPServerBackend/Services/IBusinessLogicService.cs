@@ -16,6 +16,13 @@ namespace GenericMCPServerBackend.Core.Services
         IReadOnlyList<ToolDefinition> GetToolDefinitions();
 
         /// <summary>
+        /// States whether the given tool can be used without an access-token.
+        /// </summary>
+        /// <param name="toolName">The name of the tool.</param>
+        /// <returns>True only if a tool of that name is declared and is declared as anonymous.</returns>
+        bool ToolIsAnonymous(string toolName);
+
+        /// <summary>
         /// Runs the script of the given tool with the given arguments.
         /// </summary>
         /// <param name="toolName">The name of the tool, which has to be one of the declared ones.</param>
