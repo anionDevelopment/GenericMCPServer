@@ -1,5 +1,6 @@
 using GenericMCPServerBackend.Tests.TestUtilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Net;
 using System.Text.Json;
 
 namespace GenericMCPServerBackend.Tests.Testcases.Integration
@@ -58,9 +59,10 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             using IntegrationTestFramework framework = new IntegrationTestFramework();
 
             // act
-            string answer = framework.SendMCPMessage(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.ExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}");
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.ExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}");
 
             // assert
+            Assert.AreEqual(HttpStatusCode.OK, statusCode, "A call which worked is a normal answer of the server.");
             JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
             Assert.IsFalse(result.GetProperty("isError").GetBoolean());
             Assert.AreEqual("the answer is hello-world", result.GetProperty("content")[0].GetProperty("text").GetString());
@@ -68,21 +70,24 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
 
         /// <remarks>
         /// A value which the script rejects has to arrive at the caller as a failed call whose message states the
-        /// reason: a model which called the tool can only correct itself if it learns what was wrong.
+        /// reason: a model which called the tool can only correct itself if it learns what was wrong. The whole answer
+        /// additionally carries the status-code 502, because the failure comes from the program behind the server and
+        /// this server is the gateway to it.
         /// </remarks>
         [TestMethod]
         [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
-        public void AValueWhichTheScriptRejectsAnswersWithTheReasonOverHTTP()
+        public void AValueWhichTheScriptRejectsAnswersWithTheReasonAnd502OverHTTP()
         {
             // arrange
             using IntegrationTestFramework framework = new IntegrationTestFramework();
 
             // act: the script only accepts lowercase letters, digits and hyphens
-            string answer = framework.SendMCPMessage(@"{""jsonrpc"":""2.0"",""id"":3,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.ExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""NOT ALLOWED""}}}");
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":3,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.ExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""NOT ALLOWED""}}}");
 
             // assert
+            Assert.AreEqual(HttpStatusCode.BadGateway, statusCode);
             JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
-            Assert.IsTrue(result.GetProperty("isError").GetBoolean());
+            Assert.IsTrue(result.GetProperty("isError").GetBoolean(), "The message of the failure has to stay part of the answer, so that the caller learns what was wrong.");
             StringAssert.Contains(result.GetProperty("content")[0].GetProperty("text").GetString(), "lowercase letters");
         }
     }

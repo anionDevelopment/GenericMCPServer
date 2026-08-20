@@ -20,6 +20,14 @@ namespace GenericMCPServerBackend.Core.Configuration
         [Option(nameof(InitialToolDefinitionsFile), Required = false)]
         public string? InitialToolDefinitionsFile { get; set; }
 
+        /// <summary>
+        /// The folder which contains the virtual environments of the python-tools, one per tool. Without this
+        /// parameter they are created below the data-folder of the server. The folder of the declarations is not used
+        /// for them, because that one is usually mounted read-only.
+        /// </summary>
+        [Option(nameof(InitialVirtualEnvironmentsFolder), Required = false)]
+        public string? InitialVirtualEnvironmentsFolder { get; set; }
+
         [Option(nameof(InitialEnableEndpointAvailabilityCheckValue), Required = false, Default = true)]
         public bool InitialEnableEndpointAvailabilityCheckValue { get; set; }
 

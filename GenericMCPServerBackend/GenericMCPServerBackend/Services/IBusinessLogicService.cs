@@ -22,5 +22,15 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="arguments">The values of the parameters of the tool, keyed by the name of the parameter.</param>
         /// <returns>What the script wrote to stdout.</returns>
         string RunTool(string toolName, IReadOnlyDictionary<string, string> arguments);
+
+        /// <summary>
+        /// Removes the values of the credentials from a text which is about to be handed to a client.
+        ///
+        /// The message of a failed tool-call goes to the client, and a script which wrote its credential into a
+        /// stacktrace would hand it over with it.
+        /// </summary>
+        /// <param name="text">The text, usually the message of a failure.</param>
+        /// <returns>The text in which every known credential-value was replaced.</returns>
+        string RemoveCredentialValuesFrom(string text);
     }
 }

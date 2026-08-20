@@ -52,9 +52,20 @@ sys.stdout.write('the answer is ' + arguments.value)
         /// <summary>The file which declares the tools; this is what the server has to be pointed at.</summary>
         public string ToolDefinitionsFile { get; }
 
+        /// <summary>
+        /// The folder for the virtual environment of the example-tool. It belongs to this creator so that it is
+        /// removed together with the example-data instead of staying behind in the temp-folder of the machine.
+        /// </summary>
+        public string VirtualEnvironmentsFolder { get; }
+
+        /// <summary>The folder which contains everything this creator wrote.</summary>
+        private readonly string _Root;
+
         public ExampleDataCreator()
         {
-            this.Folder = Path.Combine(Path.GetTempPath(), "GenericMCPServerBackendTests", Guid.NewGuid().ToString());
+            this._Root = Path.Combine(Path.GetTempPath(), "GenericMCPServerBackendTests", Guid.NewGuid().ToString());
+            this.Folder = Path.Combine(this._Root, "Tools");
+            this.VirtualEnvironmentsFolder = Path.Combine(this._Root, "VirtualEnvironments");
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");
@@ -62,6 +73,7 @@ sys.stdout.write('the answer is ' + arguments.value)
     ""tools"": [
         {
             ""tool-name"": """ + ExampleToolName + @""",
+            ""type"": ""python"",
             ""calls"": ""ExampleTool.py"",
             ""description"": ""Answers with the value it got."",
             ""parameters"": [ """ + ExampleToolParameterName + @""" ]
@@ -72,9 +84,9 @@ sys.stdout.write('the answer is ' + arguments.value)
 
         public void Dispose()
         {
-            if (Directory.Exists(this.Folder))
+            if (Directory.Exists(this._Root))
             {
-                Directory.Delete(this.Folder, true);
+                Directory.Delete(this._Root, true);
             }
         }
     }

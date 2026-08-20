@@ -1,6 +1,8 @@
 using GRYLibrary.Core.APIServer.Settings.Configuration;
 using GenericMCPServerBackend.Core;
 using System;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -49,6 +51,9 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // The initialization-state-route is what the readiness-probe below asks, so it has to be available.
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialEnableEndpointInitializationStateValue)}", "true",
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialToolDefinitionsFile)}", this._ExampleDataCreator.ToolDefinitionsFile,
+                // The virtual environment of the example-tool belongs to the example-data, so that the test-run leaves
+                // nothing behind in the data-folder of the server.
+                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialVirtualEnvironmentsFolder)}", this._ExampleDataCreator.VirtualEnvironmentsFolder,
             }));
             thread.Start();
             if (!GRYLibrary.Core.Misc.Utilities.RunWithTimeout(() =>
@@ -107,12 +112,28 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </remarks>
         public string SendMCPMessage(string message)
         {
+            (HttpStatusCode statusCode, string answer) = this.SendMCPMessageAndGetStatusCode(message);
+            if (!Enumerable.Range(200, 100).Contains((int)statusCode))
+            {
+                throw new InvalidOperationException($"The server answered with the status-code {(int)statusCode}: {answer}");
+            }
+            return answer;
+        }
+
+        /// <summary>
+        /// Sends one JSON-RPC-message and returns the answer together with the status-code it arrived with.
+        /// </summary>
+        /// <remarks>
+        /// The status-code is part of what a testcase has to be able to check: a request whose tool-call failed is
+        /// answered with 502, so a testcase of a failing tool can not use <see cref="SendMCPMessage"/>.
+        /// </remarks>
+        public (HttpStatusCode StatusCode, string Answer) SendMCPMessageAndGetStatusCode(string message)
+        {
             using HttpClient client = new HttpClient();
             using StringContent content = new StringContent(message, Encoding.UTF8, "application/json");
             client.DefaultRequestHeaders.Add("Accept", "application/json, text/event-stream");
             HttpResponseMessage response = client.PostAsync(this.GetMCPEndpointURL(), content).GetAwaiter().GetResult();
-            response.EnsureSuccessStatusCode();
-            return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            return (response.StatusCode, response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
         }
 
         /// <summary>

@@ -12,7 +12,6 @@ using GRYLibrary.Core.APIServer.Mid.M05DLog;
 using GRYLibrary.Core.APIServer.MidT.Exception;
 using GRYLibrary.Core.APIServer.MidT.RLog;
 using GRYLibrary.Core.APIServer.Services.Init;
-using GRYLibrary.Core.APIServer.Services.Init;
 using GRYLibrary.Core.APIServer.Services.Interfaces;
 using GRYLibrary.Core.APIServer.Services.Logger;
 using GRYLibrary.Core.APIServer.Services.OtherServices;
@@ -28,6 +27,7 @@ using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 
@@ -69,14 +69,24 @@ namespace GenericMCPServerBackend.Core
         internal int MainImplementation(string[] commandlineArguments)
         {
             // The file which declares the tools is read from the commandline-parameters, which are only available
-            // once the initialization ran, so it is remembered here and used when the services are registered.
+            // once the initialization ran, so it is remembered here and used when the services are registered. The
+            // same holds for the folder of the virtual environments of the python-tools.
             string toolDefinitionsFile = null;
+            string virtualEnvironmentsFolder = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
                 apiServerConfiguration.SetInitializationInformationAction = (initializationInformation) =>
                 {
                     toolDefinitionsFile = initializationInformation.CommandlineParameter.InitialToolDefinitionsFile;
+                    // The environments are generated content, so they belong below the data-folder of the server. The
+                    // folder of the declarations can not hold them: it is usually mounted read-only.
+                    virtualEnvironmentsFolder = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialVirtualEnvironmentsFolder)
+                        ? Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments")
+                        : initializationInformation.CommandlineParameter.InitialVirtualEnvironmentsFolder;
+                    // The middleware which answers a failed tool-call with 502 has to wrap the endpoint of the
+                    // protocol, so it is registered as the innermost custom middleware.
+                    initializationInformation.ApplicationConstants.CustomMiddlewares2.Add(typeof(ToolCallFailureStatusCodeMiddleware));
                     string domain = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialDomain) ? Tools.GetDefaultDomainValue(GeneralConstants.CodeUnitName) : initializationInformation.CommandlineParameter.InitialDomain;
                     initializationInformation.InitialApplicationConfiguration.ServerConfiguration.SetDomainAndPublichUrlToDefault(domain);
                     initializationInformation.ApplicationConstants.ListenOnEveryIP = this.ListenOnEveryIP;
@@ -132,7 +142,10 @@ namespace GenericMCPServerBackend.Core
                     // The tools are not known at compile-time: they are created here, one per declaration in the
                     // tool-definitions-file. The service is constructed directly (and not by the container), because
                     // the tools have to exist before the container is built and both have to use the same instance.
-                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile);
+                    // A tool reaches the http-request it is running in through this accessor, which is what lets a
+                    // failed tool-call decide the status-code of the answer.
+                    functionalInformation.WebApplicationBuilder.Services.AddHttpContextAccessor();
+                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
                     IReadOnlyList<ToolDefinition> toolDefinitions = businessLogicService.GetToolDefinitions();
                     this._Log.Log($"{toolDefinitions.Count} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);

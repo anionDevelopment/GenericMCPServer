@@ -70,7 +70,8 @@ namespace GenericMCPServerBackend.Core.Misc
         ///
         /// A failure is answered as a result with <see cref="CallToolResult.IsError"/> and the message of the failure,
         /// and not by letting the exception escape: the client (and the model behind it) can only react to a wrong
-        /// argument if it learns what was wrong with it.
+        /// argument if it learns what was wrong with it. It is additionally reported to
+        /// <see cref="ToolCallFailure"/>, which makes the whole answer carry the status-code 502.
         /// </summary>
         public override ValueTask<CallToolResult> InvokeAsync(RequestContext<CallToolRequestParams> request, CancellationToken cancellationToken = default)
         {
@@ -91,7 +92,10 @@ namespace GenericMCPServerBackend.Core.Misc
             }
             catch (Exception exception)
             {
-                return new ValueTask<CallToolResult>(CreateResult(exception.Message, true));
+                ToolCallFailure.Report(request.Services);
+                // The message goes to the client, so the values of the credentials are removed from it first: a script
+                // which wrote its credential into a stacktrace would hand it over otherwise.
+                return new ValueTask<CallToolResult>(CreateResult(this._BusinessLogicService.RemoveCredentialValuesFrom(exception.Message), true));
             }
         }
 

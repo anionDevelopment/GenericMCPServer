@@ -35,7 +35,7 @@ exclusively by the tool-definitions-file the server is configured with.
 
 ### Requirement: A declaration states everything a client needs to know about a tool
 
-A tool-definitions-file SHALL declare, per tool, its name, the script which implements it, what it does and the names of
+A tool-definitions-file SHALL declare, per tool, its name, its type, what implements it, what it does and the names of
 its parameters. The server SHALL offer exactly those values to its clients.
 
 #### Scenario: A client asks which tools exist
@@ -49,6 +49,97 @@ its parameters. The server SHALL offer exactly those values to its clients.
 - **WHEN** a client calls a declared tool with values for its parameters
 - **THEN** the script which the declaration names is run with those values, and what it writes to its standard-output is
   the result of the call
+
+### Requirement: The type of a tool is declared and not guessed
+
+Every declaration SHALL state the type of the tool, which is one of "python", "shell" and "web-request". The server
+SHALL NOT derive the type from the name or the extension of a file.
+
+#### Scenario: A tool is declared without a type or with an unknown one
+
+- **WHEN** a declaration states no type or a type which does not exist
+- **THEN** the server fails while starting and names the types which are possible
+
+#### Scenario: A declaration states something which does not belong to its type
+
+- **WHEN** a declaration states requirements for a tool which is no python-tool, allowed addresses for a tool which runs
+  a script, or a script for a tool which requests an address
+- **THEN** the server fails while starting instead of ignoring that value, because ignoring it would let an
+  administrator believe in an effect which does not exist
+
+### Requirement: A python-tool runs in a virtual environment of its own
+
+The server SHALL run the script of a python-tool in a virtual environment which belongs to that tool alone and which
+contains the packages the declaration states as its requirements.
+
+#### Scenario: A python-tool is called for the first time
+
+- **WHEN** a python-tool is called and no virtual environment exists for it
+- **THEN** the environment is created, the declared requirements are installed into it and the script is run in it
+
+#### Scenario: The requirements of a tool are changed
+
+- **WHEN** a python-tool is called whose declared requirements differ from the ones its environment was built with
+- **THEN** the environment is built again, so that a changed declaration can not be without effect
+
+#### Scenario: An environment can not be built
+
+- **WHEN** the creation of an environment or the installation of its requirements fails
+- **THEN** the call fails with what the failing program reported and the incomplete environment is removed, so that it
+  can not be mistaken for a working one
+
+### Requirement: A tool which requests an address reaches only allowed addresses
+
+A tool of the type "web-request" SHALL request an address only if a rule of its declaration allows it, and it SHALL
+answer with the status-code and the body of that request.
+
+#### Scenario: An address is requested which no rule allows
+
+- **WHEN** a client asks such a tool for an address which no rule of the declaration matches
+- **THEN** the call fails and no request is sent, because everything which is not allowed is denied
+
+#### Scenario: An address only contains an allowed address
+
+- **WHEN** a client asks for an address which contains an allowed address somewhere without being it
+- **THEN** the call fails, because a rule has to match the whole address
+
+#### Scenario: An address states a protocol
+
+- **WHEN** a client asks for an address which states a protocol other than https
+- **THEN** the call fails, because the protocol of such a tool is always https and is not part of an address
+
+#### Scenario: An allowed address answers with a redirect
+
+- **WHEN** an allowed address answers with a redirect
+- **THEN** the redirect is handed to the client as the answer it is and is not followed, because the address it points
+  to was never checked against the rules
+
+### Requirement: A tool receives exactly the credentials which are assigned to it
+
+An access to a foreign service SHALL be configured at the server and assigned to a tool by its declaration. The server
+SHALL hand a tool exactly the assigned accesses and SHALL NOT hand it any other.
+
+#### Scenario: A tool needs an access
+
+- **WHEN** a tool is called whose declaration assigns an access to it
+- **THEN** the tool receives the value which the server is configured with, under the name the declaration gave it, and
+  the client never provides it
+
+#### Scenario: Another tool has an access
+
+- **WHEN** a tool is called while another tool has an access assigned to it
+- **THEN** the first tool can not read that access, so that a tool of one origin can not use the access of a tool of
+  another origin
+
+#### Scenario: An assigned access is not configured
+
+- **WHEN** the server is started with a declaration which assigns an access which is not configured
+- **THEN** the server fails while starting and names the access, so that a forgotten secret is visible while deploying
+
+#### Scenario: A tool writes its access into its output
+
+- **WHEN** the message of a failed tool-call contains the value of an access
+- **THEN** the value is replaced before the message reaches the client
 
 ### Requirement: A broken declaration is detected when the server starts
 
@@ -104,3 +195,21 @@ the reason of a rejection SHALL reach the client.
 
 - **WHEN** a check of the format of a value would be added to a codeunit of this repository
 - **THEN** this is a defect, because the server does not know the tools and such a check would make it know one
+
+### Requirement: A failed tool-call is visible in the answer and in its status-code
+
+A tool-call which did not work SHALL be answered as a failed call of the protocol whose message states the reason, and
+the http-answer which contains it SHALL carry the status-code 502.
+
+#### Scenario: A tool fails
+
+- **WHEN** a tool-call fails, no matter whether the script ended with an exit-code which is not 0, ran into its timeout,
+  could not be prepared or requested an address which is not allowed
+- **THEN** the client receives the message of the failure as the result of the call and the http-answer carries the
+  status-code 502, because the failure comes from the program behind the server and the server is the gateway to it
+
+#### Scenario: A tool works
+
+- **WHEN** a tool-call works
+- **THEN** the http-answer carries the status-code of a normal answer, so that the status-code says whether the call
+  did what it should

@@ -8,9 +8,17 @@ the details of each part are documented. The reference of a single codeunit is l
 GenericMCPServer is a MCP-server which is reachable over HTTP. It offers exactly the tools which an administrator
 declares and brings no tool of its own along - that is what "generic" means here.
 
-A declaration names a tool, the script which implements it, what it does and which parameters it takes. A client
-therefore sees tools like `get_cve_details`, although nothing in the sourcecode knows that name. Adding a tool
-means writing a script and one entry in a file; it means no change of the sourcecode and no new build.
+A declaration names a tool, what implements it, what it does and which parameters it takes. A client therefore sees
+tools like `get_cve_details`, although nothing in the sourcecode knows that name. Adding a tool means one entry in a
+file (and, depending on its type, a script); it means no change of the sourcecode and no new build.
+
+A tool is of one of three types, which the declaration has to state:
+
+| Type | What implements the tool |
+| ---- | ------------------------ |
+| `python` | A python-script. It runs in a virtual environment which belongs to this tool alone, so the packages of two tools are independent of each other. The packages are declared as `requirements` and installed when the tool is called for the first time. |
+| `shell` | A shell-script, run with `/bin/sh`. This requires a linux-system. |
+| `web-request` | No script: the client states an address, and the declaration states which addresses the tool allows. The protocol is always https, everything which no rule allows is denied, and the answer contains the status-code and the body. |
 
 ## Parts of the product
 
@@ -38,6 +46,21 @@ Only *no* configured file means "no tools".
 
 The exact format of the file and the meaning of each field is documented in the
 [reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
+
+## Where the accesses of a tool come from
+
+A tool which uses a foreign service needs an access to it. Such an access belongs to the administrator and never to
+the client, so it is no parameter: the operator sets it as an environment-variable of the container (or, as a
+docker-secret, as a file which such a variable points at), and the declaration states which tool receives which one and
+under which name. A tool receives exactly its own accesses; the variables of the others are removed from the
+environment of its script. A missing access keeps the server from starting, so that a forgotten secret is visible while
+deploying.
+
+## What a failed tool-call looks like
+
+A tool-call which did not work is answered in two ways at once: as a result of the protocol which carries the message
+of the failure (so that the model learns what was wrong), and with the http-status-code 502 for the whole answer,
+because the failure comes from the program behind the server and the server is the gateway to it.
 
 ## Why a declared tool can be trusted with untrusted values
 
