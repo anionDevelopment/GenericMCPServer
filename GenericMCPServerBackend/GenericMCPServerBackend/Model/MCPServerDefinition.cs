@@ -14,7 +14,7 @@ namespace GenericMCPServerBackend.Core.Model
     {
         /// <summary>
         /// The part of the address which this server is reachable under, for example "teamA" or "teamA/mcpserver1".
-        /// The whole address is "&lt;domain&gt;/&lt;url-namespace&gt;/message".
+        /// The whole address is "&lt;domain&gt;/&lt;url-namespace&gt;".
         /// </summary>
         [JsonPropertyName("url-namespace")]
         public string UrlNamespace { get; set; }
@@ -25,6 +25,17 @@ namespace GenericMCPServerBackend.Core.Model
         /// </summary>
         [JsonPropertyName("anonymous")]
         public bool Anonymous { get; set; }
+
+        /// <summary>
+        /// The roles which may use this mcp-server. A client reaches it when it is in at least one of them; which
+        /// client is in which role is stated in the roles-file of the server.
+        ///
+        /// Single clients or tokens are deliberately not stated here: a declaration states what a role may do, and who
+        /// is in that role is decided by whoever administrates the clients - two decisions which are usually made by
+        /// two different people.
+        /// </summary>
+        [JsonPropertyName("authorized-roles")]
+        public IList<string> AuthorizedRoles { get; set; } = new List<string>();
 
         /// <summary>The tools this server offers. A tool belongs to exactly one server.</summary>
         [JsonPropertyName("tools")]

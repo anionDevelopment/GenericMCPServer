@@ -35,6 +35,13 @@ namespace GenericMCPServerBackend.Core.Configuration
         [Option(nameof(InitialAccessTokensFile), Required = false)]
         public string? InitialAccessTokensFile { get; set; }
 
+        /// <summary>
+        /// The file which states which client is in which role. Without this parameter it is the file next to the
+        /// access-tokens in the configuration-folder, which is created when it does not exist yet.
+        /// </summary>
+        [Option(nameof(InitialRolesFile), Required = false)]
+        public string? InitialRolesFile { get; set; }
+
         [Option(nameof(InitialEnableEndpointAvailabilityCheckValue), Required = false, Default = true)]
         public bool InitialEnableEndpointAvailabilityCheckValue { get; set; }
 

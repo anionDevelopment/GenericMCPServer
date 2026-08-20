@@ -94,6 +94,20 @@ namespace GenericMCPServerBackend.Core.Services
                 throw new InvalidOperationException($"The url-namespace \"{mcpServer.UrlNamespace}\" in \"{file}\" is not usable. It may consist of parts of letters, digits, underscores and hyphens which are separated by \"/\" (for example \"teamA\" or \"teamA/mcpserver1\").");
             }
             mcpServer.Tools ??= new List<ToolDefinition>();
+            mcpServer.AuthorizedRoles ??= new List<string>();
+            foreach (string role in mcpServer.AuthorizedRoles)
+            {
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" has an entry in \"authorized-roles\" without a name.");
+                }
+            }
+            if (!mcpServer.Anonymous && mcpServer.AuthorizedRoles.Count == 0)
+            {
+                // Such an mcp-server could be used by nobody: it is not anonymous and no role may use it. That is a
+                // mistake in the declaration and not a server which exists but answers nothing.
+                throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" states no \"authorized-roles\", so no client could use it. State the roles which may use it, or declare it as anonymous.");
+            }
             foreach (ToolDefinition definition in mcpServer.Tools)
             {
                 Validate(definition, file);

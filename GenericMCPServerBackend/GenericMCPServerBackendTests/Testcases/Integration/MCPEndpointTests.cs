@@ -46,8 +46,8 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             string message = @"{""jsonrpc"":""2.0"",""id"":1,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.ExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}";
 
             // act
-            (HttpStatusCode withoutAToken, string _) = framework.SendMCPMessageAndGetStatusCode(message, null);
-            (HttpStatusCode withAnUnknownToken, string _) = framework.SendMCPMessageAndGetStatusCode(message, "gmcp_0000000000000000000000000000000000000000000000000000000000000000");
+            (HttpStatusCode withoutAToken, string _) = framework.SendMCPMessageAndGetStatusCode(message, ExampleDataCreator.UrlNamespace, null);
+            (HttpStatusCode withAnUnknownToken, string _) = framework.SendMCPMessageAndGetStatusCode(message, ExampleDataCreator.UrlNamespace, "gmcp_0000000000000000000000000000000000000000000000000000000000000000");
 
             // assert
             Assert.AreEqual(HttpStatusCode.Unauthorized, withoutAToken);
@@ -55,29 +55,30 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
         }
 
         /// <remarks>
-        /// A tool which is declared as anonymous is usable by everybody, so a caller without a token has to reach
-        /// exactly it - and it has to see exactly it, because a tool which needs a token must not even be visible.
+        /// An mcp-server which is declared as anonymous is usable by everybody, and it is separated from the other one:
+        /// a caller without a token reaches it and sees exactly its tools, while the mcp-server which needs a token
+        /// stays closed for the same caller.
         /// </remarks>
         [TestMethod]
         [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
-        public void AToolWhichIsDeclaredAsAnonymousIsUsableWithoutAnAccessToken()
+        public void AnMCPServerWhichIsDeclaredAsAnonymousIsUsableWithoutAnAccessToken()
         {
             // arrange
             using IntegrationTestFramework framework = new IntegrationTestFramework();
 
             // act
-            (HttpStatusCode statusCodeOfTheList, string list) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""tools/list""}", null);
-            (HttpStatusCode statusCodeOfTheCall, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.AnonymousExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}", null);
-            (HttpStatusCode statusCodeOfTheForbiddenCall, string _) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":3,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.ExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}", null);
+            (HttpStatusCode statusCodeOfTheList, string list) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""tools/list""}", ExampleDataCreator.AnonymousUrlNamespace, null);
+            (HttpStatusCode statusCodeOfTheCall, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.AnonymousExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}", ExampleDataCreator.AnonymousUrlNamespace, null);
+            (HttpStatusCode statusCodeOfTheForbiddenCall, string _) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":3,""method"":""tools/list""}", ExampleDataCreator.UrlNamespace, null);
 
             // assert
             Assert.AreEqual(HttpStatusCode.OK, statusCodeOfTheList);
             JsonElement tools = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(list)).RootElement.GetProperty("result").GetProperty("tools");
-            Assert.AreEqual(1, tools.GetArrayLength(), "A caller without a token may only see the tools which are declared as anonymous.");
+            Assert.AreEqual(1, tools.GetArrayLength(), "An mcp-server offers exactly its own tools.");
             Assert.AreEqual(ExampleDataCreator.AnonymousExampleToolName, tools[0].GetProperty("name").GetString());
             Assert.AreEqual(HttpStatusCode.OK, statusCodeOfTheCall);
             Assert.AreEqual("the answer is hello-world", JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString());
-            Assert.AreEqual(HttpStatusCode.Unauthorized, statusCodeOfTheForbiddenCall, "A tool which is not declared as anonymous stays behind the token.");
+            Assert.AreEqual(HttpStatusCode.Unauthorized, statusCodeOfTheForbiddenCall, "The mcp-server which is not anonymous stays behind the token.");
         }
 
         [TestMethod]
@@ -92,7 +93,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
 
             // assert
             JsonElement tools = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("tools");
-            Assert.AreEqual(2, tools.GetArrayLength(), "The server has to offer exactly the tools which the example-data declares.");
+            Assert.AreEqual(1, tools.GetArrayLength(), "The mcp-server has to offer exactly the tools which the example-data declares for it.");
             JsonElement tool = tools.EnumerateArray().Single(entry => entry.GetProperty("name").GetString() == ExampleDataCreator.ExampleToolName);
             Assert.AreEqual("Answers with the value it got.", tool.GetProperty("description").GetString());
             Assert.IsTrue(tool.GetProperty("inputSchema").GetProperty("properties").TryGetProperty(ExampleDataCreator.ExampleToolParameterName, out JsonElement _), "The declared parameter has to be part of the schema which the client gets.");

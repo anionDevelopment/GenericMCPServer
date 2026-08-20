@@ -3,7 +3,7 @@ FROM ${image_debian}
 ARG CodeUnitVersion
 ARG DotNetRuntime
 LABEL version=${CodeUnitVersion}
-ENV IsRunningInContainer="true"
+ENV ISRUNNINGINCONTAINER="true"
 ENV ASPNETCORE_URLS="http://+:80"
 RUN mkdir /Workspace && \
     mkdir /Workspace/Application && \

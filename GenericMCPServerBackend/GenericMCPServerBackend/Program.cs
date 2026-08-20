@@ -85,6 +85,7 @@ namespace GenericMCPServerBackend.Core
             string toolDefinitionsFile = null;
             string virtualEnvironmentsFolder = null;
             string accessTokensFile = null;
+            string rolesFile = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
@@ -101,6 +102,11 @@ namespace GenericMCPServerBackend.Core
                     accessTokensFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialAccessTokensFile)
                         ? AccessTokenService.GetDefaultFile(initializationInformation.ApplicationConstants.GetConfigurationFolder())
                         : initializationInformation.CommandlineParameter.InitialAccessTokensFile;
+                    // The roles of the clients belong next to the tokens: a token says who is calling, a role says
+                    // what that client may use.
+                    rolesFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialRolesFile)
+                        ? RolesService.GetDefaultFile(initializationInformation.ApplicationConstants.GetConfigurationFolder())
+                        : initializationInformation.CommandlineParameter.InitialRolesFile;
                     // The check of the token is the outer of the two custom middlewares: a request which is not
                     // allowed must not reach anything behind it.
                     initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
@@ -168,6 +174,7 @@ namespace GenericMCPServerBackend.Core
                     // Only a client with a valid access-token reaches the protocol. The file is created here when it
                     // does not exist yet, so that an administrator finds the place where the tokens belong.
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAccessTokenService>(new AccessTokenService(accessTokensFile));
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IRolesService>(new RolesService(rolesFile));
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
                     this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
@@ -258,8 +265,8 @@ namespace GenericMCPServerBackend.Core
                 {
                     string file = string.IsNullOrWhiteSpace(parameter.AccessTokensFile) ? AccessTokenService.GetDefaultFile(GetConfigurationFolder()) : parameter.AccessTokensFile;
                     IAccessTokenService accessTokenService = new AccessTokenService(file);
-                    string token = accessTokenService.CreateAccessToken(parameter.Client, parameter.McpServer, parameter.ValidForDays);
-                    Console.WriteLine($"Created an access-token for the client \"{parameter.Client}\" of the mcp-server \"{parameter.McpServer}\" which is valid for {parameter.ValidForDays} day(s) and which is stored in \"{accessTokenService.GetFile()}\".");
+                    string token = accessTokenService.CreateAccessToken(parameter.Client, parameter.ValidForDays);
+                    Console.WriteLine($"Created an access-token for the client \"{parameter.Client}\" which is valid for {parameter.ValidForDays} day(s) and which is stored in \"{accessTokenService.GetFile()}\".");
                     Console.WriteLine("The token is shown now and never again, because only its hash is stored:");
                     Console.WriteLine(token);
                     result = 0;

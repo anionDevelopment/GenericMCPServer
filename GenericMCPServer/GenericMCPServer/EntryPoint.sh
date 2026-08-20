@@ -1,6 +1,7 @@
 #!/bin/bash
 
-export IsRunningInContainer=true
+# The variable which states that this runs in a container is set by the image itself (see the Dockerfile), so it is
+# already part of the environment of this script.
 
 argument="Run --RealRun true"
 

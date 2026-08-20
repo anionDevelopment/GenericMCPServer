@@ -36,6 +36,9 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// <summary>The mcp-server which everybody may use.</summary>
         public const string AnonymousUrlNamespace = "PublicExample";
 
+        /// <summary>The role which may use the mcp-server which is not anonymous.</summary>
+        public const string RoleName = "example-role";
+
         /// <summary>
         /// A script which answers with the value it got, and fails with a readable reason when that value does not have
         /// the expected format. It is the smallest thing which still shows both directions a tool can end in.
@@ -77,6 +80,12 @@ sys.stdout.write('the answer is ' + arguments.value)
         /// </summary>
         public string AccessTokensFile { get; }
 
+        /// <summary>
+        /// The file which states which client is in which role. It belongs to the example-data as well, so that a
+        /// testcase decides on its own who may reach the started server.
+        /// </summary>
+        public string RolesFile { get; }
+
         /// <summary>The folder which contains everything this creator wrote.</summary>
         private readonly string _Root;
 
@@ -86,6 +95,7 @@ sys.stdout.write('the answer is ' + arguments.value)
             this.Folder = Path.Combine(this._Root, "Tools");
             this.VirtualEnvironmentsFolder = Path.Combine(this._Root, "VirtualEnvironments");
             this.AccessTokensFile = Path.Combine(this._Root, "AccessTokens.csv");
+            this.RolesFile = Path.Combine(this._Root, "Roles.csv");
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");
@@ -93,6 +103,7 @@ sys.stdout.write('the answer is ' + arguments.value)
     ""mcp-servers"": [
         {
             ""url-namespace"": """ + UrlNamespace + @""",
+            ""authorized-roles"": [ """ + RoleName + @""" ],
             ""tools"": [
                 {
                     ""tool-name"": """ + ExampleToolName + @""",

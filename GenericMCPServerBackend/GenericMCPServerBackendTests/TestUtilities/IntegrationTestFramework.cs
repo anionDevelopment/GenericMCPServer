@@ -44,7 +44,10 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 throw new InvalidOperationException($"The port {HTTP.DefaultPort} which the test-server uses is already in use by a process outside the test-run.");
             }
             this._ExampleDataCreator = new ExampleDataCreator();
-            this.AccessToken = new AccessTokenService(this._ExampleDataCreator.AccessTokensFile).CreateAccessToken(ClientName, ExampleDataCreator.UrlNamespace, 1);
+            this.AccessToken = new AccessTokenService(this._ExampleDataCreator.AccessTokensFile).CreateAccessToken(ClientName, 1);
+            // The client is put into the role which the mcp-server of the example-data declares, the way an
+            // administrator writes it into the roles-file.
+            System.IO.File.WriteAllLines(this._ExampleDataCreator.RolesFile, new string[] { "client;role", $"{ClientName};{ExampleDataCreator.RoleName}" });
             this._Program = new Program()
             {
                 // The server runs in its own thread and blocks there, so it stays up until Stop is called. Running it
@@ -65,6 +68,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // nothing behind in the data-folder of the server.
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialVirtualEnvironmentsFolder)}", this._ExampleDataCreator.VirtualEnvironmentsFolder,
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialAccessTokensFile)}", this._ExampleDataCreator.AccessTokensFile,
+                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialRolesFile)}", this._ExampleDataCreator.RolesFile,
             }));
             thread.Start();
             if (!GRYLibrary.Core.Misc.Utilities.RunWithTimeout(() =>
@@ -113,7 +117,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </summary>
         public string GetMCPEndpointURL(string urlNamespace)
         {
-            return $"{this.GetServerURL()}/{urlNamespace}/message";
+            return $"{this.GetServerURL()}/{urlNamespace}";
         }
 
         /// <summary>

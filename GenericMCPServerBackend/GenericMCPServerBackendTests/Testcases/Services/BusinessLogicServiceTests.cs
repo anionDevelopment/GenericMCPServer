@@ -269,6 +269,35 @@ sys.stdout.write(sys.executable)
         }
 
         /// <remarks>
+        /// A value can not become a command: no shell is involved and every argument reaches the script as exactly one
+        /// argument. The testcase uses a canary and no destructive payload - it asks the script whether it received
+        /// the characters unchanged, because "the call failed" would only say that something went wrong while an
+        /// unchanged value says that nothing of it was interpreted.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.UnitTest))]
+        public void AValueWhichContainsCharactersOfAShellStaysOneValue()
+        {
+            // arrange
+            string folder = CreateFolder();
+            try
+            {
+                IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
+                string valueWhichLooksLikeACommand = "a; echo b && echo c | echo d > e $(echo f) `echo g` --help";
+
+                // act
+                string result = businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", valueWhichLooksLikeACommand } });
+
+                // assert
+                Assert.AreEqual(valueWhichLooksLikeACommand, result, "The script has to receive the value unchanged and as one single argument.");
+            }
+            finally
+            {
+                Directory.Delete(folder, true);
+            }
+        }
+
+        /// <remarks>
         /// A value which the script does not accept has to end up as a readable reason and not as a silent failure,
         /// because the client (and the model behind it) can only react to it if it learns what was wrong.
         /// </remarks>

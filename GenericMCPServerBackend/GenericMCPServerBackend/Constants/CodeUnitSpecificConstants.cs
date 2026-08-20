@@ -6,18 +6,13 @@ namespace GenericMCPServerBackend.Core.Constants
     public class CodeUnitSpecificConstants
     {
         /// <summary>
-        /// The end of the route of an mcp-server. The whole route consists of the namespace which the server declares
-        /// and this end, so one process can host more than one mcp-server.
-        /// </summary>
-        internal const string MCPRouteSuffix = "/message";
-
-        /// <summary>
-        /// The route under which the mcp-server of the given namespace is available. A MCP-client is configured with
-        /// exactly this address; all messages of the protocol are exchanged over it.
+        /// The route under which the mcp-server of the given namespace is available: the namespace which that server
+        /// declares is the whole address, so one process can host more than one mcp-server. A MCP-client is configured
+        /// with exactly this address; all messages of the protocol are exchanged over it.
         /// </summary>
         internal static string GetMCPRoute(string urlNamespace)
         {
-            return $"/{urlNamespace}{MCPRouteSuffix}";
+            return $"/{urlNamespace}";
         }
     }
 }

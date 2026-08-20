@@ -20,7 +20,8 @@ whether what the tool does is a good idea.
 - Which addresses does a tool of the type `web-request` allow? A rule like `".*"` lets a client reach every address
   which the server reaches, including the ones inside its own network.
 - Which credentials does a tool receive, and what can be done with them if the script is not what it seemed?
-- Who holds an access-token, and which tools are declared as anonymous and are therefore usable by everybody?
+- Who holds an access-token, who is in which role, and which mcp-servers are declared as anonymous and are
+  therefore usable by everybody?
 
 A tool from an unknown source is a program from an unknown source. It is to be read before it is declared, in the same
 way as any other program which is put onto a server.

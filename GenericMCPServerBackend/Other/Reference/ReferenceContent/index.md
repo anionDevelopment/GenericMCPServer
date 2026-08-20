@@ -1,55 +1,91 @@
 # GenericMCPServerBackend
 
-GenericMCPServerBackend is the backend for GenericMCPServer. It is a MCP-server which is reachable over HTTP.
+GenericMCPServerBackend is the backend for GenericMCPServer. It hosts MCP-servers which are reachable over HTTP.
 
-It brings **no tool of its own**. Which tools it offers is decided entirely by an administrator, who declares them in a
-tool-definitions-file. Without such a file the server starts and offers nothing.
+It brings **no tool of its own**. Which mcp-servers exist, which tools they offer and who may use them is decided
+entirely by an administrator, who declares it in a tool-definitions-file. Without such a file the server starts and
+offers nothing.
 
 ## How it is built
 
 The MCP-protocol itself is not implemented in this codeunit. It is implemented by the MCP-SDK of Microsoft (the
 packages `ModelContextProtocol`, `ModelContextProtocol.AspNetCore` and `ModelContextProtocol.Core`), which is
-registered as a service and whose endpoint is mapped in `Program.cs`. Because the tools are not known at
-compile-time, they can not be methods which carry an attribute: one `ScriptTool` is created per declaration and handed
-to the SDK.
+registered as a service and whose endpoints are mapped in `Program.cs`. Because the tools are not known at
+compile-time, they can not be methods which carry an attribute: one `ScriptTool` is created per declaration.
+
+The tools are not registered once for the whole process either. Which tools exist is decided per request by the
+mcp-server the route of that request belongs to - that is what makes several mcp-servers in one process possible:
 
 ```csharp
-BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
 services.AddMcpServer()
-    .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-    .WithTools(businessLogicService.GetToolDefinitions().Select(definition => new ScriptTool(businessLogicService, definition)));
+    .WithHttpTransport(options =>
+    {
+        options.SessionMode = HttpServerSessionMode.Stateless;
+        options.ConfigureSessionOptions = (httpContext, serverOptions, cancellationToken) =>
+        {
+            MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
+            serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
+            return Task.CompletedTask;
+        };
+    });
 ...
-webApplication.MapMcp("/API/v1/MCP");
+foreach (MCPServerDefinition mcpServer in businessLogicService.GetMCPServers())
+{
+    webApplication.MapMcp($"/{mcpServer.UrlNamespace}");
+}
 ```
 
 The transport runs in the stateless mode, so no session-id has to be kept by the client.
 
-## Endpoint
+## Endpoints
 
-All messages of the protocol are exchanged over one single endpoint:
+Every declared mcp-server has one endpoint of its own, over which all messages of the protocol with it are exchanged:
 
 ```
-POST /API/v1/MCP
+POST /<url-namespace>
 ```
 
-## How a tool is declared
+A client of one mcp-server can neither see nor reach the tools of another one. The same tool-name may therefore exist
+in two mcp-servers without becoming ambiguous.
+
+## How an mcp-server is declared
 
 The server is pointed to the file with the commandline-parameter `--InitialToolDefinitionsFile` (in the image: the
-environment-variable `InitialToolDefinitionsFile`). The file declares every tool:
+environment-variable `InitialToolDefinitionsFile`):
 
 ```json
 {
-    "tools": [
+    "mcp-servers": [
         {
-            "tool-name": "get_cve_details",
-            "type": "python",
-            "calls": "GetCVEDetails.py",
-            "description": "Returns the details of a CVE from the national vulnerability database.",
-            "parameters": [ "cve-identifier" ]
+            "url-namespace": "Security",
+            "authorized-roles": [ "security" ],
+            "tools": [
+                {
+                    "tool-name": "get_cve_details",
+                    "type": "python",
+                    "calls": "GetCVEDetails.py",
+                    "description": "Returns the details of a CVE from the national vulnerability database.",
+                    "parameters": [ "cve-identifier" ]
+                }
+            ]
         }
     ]
 }
 ```
+
+| Field | Meaning |
+| ----- | ------- |
+| `url-namespace` | The address the mcp-server is reachable under: `<domain>/<url-namespace>`. It may consist of parts of letters, digits, underscores and hyphens which are separated by `/` (for example `teamA` or `teamA/mcpserver1`). |
+| `authorized-roles` | The roles which may use this mcp-server. A client reaches it when it is in at least one of them. See [Access-tokens and roles](#access-tokens-and-roles). |
+| `anonymous` | Optional, `false` by default. `true` makes the mcp-server usable without an access-token; it then needs no `authorized-roles`. |
+| `tools` | The tools of this mcp-server. |
+
+An mcp-server which is not anonymous and states no role could be used by nobody, which is a mistake in the declaration
+and makes the server fail while starting. The same holds for a url-namespace which is declared twice, for a tool-name
+which is declared twice within one mcp-server, for a tool without a type and for invalid json. A file which is
+configured but does not exist is an error as well - only *no* configured file means "nothing is offered".
+
+## How a tool is declared
 
 These fields belong to every tool:
 
@@ -58,14 +94,9 @@ These fields belong to every tool:
 | `tool-name` | The name under which the tool is offered. This is what the client and the model behind it see. It may consist of letters, digits, underscores and hyphens. |
 | `type` | What implements the tool: `python`, `shell` or `web-request`. It has to be declared, it is not guessed from the extension of a file. |
 | `description` | What the tool does. The model reads this to decide whether the tool fits a task, so it should describe the answer and not the implementation. |
-| `anonymous` | Optional, `false` by default. `true` makes the tool usable without an access-token. See [Access-tokens](#access-tokens). |
 
 The remaining fields depend on the type. A field which does not belong to the declared type is an error and not
 something which is ignored, because ignoring it would let an administrator believe in an effect which does not exist.
-
-A mistake in the file (a tool without a name, a tool without a type, an unknown type, a name which is used twice,
-invalid json) makes the server fail on startup instead of when somebody happens to call the affected tool. A file which
-is configured but does not exist is an error as well - only *no* configured file means "no tools".
 
 ### Type `python`
 
@@ -83,6 +114,7 @@ is configured but does not exist is an error as well - only *no* configured file
     "calls": "GetRepositoryInformation.py",
     "description": "Returns the description and the amount of stars of a repository on github.",
     "requirements": [ "requests==2.32.3" ],
+    "credentials": { "TOKEN": "GITHUB_TOKEN" },
     "parameters": [ "owner", "repository" ]
 }
 ```
@@ -100,7 +132,7 @@ an administrator would change the requirements of a tool, nothing would happen, 
 folder which nobody looks at. An environment whose creation failed is removed, so a half-built one can not be mistaken
 for a working one.
 
-The environments are located below the data-folder of the server (in the image: `/Workspace/Data/VirtualEnvironments`).
+The environments are located below the data-folder of the server (in the image `/Workspace/Data/VirtualEnvironments`).
 The commandline-parameter `--InitialVirtualEnvironmentsFolder` puts them somewhere else, for example on a volume which
 survives a restart of the container. They can not lie next to the scripts, because that folder is usually mounted
 read-only.
@@ -154,7 +186,7 @@ addresses the tool allows.
 {
     "tool-name": "get_pypi_package_metadata",
     "type": "web-request",
-    "description": "Returns the metadata which pypi publishes about a python-package. The address of the package is \"pypi.org/pypi/<package-name>/json\".",
+    "description": "Returns the metadata which pypi publishes about a python-package.",
     "allowed-urls": [ "pypi\\.org/pypi/.*" ]
 }
 ```
@@ -186,11 +218,22 @@ The answer of the tool is a json-document with the status-code and the body of t
 {"status-code":200,"body":"..."}
 ```
 
-## Access-tokens
+## Access-tokens and roles
 
-A client reaches a tool only with an access-token. An administrator creates one per client; a client can hold more
-than one valid token at the same time, which is what makes an exchange possible without an interruption: the new token
-is created, the client is switched over, and only then the old one is removed.
+Who may use an mcp-server is decided by three things which are deliberately kept apart:
+
+| Where | What it states |
+| ----- | -------------- |
+| `AccessTokens.csv` in the configuration-folder | Which token belongs to which client and until when it is valid. |
+| `Roles.csv` next to it | Which client is in which role. |
+| The declaration of an mcp-server | Which roles may use that mcp-server (`authorized-roles`). |
+
+A client reaches an mcp-server when its token is valid and it is in at least one of the roles which that mcp-server
+declares. What a role may do and who is in that role are therefore two decisions in two files, which are usually made
+by two different people: a new client needs no change of the declaration, and a changed declaration needs no new
+client.
+
+An administrator creates a token like this:
 
 ```
 dotnet GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90
@@ -202,32 +245,45 @@ In the running container:
 docker exec genericmcpserver dotnet /Workspace/Application/Backend/GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90
 ```
 
-The call writes the token into `AccessTokens.csv` in the configuration-folder of the server (in the image
-`/Workspace/Configuration/AccessTokens.csv`, movable with `--InitialAccessTokensFile`) and shows the token once:
+The call writes the token into `AccessTokens.csv` (movable with `--InitialAccessTokensFile`) and shows it once:
 
 ```
 client;tokenhash;validuntil
-team-a;9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08;2026-11-18T09:12:44Z
+team-a;<the sha256-hash of the token>;2026-11-18T09:12:44Z
 ```
 
-- **Only the hash is stored.** The token exists in a readable form exactly once, namely in the moment it is created.
-  A token which somebody lost can therefore not be looked up but only replaced.
+The roles are stated by an administrator in `Roles.csv` (movable with `--InitialRolesFile`). A client can be in no
+role, in one or in several - one line per membership:
+
+```
+client;role
+team-a;security
+team-a;developer
+team-b;developer
+```
+
+- **Only the hash of a token is stored.** The token exists in a readable form exactly once, namely in the moment it is
+  created. A token which somebody lost can therefore not be looked up but only replaced.
 - **Every token ends.** `--ValidForDays` states when; a token without an end does not exist.
-- **A token which was just created works immediately.** The file is read for every request, so the server does not
-  have to be restarted for it. Removing a line takes an access away just as immediately.
-- **The file is created when it does not exist yet**, so an administrator finds the place where the tokens belong.
+- **A client can hold several valid tokens at the same time**, which is what makes an exchange possible without an
+  interruption: the new token is created, the client is switched over, and only then the old one is removed.
+- **A change works immediately.** Both files are read for every request, so a new token, a new role or a removed line
+  takes effect without restarting the server.
+- **Both files are created when they do not exist yet**, so an administrator finds the place where they belong.
+- **A line which can not be read is an error** and is not skipped, because skipping it would silently take an access
+  away or leave one in place.
 
 The client sends its token as a header:
 
 ```
-Authorization: Bearer gmcp_7f3a9c2e...
+Authorization: Bearer <access-token>
 ```
 
-A tool which everybody may use is declared with `"anonymous": true`. Such a tool is reachable without a token, and it
-is also the only thing a caller without a token sees: a `tools/list` without a token contains exactly the anonymous
-tools, so a server which is exposed by accident does not even tell what else it could do.
+An mcp-server which is declared with `"anonymous": true` needs none of this: it is reachable by everybody. The other
+mcp-servers of the same process stay behind their tokens.
 
-Everything else answers with the status-code 401.
+Everything which is not allowed is answered with the status-code 401 - whether the token is missing, unknown, expired
+or belongs to a client without a fitting role is nothing a caller learns from the answer.
 
 ## Credentials
 
@@ -236,14 +292,7 @@ belongs to the administrator who runs the server and never to the client, so it 
 it as an environment-variable of the server, and the declaration states which tool gets which one.
 
 ```json
-{
-    "tool-name": "get_repository_information",
-    "type": "python",
-    "calls": "GetRepositoryInformation.py",
-    "description": "Returns the description and the amount of stars of a repository on github.",
-    "credentials": { "TOKEN": "GITHUB_TOKEN" },
-    "parameters": [ "owner", "repository" ]
-}
+"credentials": { "TOKEN": "GITHUB_TOKEN" }
 ```
 
 The name on the left is the one the tool sees, the name on the right is the environment-variable of the server the
@@ -325,6 +374,8 @@ script, because there is no script which could answer it.
 
 The declaration itself comes from an administrator and is therefore trusted, but the script it names still has to be
 located inside the folder of the tool-definitions-file, so that a mistake there can not start an unrelated program.
+**What a declared tool does is the responsibility of the administrator who declared it** - see the
+[ReadMe of the image](../../../../GenericMCPServer/ReadMe.md).
 
 ## What a failed tool-call looks like
 
@@ -342,18 +393,20 @@ The body of such an answer is the normal answer of the protocol; only its status
 ## Example
 
 `GenericMCPServer/Other/Examples/MinimalDockerComposeFile/Tools` contains the scripts and the declaration which turns
-them into the tools `get_cve_details`, `get_maven_versions`, `get_nuget_versions`, `get_pypi_versions`,
-`get_npm_versions`, `get_current_utc_time` and `get_pypi_package_metadata` - one of each type. None of them is known to
-this codeunit; they are an example of what can be declared.
+them into three mcp-servers: `GeneralTools` (anonymous, the current point in time), `Security` (the role `security`,
+the details of a CVE) and `DeveloperTools` (the roles `developer` and `security`, the available versions of a maven-,
+nuget-, pypi- and npm-package, the metadata of a pypi-package and a research-tool for the usual sources of a
+developer). None of these tools is known to this codeunit; they are an example of what can be declared.
 
 ## How to use it in a MCP-client
 
 ```json
 {
   "mcpServers": {
-    "genericmcpserver": {
+    "developertools": {
       "type": "http",
-      "url": "http://127.0.0.1:8080/API/v1/MCP"
+      "url": "http://127.0.0.1:8080/DeveloperTools",
+      "headers": { "Authorization": "Bearer <access-token>" }
     }
   }
 }
@@ -362,7 +415,7 @@ this codeunit; they are an example of what can be declared.
 With the Claude-CLI:
 
 ```
-claude mcp add --transport http --scope user genericmcpserver http://127.0.0.1:8080/API/v1/MCP
+claude mcp add --transport http --scope user developertools http://127.0.0.1:8080/DeveloperTools --header "Authorization: Bearer <access-token>"
 ```
 
 ## How to test it without a client
@@ -370,41 +423,43 @@ claude mcp add --transport http --scope user genericmcpserver http://127.0.0.1:8
 The answer arrives as an event-stream, so it is the line which starts with `data: `. The accept-header has to name both
 content-types.
 
-Which tools are offered:
+Which tools an mcp-server offers (this one is anonymous, so it needs no token):
 
 ```
-curl -X POST http://127.0.0.1:8080/API/v1/MCP -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"
-```
-
-Calling a **python**-tool:
-
-```
-curl -X POST http://127.0.0.1:8080/API/v1/MCP -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"get_cve_details\",\"arguments\":{\"cve-identifier\":\"CVE-2021-44228\"}}}"
+curl -X POST http://127.0.0.1:8080/GeneralTools -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"
 ```
 
 Calling a **shell**-tool (this one takes no argument):
 
 ```
-curl -X POST http://127.0.0.1:8080/API/v1/MCP -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_utc_time\",\"arguments\":{}}}"
+curl -X POST http://127.0.0.1:8080/GeneralTools -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"get_current_utc_time\",\"arguments\":{}}}"
+```
+
+Calling a **python**-tool of an mcp-server which needs a token:
+
+```
+curl -X POST http://127.0.0.1:8080/Security -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"get_cve_details\",\"arguments\":{\"cve-identifier\":\"CVE-2021-44228\"}}}"
 ```
 
 Calling a **web-request**-tool - the address is the argument, and it carries no protocol:
 
 ```
-curl -X POST http://127.0.0.1:8080/API/v1/MCP -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_pypi_package_metadata\",\"arguments\":{\"url\":\"pypi.org/pypi/requests/json\"}}}"
+curl -X POST http://127.0.0.1:8080/DeveloperTools -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"research\",\"arguments\":{\"url\":\"stackoverflow.com/questions/11227809\"}}}"
 ```
 
 An answer looks like this (the result of the tool is the text of its content):
 
 ```
-data: {"result":{"content":[{"type":"text","text":"2026-08-20T09:12:44Z"}],"isError":false},"id":3,"jsonrpc":"2.0"}
+data: {"result":{"content":[{"type":"text","text":"2026-08-20T09:12:44Z"}],"isError":false},"id":2,"jsonrpc":"2.0"}
 ```
 
 A call which failed answers with the status-code 502 and states the reason:
 
 ```
-data: {"result":{"content":[{"type":"text","text":"The tool \"get_pypi_package_metadata\" does not allow a request to \"example.com/\". A tool allows exactly the addresses which the rules of its declaration match."}],"isError":true},"id":4,"jsonrpc":"2.0"}
+data: {"result":{"content":[{"type":"text","text":"The tool \"research\" does not allow a request to \"example.com/\". A tool allows exactly the addresses which the rules of its declaration match."}],"isError":true},"id":4,"jsonrpc":"2.0"}
 ```
+
+A request which may not reach the mcp-server at all answers with the status-code 401 and no result.
 
 Every script can also be called on its own, which is the fastest way to check what a tool answers:
 
@@ -414,7 +469,15 @@ python GetCVEDetails.py --cve-identifier=CVE-2021-44228
 
 ## How to add a tool
 
-For a tool with a script: put the script into the folder of the tool-definitions-file, let it check every argument
-against the format it must have, and add an entry with its type and its parameters. For a tool of the type
-`web-request`: add an entry with the addresses it may request. Nothing in this codeunit has to be changed and nothing
-has to be recompiled - the server picks the tool up when it is restarted.
+Put the tool into the `tools` of the mcp-server it belongs to. For a tool with a script: put the script into the folder
+of the tool-definitions-file, let it check every argument against the format it must have, and state its type and its
+parameters. For a tool of the type `web-request`: state the addresses it may request. Nothing in this codeunit has to
+be changed and nothing has to be recompiled - the server picks the tool up when it is restarted.
+
+To add a whole mcp-server, add an entry to `mcp-servers` with its `url-namespace` and either its `authorized-roles` or
+`"anonymous": true`.
+
+## What is needed to work on this codeunit
+
+The requirements, the recommended IDE and how the server is started locally are stated in the
+[hints](./Hints.md).

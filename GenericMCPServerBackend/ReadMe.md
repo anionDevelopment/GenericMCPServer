@@ -2,8 +2,9 @@
 
 GenericMCPServerBackend is the backend for GenericMCPServer.
 
-It implements a MCP-server which is reachable over HTTP and which offers exactly the tools an administrator declares
-in a tool-definitions-file. The codeunit itself contains no tool.
+It hosts the MCP-servers which an administrator declares in a tool-definitions-file: every one of them is reachable
+under an address of its own, offers exactly the tools of its declaration and is used by the clients whose roles the
+declaration allows. The codeunit itself contains no tool.
 
 ## Reference
 

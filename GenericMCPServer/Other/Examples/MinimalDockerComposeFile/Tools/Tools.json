@@ -15,6 +15,7 @@
         },
         {
             "url-namespace": "Security",
+            "authorized-roles": [ "security" ],
             "tools": [
                 {
                     "tool-name": "get_cve_details",
@@ -27,6 +28,7 @@
         },
         {
             "url-namespace": "DeveloperTools",
+            "authorized-roles": [ "developer", "security" ],
             "tools": [
                 {
                     "tool-name": "get_maven_versions",
@@ -57,10 +59,75 @@
                     "parameters": [ "package-name" ]
                 },
                 {
+                    "tool-name": "get_nuget_changelog",
+                    "type": "python",
+                    "calls": "GetChangelogOfNuGetPackageVersion.py",
+                    "description": "Returns the release-notes which one version of one nuget-package publishes.",
+                    "parameters": [ "package-id", "version" ]
+                },
+                {
+                    "tool-name": "get_pypi_changelog",
+                    "type": "python",
+                    "calls": "GetChangelogOfPyPIPackageVersion.py",
+                    "description": "Returns where the changelog of one version of one python-package stands, together with the summary of that version. Pypi publishes no release-notes itself, so the answer states the address which the package declares as its changelog.",
+                    "parameters": [ "package-name", "version" ]
+                },
+                {
                     "tool-name": "get_pypi_package_metadata",
                     "type": "web-request",
                     "description": "Returns the metadata which pypi publishes about a python-package. The address of the package is \"pypi.org/pypi/<package-name>/json\".",
                     "allowed-urls": [ "pypi\\.org/pypi/.*" ]
+                },
+                {
+                    "tool-name": "research",
+                    "type": "web-request",
+                    "description": "Returns the content of a page of one of the usual sources of a developer (documentation, package-registries, repository-hosters and question-and-answer-sites). The address is stated without a protocol, for example \"stackoverflow.com/questions/11227809\".",
+                    "allowed-urls": [
+                        "angular\\.dev(/.*)?",
+                        "api\\.github\\.com(/.*)?",
+                        "api\\.nuget\\.org(/.*)?",
+                        "bitbucket\\.org(/.*)?",
+                        "central\\.sonatype\\.com(/.*)?",
+                        "crates\\.io(/.*)?",
+                        "datatracker\\.ietf\\.org(/.*)?",
+                        "developer\\.mozilla\\.org(/.*)?",
+                        "docs\\.docker\\.com(/.*)?",
+                        "docs\\.python\\.org(/.*)?",
+                        "git-scm\\.com(/.*)?",
+                        "github\\.com(/.*)?",
+                        "gitlab\\.com(/.*)?",
+                        "hub\\.docker\\.com(/.*)?",
+                        "json-schema\\.org(/.*)?",
+                        "learn\\.microsoft\\.com(/.*)?",
+                        "mcr\\.microsoft\\.com(/.*)?",
+                        "nodejs\\.org(/.*)?",
+                        "objects\\.githubusercontent\\.com(/.*)?",
+                        "owasp\\.org(/.*)?",
+                        "packagist\\.org(/.*)?",
+                        "pkg\\.go\\.dev(/.*)?",
+                        "pub\\.dev(/.*)?",
+                        "pypi\\.org(/.*)?",
+                        "quay\\.io(/.*)?",
+                        "raw\\.githubusercontent\\.com(/.*)?",
+                        "react\\.dev(/.*)?",
+                        "registry\\.npmjs\\.org(/.*)?",
+                        "repo1\\.maven\\.org(/.*)?",
+                        "search\\.maven\\.org(/.*)?",
+                        "semver\\.org(/.*)?",
+                        "spec\\.openapis\\.org(/.*)?",
+                        "stackoverflow\\.com(/.*)?",
+                        "stackexchange\\.com(/.*)?",
+                        "[A-Za-z0-9-]+\\.stackexchange\\.com(/.*)?",
+                        "storage\\.googleapis\\.com(/.*)?",
+                        "taskfile\\.dev(/.*)?",
+                        "typescriptlang\\.org(/.*)?",
+                        "www\\.npmjs\\.com(/.*)?",
+                        "www\\.nuget\\.org(/.*)?",
+                        "www\\.oracle\\.com(/.*)?",
+                        "oracle\\.com(/.*)?",
+                        "www\\.google\\.com(/.*)?",
+                        "google\\.com(/.*)?"
+                    ]
                 }
             ]
         }

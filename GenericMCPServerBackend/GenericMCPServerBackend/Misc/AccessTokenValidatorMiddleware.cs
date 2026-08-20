@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -15,22 +16,25 @@ using System.Threading.Tasks;
 namespace GenericMCPServerBackend.Core.Misc
 {
     /// <summary>
-    /// Lets only a client through which sends a valid access-token.
+    /// Lets a request through when it may reach the mcp-server of its route.
+    ///
+    /// A request may reach it when the mcp-server is declared as anonymous, or when the request carries an
+    /// access-token of a client which is in one of the roles the mcp-server declares.
     ///
     /// It builds on the api-key-middleware of GRYLibrary, which brings the reading of the key, the check of its
     /// minimal length and the logging of a shortened key along. Two things are answered differently here:
     ///
-    /// The base-class decides by the attributes of a controller-action whether a request needs a key. The route of the
-    /// MCP-protocol is no controller-action but an endpoint of the SDK, so which route needs a token is decided here.
+    /// The base-class decides by the attributes of a controller-action whether a request needs a key. The route of an
+    /// mcp-server is no controller-action but an endpoint of the SDK, so which route needs a token is decided here.
     ///
-    /// A request without a usable token is answered with 401 and not with 403: the caller did not send something which
-    /// is not enough, it sent nothing which could be checked at all.
+    /// A request which may not pass is answered with 401 and not with 403: whether the token is missing, unknown or
+    /// belongs to a client without a fitting role is nothing a caller may learn from the answer.
     /// </summary>
     internal sealed class AccessTokenValidatorMiddleware : APIKeyValidatorMiddleware
     {
         /// <summary>
         /// Under this name the client of the request is remembered. Whoever the caller is belongs to the request, and
-        /// a later decision (which client may use which tool) needs it.
+        /// the decision which mcp-server it may use is made from its roles.
         /// </summary>
         internal const string ClientInformationName = "Client";
 
@@ -43,12 +47,15 @@ namespace GenericMCPServerBackend.Core.Misc
 
         private readonly IBusinessLogicService _BusinessLogicService;
 
+        private readonly IRolesService _RolesService;
+
         // The logger is taken from the service which holds it, the way the middlewares of GRYLibrary do it: the logger
         // itself is not part of the container.
-        public AccessTokenValidatorMiddleware(RequestDelegate next, IAccessTokenService accessTokenService, IBusinessLogicService businessLogicService, IServerLog logger)
+        public AccessTokenValidatorMiddleware(RequestDelegate next, IAccessTokenService accessTokenService, IRolesService rolesService, IBusinessLogicService businessLogicService, IServerLog logger)
             : base(next, new AccessTokenValidatorConfiguration(), logger.Logger)
         {
             this._AccessTokenService = accessTokenService;
+            this._RolesService = rolesService;
             this._BusinessLogicService = businessLogicService;
         }
 
@@ -70,13 +77,27 @@ namespace GenericMCPServerBackend.Core.Misc
             return base.TryGetAPIKey(context);
         }
 
+        /// <summary>
+        /// Decides whether the token belongs to a client which may use the mcp-server of this request.
+        ///
+        /// The token says which client is calling; whether that client may use this mcp-server is decided by its
+        /// roles. A client which is in none of the declared roles is a known client without an access here.
+        /// </summary>
         public override bool APIKeyIsAuthorized(string apiKey, HttpContext context)
         {
             MCPServerDefinition mcpServer = this._BusinessLogicService.GetMCPServerOfRoute(context.Request.Path);
-            if (mcpServer != null && this._AccessTokenService.TryGetClient(apiKey, mcpServer.UrlNamespace, out string client))
+            if (mcpServer == null || !this._AccessTokenService.TryGetClient(apiKey, out string client))
             {
-                context.Items[ClientInformationName] = client;
-                return true;
+                return false;
+            }
+            context.Items[ClientInformationName] = client;
+            IReadOnlyCollection<string> rolesOfTheClient = this._RolesService.GetRolesOf(client);
+            foreach (string role in mcpServer.AuthorizedRoles)
+            {
+                if (rolesOfTheClient.Contains(role, StringComparer.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
             return false;
         }

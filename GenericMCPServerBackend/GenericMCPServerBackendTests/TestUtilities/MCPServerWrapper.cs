@@ -16,7 +16,11 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         public const string UrlNamespace = "test";
 
         /// <param name="toolDefinitions">A declaration of the form <c>{ "tools": [ ... ] }</c>.</param>
-        /// <returns>The same tools, declared as the tools of one mcp-server.</returns>
+        /// <returns>The same tools, declared as the tools of one mcp-server which everybody may use.</returns>
+        /// <remarks>
+        /// The mcp-server is declared as anonymous: these testcases call the business-logic directly and are not about
+        /// who may reach it, so a role would only be a value which every one of them had to carry along.
+        /// </remarks>
         public static string WrapInAnMCPServer(string toolDefinitions)
         {
             string tools = toolDefinitions.Trim();
@@ -24,7 +28,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
             {
                 throw new ArgumentException("The declaration has to be a json-object.", nameof(toolDefinitions));
             }
-            return "{ \"mcp-servers\": [ { \"url-namespace\": \"" + UrlNamespace + "\", " + tools.Substring(1, tools.Length - 2).Trim() + " } ] }";
+            return "{ \"mcp-servers\": [ { \"url-namespace\": \"" + UrlNamespace + "\", \"anonymous\": true, " + tools.Substring(1, tools.Length - 2).Trim() + " } ] }";
         }
     }
 }
