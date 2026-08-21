@@ -20,28 +20,6 @@ namespace GenericMCPServerBackend.Core.Configuration
         [Option(nameof(InitialToolDefinitionsFile), Required = false)]
         public string? InitialToolDefinitionsFile { get; set; }
 
-        /// <summary>
-        /// The folder which contains the virtual environments of the python-tools, one per tool. Without this
-        /// parameter they are created below the data-folder of the server. The folder of the declarations is not used
-        /// for them, because that one is usually mounted read-only.
-        /// </summary>
-        [Option(nameof(InitialVirtualEnvironmentsFolder), Required = false)]
-        public string? InitialVirtualEnvironmentsFolder { get; set; }
-
-        /// <summary>
-        /// The file which holds the access-tokens of the clients. Without this parameter it is the file of the
-        /// configuration-folder of the server, which is created when it does not exist yet.
-        /// </summary>
-        [Option(nameof(InitialAccessTokensFile), Required = false)]
-        public string? InitialAccessTokensFile { get; set; }
-
-        /// <summary>
-        /// The file which states which client is in which role. Without this parameter it is the file next to the
-        /// access-tokens in the configuration-folder, which is created when it does not exist yet.
-        /// </summary>
-        [Option(nameof(InitialRolesFile), Required = false)]
-        public string? InitialRolesFile { get; set; }
-
         [Option(nameof(InitialEnableEndpointAvailabilityCheckValue), Required = false, Default = true)]
         public bool InitialEnableEndpointAvailabilityCheckValue { get; set; }
 

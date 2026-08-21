@@ -68,23 +68,6 @@ sys.stdout.write('the answer is ' + arguments.value)
         /// <summary>The file which declares the tools; this is what the server has to be pointed at.</summary>
         public string ToolDefinitionsFile { get; }
 
-        /// <summary>
-        /// The folder for the virtual environment of the example-tool. It belongs to this creator so that it is
-        /// removed together with the example-data instead of staying behind in the temp-folder of the machine.
-        /// </summary>
-        public string VirtualEnvironmentsFolder { get; }
-
-        /// <summary>
-        /// The file which holds the access-tokens of the started server. It belongs to the example-data as well, so
-        /// that a testcase gets a server which nobody but it can reach.
-        /// </summary>
-        public string AccessTokensFile { get; }
-
-        /// <summary>
-        /// The file which states which client is in which role. It belongs to the example-data as well, so that a
-        /// testcase decides on its own who may reach the started server.
-        /// </summary>
-        public string RolesFile { get; }
 
         /// <summary>The folder which contains everything this creator wrote.</summary>
         private readonly string _Root;
@@ -93,9 +76,6 @@ sys.stdout.write('the answer is ' + arguments.value)
         {
             this._Root = Path.Combine(Path.GetTempPath(), "GenericMCPServerBackendTests", Guid.NewGuid().ToString());
             this.Folder = Path.Combine(this._Root, "Tools");
-            this.VirtualEnvironmentsFolder = Path.Combine(this._Root, "VirtualEnvironments");
-            this.AccessTokensFile = Path.Combine(this._Root, "AccessTokens.csv");
-            this.RolesFile = Path.Combine(this._Root, "Roles.csv");
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");

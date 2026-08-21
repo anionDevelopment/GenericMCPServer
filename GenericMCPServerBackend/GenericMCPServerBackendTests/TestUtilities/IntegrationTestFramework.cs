@@ -1,6 +1,9 @@
 using GRYLibrary.Core.APIServer.Settings.Configuration;
 using GenericMCPServerBackend.Core;
+using GenericMCPServerBackend.Core.Misc;
 using GenericMCPServerBackend.Core.Services;
+using System.Collections.Generic;
+using System.Text.Json;
 using System;
 using System.Linq;
 using System.Net;
@@ -30,9 +33,24 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         public const string ClientName = "integration-test";
 
         /// <summary>
-        /// The access-token of that client. Every request needs one, so it is created before the server is started.
+        /// The access-token of that client. It is created over the api after the server started, exactly the way it is
+        /// created in reality: the folders of the server are not stated from outside, so a testcase can not write into
+        /// them - and it should not have to.
         /// </summary>
         public string AccessToken { get; }
+
+        /// <summary>The token with which that client administrates its own access-tokens.</summary>
+        public string ClientAdministrationToken { get; }
+
+        /// <summary>
+        /// The token with which an administrator reaches the admin-routes of the started server.
+        /// </summary>
+        /// <remarks>
+        /// The server writes the token it created to its log and stores nothing but its hash, so a testcase can not
+        /// read it anywhere. It therefore states its own one: the hash in the file of the server is replaced by the
+        /// hash of this token, which the server reads at the next request because it reads that file every time.
+        /// </remarks>
+        public string AdminToken { get; }
 
         public IntegrationTestFramework()
         {
@@ -44,10 +62,6 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 throw new InvalidOperationException($"The port {HTTP.DefaultPort} which the test-server uses is already in use by a process outside the test-run.");
             }
             this._ExampleDataCreator = new ExampleDataCreator();
-            this.AccessToken = new AccessTokenService(this._ExampleDataCreator.AccessTokensFile).CreateAccessToken(ClientName, 1);
-            // The client is put into the role which the mcp-server of the example-data declares, the way an
-            // administrator writes it into the roles-file.
-            System.IO.File.WriteAllLines(this._ExampleDataCreator.RolesFile, new string[] { "client;role", $"{ClientName};{ExampleDataCreator.RoleName}" });
             this._Program = new Program()
             {
                 // The server runs in its own thread and blocks there, so it stays up until Stop is called. Running it
@@ -64,11 +78,6 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // The initialization-state-route is what the readiness-probe below asks, so it has to be available.
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialEnableEndpointInitializationStateValue)}", "true",
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialToolDefinitionsFile)}", this._ExampleDataCreator.ToolDefinitionsFile,
-                // The virtual environment of the example-tool belongs to the example-data, so that the test-run leaves
-                // nothing behind in the data-folder of the server.
-                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialVirtualEnvironmentsFolder)}", this._ExampleDataCreator.VirtualEnvironmentsFolder,
-                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialAccessTokensFile)}", this._ExampleDataCreator.AccessTokensFile,
-                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialRolesFile)}", this._ExampleDataCreator.RolesFile,
             }));
             thread.Start();
             if (!GRYLibrary.Core.Misc.Utilities.RunWithTimeout(() =>
@@ -84,6 +93,44 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 this.Dispose();
                 throw new InvalidOperationException("The test-server did not become ready.");
             }
+            this.AdminToken = SetTheTokenOfTheAdministrator(this._Program._AdminTokenService);
+            // The role, the client and the access-token are created the way an administrator and the operator of a
+            // client create them: over the api of the running server.
+            this.SendToTheAdministration(HttpMethod.Post, $"/API/v1/Admin/Roles/{ExampleDataCreator.RoleName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
+            string answerOfTheClient = this.SendToTheAdministration(HttpMethod.Post, $"/API/v1/Admin/Clients/{ClientName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
+            this.ClientAdministrationToken = JsonDocument.Parse(answerOfTheClient).RootElement.GetProperty("clientAdministrationToken").GetString();
+            this.SendToTheAdministration(HttpMethod.Post, $"/API/v1/Admin/Clients/{ClientName}/Roles/{ExampleDataCreator.RoleName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
+            string answerOfTheAccessToken = this.SendToTheAdministration(HttpMethod.Post, "/API/v1/ClientAdministration/AccessTokens?validForDays=1", AccessTokenValidatorMiddleware.ClientAdministrationTokenHeaderName, this.ClientAdministrationToken);
+            this.AccessToken = JsonDocument.Parse(answerOfTheAccessToken).RootElement.GetProperty("accessToken").GetString();
+        }
+
+        /// <summary>
+        /// Puts a token which this test-run knows into the file of the administrator of the started server and returns
+        /// it.
+        /// </summary>
+        private static string SetTheTokenOfTheAdministrator(IAdminTokenService adminTokenService)
+        {
+            string token = Token.Create(Token.PrefixOfAnAdminToken);
+            new CsvFile(adminTokenService.GetFile(), AdminTokenService.Header).WriteRows(new List<string[]>() { new string[] { Token.GetHash(token) } });
+            return token;
+        }
+
+        /// <summary>
+        /// Sends one request to the administration of the server and returns its answer.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when the server did not answer with a success, because a testcase which builds on a failed setup would fail somewhere else and for a reason which is not the actual one.</exception>
+        private string SendToTheAdministration(HttpMethod method, string route, string headerName, string token)
+        {
+            using HttpClient client = new HttpClient();
+            using HttpRequestMessage request = new HttpRequestMessage(method, $"{this.GetServerURL()}{route}");
+            request.Headers.Add(headerName, token);
+            HttpResponseMessage response = client.Send(request);
+            string answer = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"The administration of the test-server answered \"{route}\" with the status-code {(int)response.StatusCode}: {answer}");
+            }
+            return answer;
         }
 
         /// <summary>
@@ -93,13 +140,16 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// The readiness is asked on the MCP-endpoint itself and not on a maintenance-route: what a testcase needs to
         /// know is whether that endpoint answers, and any other route could be up while it is not. "ping" is the method
         /// of the protocol which exists for exactly this question and which changes nothing.
+        ///
+        /// It is asked at the mcp-server which is declared as anonymous, because at this moment no access-token exists
+        /// yet: the tokens are created over the api of the very server whose readiness is asked here.
         /// </remarks>
         private bool IsReady()
         {
             try
             {
-                this.SendMCPMessage(@"{""jsonrpc"":""2.0"",""id"":0,""method"":""ping""}");
-                return true;
+                (HttpStatusCode statusCode, string _) = this.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":0,""method"":""ping""}", ExampleDataCreator.AnonymousUrlNamespace, null);
+                return Enumerable.Range(200, 100).Contains((int)statusCode);
             }
             catch
             {

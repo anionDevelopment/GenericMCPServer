@@ -15,6 +15,288 @@
     "version": "v1.0.0"
   },
   "paths": {
+    "/API/v1/Admin/Clients": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "The clients which exist.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/Admin/Clients/{client}": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Creates a client and answers with the token with which that client administrates its own access-tokens.",
+        "description": "The token is part of this answer and is never readable again, because only its hash is stored. It is handed\nto whoever runs that client.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Removes a client together with its access-tokens and its roles.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/Admin/Clients/{client}/AdministrationToken": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Creates a new client-administration-token for a client and answers with it.",
+        "description": "This is what an administrator does when the token of a client has to be exchanged - because it leaked,\nbecause the person who held it left, or simply because it is old. The previous token stops working at once,\nso whoever runs that client has to receive the new one. The access-tokens of the client stay as they are:\nthey are what the client uses, and they are not touched by a change of who may administrate it.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/Admin/Roles": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "The roles which exist.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/Admin/Roles/{role}": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Creates a role. Which mcp-server a role may use is stated in the tool-definitions-file and not here.",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Removes a role and every assignment of it.",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/Admin/Clients/{client}/Roles": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "The roles of one client.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/Admin/Clients/{client}/Roles/{role}": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Puts a client into a role.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Removes a client from a role.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/ClientAdministration/AccessTokens": {
+      "get": {
+        "tags": [
+          "ClientAdministration"
+        ],
+        "summary": "The access-tokens of the own client. They contain the hash and never the token itself, because a token is\nreadable exactly once, namely when it is created.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ClientAdministration"
+        ],
+        "summary": "Creates an access-token for the own client and answers with it.",
+        "description": "A client can hold several valid tokens at the same time, which is what makes an exchange possible without an\ninterruption: the new token is created, whatever uses it is switched over, and only then the old one is\nremoved.",
+        "parameters": [
+          {
+            "name": "validForDays",
+            "in": "query",
+            "description": "The amount of days the token is valid.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 365
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/API/v1/ClientAdministration/AccessTokens/{hash}": {
+      "delete": {
+        "tags": [
+          "ClientAdministration"
+        ],
+        "summary": "Removes one access-token of the own client. The token is stated by its hash, which the list of the tokens\ncontains.",
+        "parameters": [
+          {
+            "name": "hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/API/Other/Resources/Information/TermsOfService": {
       "get": {
         "tags": [
@@ -126,6 +408,12 @@
   },
   "components": {},
   "tags": [
+    {
+      "name": "Admin"
+    },
+    {
+      "name": "ClientAdministration"
+    },
     {
       "name": "CommonRoutes"
     },

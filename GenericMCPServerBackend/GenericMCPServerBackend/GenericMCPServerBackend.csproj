@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
     <Authors>Marius Göcke</Authors>
     <Version>0.2.1</Version>
     <AssemblyVersion>0.2.1</AssemblyVersion>
@@ -11,7 +12,7 @@
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <Copyright>Copyright © 2026 Marius Göcke</Copyright>
-    <Description>GenericMCPServerBackend is the backend for GenericMCPServer.</Description>
+    <Description>GenericMCPServerBackend is a generic MCP-Server.</Description>
     <PackageProjectUrl>https://github.com/anionDevelopment/GenericMCPServer</PackageProjectUrl>
     <RepositoryUrl>https://github.com/anionDevelopment/GenericMCPServer.git</RepositoryUrl>
     <RootNamespace>GenericMCPServerBackend.Core</RootNamespace>
@@ -36,7 +37,6 @@
     <OutputType>Exe</OutputType>
     <DocumentationFile>..\Other\Artifacts\MetaInformation\GenericMCPServerBackend.xml</DocumentationFile>
     <StartupObject>GenericMCPServerBackend.Core.Program</StartupObject>
-    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Development'">
     <DebugType>full</DebugType>
@@ -62,7 +62,7 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="[2.9.1]" />
     <PackageReference Include="ExtendedXmlSerializer" Version="[3.10.0]" />
-    <PackageReference Include="GRYLibrary" Version="[2.0.30]" />
+    <PackageReference Include="GRYLibrary" Version="[2.0.32]" />
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="[2.3.9]" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="[10.0.3]" />
     <PackageReference Include="ModelContextProtocol" Version="[2.2.0]" />

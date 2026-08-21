@@ -4,6 +4,9 @@ GenericMCPServer is a simple MCP-server which is reachable over HTTP.
 
 This codeunit contains the definition of the container-image which packages [GenericMCPServerBackend](../GenericMCPServerBackend/ReadMe.md).
 
+The built image is published on docker hub as
+[aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver).
+
 ## The tools are the responsibility of the administrator
 
 **This product runs the tools which an administrator declares. It does not check what they do, and it can not do so.**

@@ -75,6 +75,211 @@ paths:
           description: OK
       tags:
       - CommonRoutes
+  /API/v1/Admin/Clients:
+    get:
+      responses:
+        '200':
+          description: OK
+      summary: The clients which exist.
+      tags:
+      - Admin
+  /API/v1/Admin/Clients/{client}:
+    delete:
+      parameters:
+      - in: path
+        name: client
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Removes a client together with its access-tokens and its roles.
+      tags:
+      - Admin
+    post:
+      description: 'The token is part of this answer and is never readable again,
+        because only its hash is stored. It is handed
+
+        to whoever runs that client.'
+      parameters:
+      - in: path
+        name: client
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Creates a client and answers with the token with which that client
+        administrates its own access-tokens.
+      tags:
+      - Admin
+  /API/v1/Admin/Clients/{client}/AdministrationToken:
+    post:
+      description: 'This is what an administrator does when the token of a client
+        has to be exchanged - because it leaked,
+
+        because the person who held it left, or simply because it is old. The previous
+        token stops working at once,
+
+        so whoever runs that client has to receive the new one. The access-tokens
+        of the client stay as they are:
+
+        they are what the client uses, and they are not touched by a change of who
+        may administrate it.'
+      parameters:
+      - in: path
+        name: client
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Creates a new client-administration-token for a client and answers
+        with it.
+      tags:
+      - Admin
+  /API/v1/Admin/Clients/{client}/Roles:
+    get:
+      parameters:
+      - in: path
+        name: client
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: The roles of one client.
+      tags:
+      - Admin
+  /API/v1/Admin/Clients/{client}/Roles/{role}:
+    delete:
+      parameters:
+      - in: path
+        name: client
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: role
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Removes a client from a role.
+      tags:
+      - Admin
+    post:
+      parameters:
+      - in: path
+        name: client
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: role
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Puts a client into a role.
+      tags:
+      - Admin
+  /API/v1/Admin/Roles:
+    get:
+      responses:
+        '200':
+          description: OK
+      summary: The roles which exist.
+      tags:
+      - Admin
+  /API/v1/Admin/Roles/{role}:
+    delete:
+      parameters:
+      - in: path
+        name: role
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Removes a role and every assignment of it.
+      tags:
+      - Admin
+    post:
+      parameters:
+      - in: path
+        name: role
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: Creates a role. Which mcp-server a role may use is stated in the tool-definitions-file
+        and not here.
+      tags:
+      - Admin
+  /API/v1/ClientAdministration/AccessTokens:
+    get:
+      responses:
+        '200':
+          description: OK
+      summary: 'The access-tokens of the own client. They contain the hash and never
+        the token itself, because a token is
+
+        readable exactly once, namely when it is created.'
+      tags:
+      - ClientAdministration
+    post:
+      description: 'A client can hold several valid tokens at the same time, which
+        is what makes an exchange possible without an
+
+        interruption: the new token is created, whatever uses it is switched over,
+        and only then the old one is
+
+        removed.'
+      parameters:
+      - description: The amount of days the token is valid.
+        in: query
+        name: validForDays
+        schema:
+          default: 365
+          format: int32
+          type: integer
+      responses:
+        '200':
+          description: OK
+      summary: Creates an access-token for the own client and answers with it.
+      tags:
+      - ClientAdministration
+  /API/v1/ClientAdministration/AccessTokens/{hash}:
+    delete:
+      parameters:
+      - in: path
+        name: hash
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      summary: 'Removes one access-token of the own client. The token is stated by
+        its hash, which the list of the tokens
+
+        contains.'
+      tags:
+      - ClientAdministration
 tags:
+- name: Admin
+- name: ClientAdministration
 - name: CommonRoutes
 - name: MaintenanceRoutes

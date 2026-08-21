@@ -100,25 +100,39 @@ change is wrong: run `grep -rniE "cve|maven|nuget|npm" GenericMCPServerBackend -
 
 Three things decide it, and they are deliberately kept apart:
 
-- `AccessTokens.csv` in the configuration-folder (`Services/AccessTokenService.cs`): which token belongs to which
-  client and until when it is valid. Only the hash of a token is stored, a client can hold several valid tokens at the
-  same time, and an administrator creates one with
-  `dotnet GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90` — a call and not a route,
-  because a route would need an access to create the first access.
-- `Roles.csv` next to it (`Services/RolesService.cs`): which client is in which role. A client can be in none, one or
-  several.
-- The declaration: which roles may use an mcp-server (`authorized-roles`).
+- `ClientAdministrationTokens.csv` (`Services/ClientService.cs`): which clients exist and with which token each of them
+  administrates itself.
+- `Roles.csv` and `RoleAssignments.csv` (`Services/RolesService.cs`): which roles exist and which client is in which of
+  them. A role exists before anybody is in it, so an mcp-server can be declared for a role whose clients are created
+  later.
+- `AccessTokens.csv` (`Services/AccessTokenService.cs`): which access-token belongs to which client and until when it is
+  valid.
 
-Both files are created when they do not exist yet and are read for every request, so a new token or a changed role
-works immediately without a restart. A line which can not be read is an error and is not skipped.
+A client reaches an mcp-server when its access-token is valid and it is in at least one of the roles which the
+declaration of that mcp-server states. All files live in the configuration-folder of the server (which is not
+stated from outside), are created when they do not exist yet and are read for every request, so a change works
+immediately without a restart. A line which can not be read is an error and is not skipped.
 
-The client sends its token as `Authorization: Bearer <token>` (the header `X-Authorization` of GRYLibrary works as
-well). Everything which is not allowed answers with 401 — whether the token was missing, unknown, expired or belonged
-to a client without a fitting role is nothing a caller learns.
+Everything is administrated over the api and not on the commandline:
 
-`Misc/AccessTokenValidatorMiddleware.cs` does the check. It derives from the api-key-middleware of GRYLibrary and
-overrides `Invoke`, because the base-class decides by the `[Authorize]`-attributes of controller-actions and the route
-of an mcp-server is no controller-action.
+- `Controller/AdminController.cs` (`/API/v1/Admin`) manages clients, roles and assignments. It needs the header
+  `X-Admin-Token` with the token of the administrator. That token is created by `Services/AdminTokenService.cs` at the
+  first start which finds no `AdminToken.csv` and is written to the log while the file-targets of the log are switched
+  off, so it appears on the console and in no file; only its hash is stored. Creating a client answers with the
+  client-administration-token of that client - the only moment at which it is readable.
+- `Controller/ClientAdministrationController.cs` (`/API/v1/ClientAdministration`) lets a client create and remove its
+  own access-tokens. It needs the header `X-Client-Administration-Token`; which client is calling follows from that
+  token, so a client can not even name another one.
+
+Only hashes are stored (`Misc/Token.cs`), and the comparison of a token with a hash runs in a constant time.
+
+The client sends its access-token as `Authorization: Bearer <token>` (the header `X-Authorization` of GRYLibrary works
+as well). Everything which is not allowed answers with 401 — whether the token was missing, unknown, expired or
+belonged to a client without a fitting role is nothing a caller learns.
+
+`Misc/AccessTokenValidatorMiddleware.cs` does that check for the routes of the mcp-servers. It derives from the
+api-key-middleware of GRYLibrary and overrides `Invoke`, because the base-class decides by the `[Authorize]`-attributes
+of controller-actions and the route of an mcp-server is no controller-action.
 
 ## Credentials of a tool
 

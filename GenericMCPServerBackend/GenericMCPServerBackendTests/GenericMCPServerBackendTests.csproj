@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
     <Authors>Marius Göcke</Authors>
     <Version>0.2.1</Version>
     <AssemblyVersion>0.2.1</AssemblyVersion>
@@ -34,7 +35,6 @@
     <WarningsAsErrors>NU1605</WarningsAsErrors>
     <ErrorLog>..\Other\Resources\CodeAnalysisResult\GenericMCPServerBackendTests.sarif</ErrorLog>
     <OutputType>Library</OutputType>
-    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Development'">
     <DebugType>full</DebugType>
@@ -60,10 +60,11 @@
   <ItemGroup>
     <ProjectReference Include="..\GenericMCPServerBackend\GenericMCPServerBackend.csproj" />
     <PackageReference Include="coverlet.collector" Version="[6.0.4]" />
-    <PackageReference Include="GRYLibrary" Version="[2.0.30]" />
+    <PackageReference Include="GRYLibrary" Version="[2.0.32]" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="[17.14.1]" />
     <PackageReference Include="MSTest.TestAdapter" Version="[3.9.3]" />
     <PackageReference Include="MSTest.TestFramework" Version="[3.9.3]" />
     <PackageReference Include="ModelContextProtocol.Core" Version="[2.2.0]" />
+    <PackageReference Include="Moq" Version="[4.20.72]" />
   </ItemGroup>
 </Project>

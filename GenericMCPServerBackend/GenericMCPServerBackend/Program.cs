@@ -51,6 +51,13 @@ namespace GenericMCPServerBackend.Core
         internal bool RunAsync { get; set; } = false;
         internal bool IsRunning { get; set; } = false;
         internal IBusinessLogicService? _BusinessLogicService;
+        internal CodeUnitSpecificConfiguration? _ApplicationConfiguration;
+
+        /// <summary>
+        /// The service which holds the token of the administrator. A testcase reaches the file of that token through
+        /// it: the token itself is only written to the log, and the folders of the server are not stated from outside.
+        /// </summary>
+        internal IAdminTokenService? _AdminTokenService;
         internal IGRYLog _Log;
 
         internal IHostApplicationLifetime? _HostApplicationLifetime;
@@ -73,19 +80,12 @@ namespace GenericMCPServerBackend.Core
         /// <returns>An integer exit code; <c>0</c> indicates success.</returns>
         internal int MainImplementation(string[] commandlineArguments)
         {
-            if (0 < commandlineArguments.Length && commandlineArguments[0] == CreateAccessTokenParameter.VerbName)
-            {
-                // This call does not start a server: it is what an administrator uses to create the first access at
-                // all, so it is handled before anything of the server is set up.
-                return CreateAccessToken(commandlineArguments);
-            }
             // The file which declares the tools is read from the commandline-parameters, which are only available
             // once the initialization ran, so it is remembered here and used when the services are registered. The
             // same holds for the folder of the virtual environments of the python-tools.
             string toolDefinitionsFile = null;
             string virtualEnvironmentsFolder = null;
-            string accessTokensFile = null;
-            string rolesFile = null;
+            string administrationFolder = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
@@ -93,20 +93,12 @@ namespace GenericMCPServerBackend.Core
                 {
                     toolDefinitionsFile = initializationInformation.CommandlineParameter.InitialToolDefinitionsFile;
                     // The environments are generated content, so they belong below the data-folder of the server. The
-                    // folder of the declarations can not hold them: it is usually mounted read-only.
-                    virtualEnvironmentsFolder = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialVirtualEnvironmentsFolder)
-                        ? Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments")
-                        : initializationInformation.CommandlineParameter.InitialVirtualEnvironmentsFolder;
-                    // The access-tokens belong to the configuration of the server, so they are kept in its
-                    // configuration-folder unless another file was stated.
-                    accessTokensFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialAccessTokensFile)
-                        ? AccessTokenService.GetDefaultFile(initializationInformation.ApplicationConstants.GetConfigurationFolder())
-                        : initializationInformation.CommandlineParameter.InitialAccessTokensFile;
-                    // The roles of the clients belong next to the tokens: a token says who is calling, a role says
-                    // what that client may use.
-                    rolesFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialRolesFile)
-                        ? RolesService.GetDefaultFile(initializationInformation.ApplicationConstants.GetConfigurationFolder())
-                        : initializationInformation.CommandlineParameter.InitialRolesFile;
+                    // folder of the declarations can not hold them: it is usually mounted read-only. Where they are is
+                    // not stated from outside, because it follows from where this server keeps its data.
+                    virtualEnvironmentsFolder = Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments");
+                    // The clients, their roles and their tokens belong to the configuration of the server, so they are
+                    // kept in its configuration-folder. Where that is is not stated from outside either.
+                    administrationFolder = initializationInformation.ApplicationConstants.GetConfigurationFolder();
                     // The check of the token is the outer of the two custom middlewares: a request which is not
                     // allowed must not reach anything behind it.
                     initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
@@ -145,7 +137,6 @@ namespace GenericMCPServerBackend.Core
                     {
                         NotLoggedRoutes = new HashSet<string>()
                         {
-                            @$"^/favicon\.ico$",
                             @$"^/API/Other/Resources/APISpecification/*",
                             @$"^/API/Other/Maintenance/Metrics$",
                             @$"^/API/Other/Maintenance/HealthCheck$",
@@ -159,7 +150,10 @@ namespace GenericMCPServerBackend.Core
                     this._Log = functionalInformation.Logger;//this is now server.log
                     this._Log.Log("Run initialization...");
 
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<ITimeService, TimeService>();
+                    // The time is taken from this service everywhere, so a testcase can state which point in time it
+                    // is instead of waiting for one.
+                    ITimeService timeService = new TimeService();
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<ITimeService>(timeService);
                     // The maintenance-health-check-route of GRYLibrary resolves the health-check-service of
                     // ASP.NET, so it has to be registered even though this codeunit contributes no check of its own:
                     // without it that route answers with 500, and it is the route the container-image checks itself
@@ -173,8 +167,14 @@ namespace GenericMCPServerBackend.Core
                     functionalInformation.WebApplicationBuilder.Services.AddHttpContextAccessor();
                     // Only a client with a valid access-token reaches the protocol. The file is created here when it
                     // does not exist yet, so that an administrator finds the place where the tokens belong.
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAccessTokenService>(new AccessTokenService(accessTokensFile));
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IRolesService>(new RolesService(rolesFile));
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAccessTokenService>(new AccessTokenService(AccessTokenService.GetDefaultFile(administrationFolder), timeService));
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IClientService>(new ClientService(ClientService.GetDefaultFile(administrationFolder)));
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IRolesService>(new RolesService(RolesService.GetDefaultRolesFile(administrationFolder), RolesService.GetDefaultAssignmentsFile(administrationFolder)));
+                    // The token of the administrator is created here when its file does not exist yet, and it is
+                    // written to the log while doing so - that is the one moment it is readable.
+                    this._AdminTokenService = new AdminTokenService(AdminTokenService.GetDefaultFile(administrationFolder), this._Log);
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAdminTokenService>(this._AdminTokenService);
+                    functionalInformation.WebApplicationBuilder.Services.AddSingleton(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration);
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
                     this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
@@ -230,6 +230,7 @@ namespace GenericMCPServerBackend.Core
                     this._Constants = apiServerConfiguration;
                     this._HostApplicationLifetime = functionalInformationForWebApplication.WebApplication.Services.GetService<IHostApplicationLifetime>();
                     this._BusinessLogicService = functionalInformationForWebApplication.WebApplication.Services.GetService<IBusinessLogicService>();
+                    this._ApplicationConfiguration = functionalInformationForWebApplication.WebApplication.Services.GetService<CodeUnitSpecificConfiguration>();
                     functionalInformationForWebApplication.RunAsync = this.RunAsync;
                     IInitializationService<CommandlineParameter> initializationService = functionalInformationForWebApplication.WebApplication.Services.GetRequiredService<IInitializationService<CommandlineParameter>>();
                     functionalInformationForWebApplication.PreRun = () =>
@@ -247,49 +248,6 @@ namespace GenericMCPServerBackend.Core
             }, this._Log);
             this.IsRunning = false;
             return result;
-        }
-
-        /// <summary>
-        /// Creates an access-token for a client and writes it to the standard-output.
-        ///
-        /// The token is written there and never into the log: a log is kept, copied and read by more people than the
-        /// one who creates the token, and the token exists in a readable form only in this moment.
-        /// </summary>
-        /// <returns>0 if the token was created.</returns>
-        private static int CreateAccessToken(string[] commandlineArguments)
-        {
-            int result = 1;
-            new Parser(settings => settings.HelpWriter = Console.Error).ParseArguments<CreateAccessTokenParameter>(commandlineArguments).WithParsed(parameter =>
-            {
-                try
-                {
-                    string file = string.IsNullOrWhiteSpace(parameter.AccessTokensFile) ? AccessTokenService.GetDefaultFile(GetConfigurationFolder()) : parameter.AccessTokensFile;
-                    IAccessTokenService accessTokenService = new AccessTokenService(file);
-                    string token = accessTokenService.CreateAccessToken(parameter.Client, parameter.ValidForDays);
-                    Console.WriteLine($"Created an access-token for the client \"{parameter.Client}\" which is valid for {parameter.ValidForDays} day(s) and which is stored in \"{accessTokenService.GetFile()}\".");
-                    Console.WriteLine("The token is shown now and never again, because only its hash is stored:");
-                    Console.WriteLine(token);
-                    result = 0;
-                }
-                catch (Exception exception)
-                {
-                    Console.Error.WriteLine(exception.Message);
-                    result = 1;
-                }
-            });
-            return result;
-        }
-
-        /// <summary>
-        /// The folder the server keeps its configuration in. The way to it is the one the server itself takes, so that
-        /// a token which is created here is a token which the server reads.
-        /// </summary>
-        private static string GetConfigurationFolder()
-        {
-            // The mode is stated as a real run, because the folder of a real server is meant here and not the
-            // temporary one of a test-run. "Configuration" is the name which GRYLibrary gives that folder.
-            string baseFolder = GetBaseFolder.GetBaseFolderForProjectInCommonProjectStructure(GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetValue(System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)), RunProgram.Instance, false);
-            return Path.Combine(baseFolder, "Configuration");
         }
 
         /// <summary>

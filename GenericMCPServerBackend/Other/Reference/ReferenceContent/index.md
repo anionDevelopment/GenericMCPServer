@@ -76,7 +76,7 @@ environment-variable `InitialToolDefinitionsFile`):
 | Field | Meaning |
 | ----- | ------- |
 | `url-namespace` | The address the mcp-server is reachable under: `<domain>/<url-namespace>`. It may consist of parts of letters, digits, underscores and hyphens which are separated by `/` (for example `teamA` or `teamA/mcpserver1`). |
-| `authorized-roles` | The roles which may use this mcp-server. A client reaches it when it is in at least one of them. See [Access-tokens and roles](#access-tokens-and-roles). |
+| `authorized-roles` | The roles which may use this mcp-server. A client reaches it when it is in at least one of them. See [Access-tokens, clients and roles](#access-tokens-clients-and-roles). |
 | `anonymous` | Optional, `false` by default. `true` makes the mcp-server usable without an access-token; it then needs no `authorized-roles`. |
 | `tools` | The tools of this mcp-server. |
 
@@ -218,62 +218,80 @@ The answer of the tool is a json-document with the status-code and the body of t
 {"status-code":200,"body":"..."}
 ```
 
-## Access-tokens and roles
+## Access-tokens, clients and roles
 
 Who may use an mcp-server is decided by three things which are deliberately kept apart:
 
 | Where | What it states |
 | ----- | -------------- |
-| `AccessTokens.csv` in the configuration-folder | Which token belongs to which client and until when it is valid. |
-| `Roles.csv` next to it | Which client is in which role. |
+| `ClientAdministrationTokens.csv` | Which clients exist and with which token each of them administrates itself. |
+| `Roles.csv` and `RoleAssignments.csv` | Which roles exist and which client is in which of them. |
 | The declaration of an mcp-server | Which roles may use that mcp-server (`authorized-roles`). |
 
-A client reaches an mcp-server when its token is valid and it is in at least one of the roles which that mcp-server
-declares. What a role may do and who is in that role are therefore two decisions in two files, which are usually made
-by two different people: a new client needs no change of the declaration, and a changed declaration needs no new
-client.
+A client reaches an mcp-server when its access-token is valid and it is in at least one of the roles which that
+mcp-server declares. What a role may do and who is in that role are therefore two decisions in two places, which are
+usually made by two different people.
 
-An administrator creates a token like this:
+All of these files live in the configuration-folder of the server (movable with `--InitialAdministrationFolder`), they
+are created when they do not exist yet, and they are read for every request - so every change works immediately and
+without a restart.
+
+### The admin-token
+
+The server generates a token for its administrator the first time it starts without one and writes it to its log,
+while the log-file is switched off - so it appears on the console of the starting server and in no file. Only its hash
+is stored (`AdminToken.csv` in the configuration-folder), exactly like the token of a client: whoever gets the files of
+the server into their hands holds no access, and a token which was missed can not be looked up but only replaced. To
+replace it, delete `AdminToken.csv` and start the server again.
+
+The token is deliberately no token of a client: whoever administrates the server is not one of the clients which use
+it.
+
+### What an administrator does
+
+Every one of these routes needs the header `X-Admin-Token` with that token.
+
+| Route | What it does |
+| ----- | ------------ |
+| `GET /API/v1/Admin/Clients` | The clients with their roles and the amount of their access-tokens. |
+| `POST /API/v1/Admin/Clients/<client>` | Creates a client and answers with its client-administration-token. |
+| `POST /API/v1/Admin/Clients/<client>/AdministrationToken` | Creates a new client-administration-token for that client and answers with it. The previous one stops working at once; the access-tokens of the client stay as they are. |
+| `DELETE /API/v1/Admin/Clients/<client>` | Removes the client together with its access-tokens and its roles. |
+| `GET /API/v1/Admin/Roles` | The roles which exist. |
+| `POST /API/v1/Admin/Roles/<role>` | Creates a role. |
+| `DELETE /API/v1/Admin/Roles/<role>` | Removes the role and every assignment of it. |
+| `POST /API/v1/Admin/Clients/<client>/Roles/<role>` | Puts the client into the role. |
+| `DELETE /API/v1/Admin/Clients/<client>/Roles/<role>` | Removes the client from the role. |
 
 ```
-dotnet GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90
+curl -X POST http://127.0.0.1:8080/API/v1/Admin/Clients/team-a -H "X-Admin-Token: <admin-token>"
 ```
 
-In the running container:
+The answer contains the **client-administration-token**, and only this answer does: only its hash is stored. It is
+handed to whoever runs that client.
+
+### What a client does
+
+Every one of these routes needs the header `X-Client-Administration-Token`. Which client is calling follows from that
+token, so a client can only ever see and change its own access-tokens - it can not even name another one.
+
+| Route | What it does |
+| ----- | ------------ |
+| `GET /API/v1/ClientAdministration/AccessTokens` | The own access-tokens, with their hash and their end. |
+| `POST /API/v1/ClientAdministration/AccessTokens?validForDays=90` | Creates an access-token and answers with it. |
+| `DELETE /API/v1/ClientAdministration/AccessTokens/<hash>` | Removes one of the own access-tokens. |
 
 ```
-docker exec genericmcpserver dotnet /Workspace/Application/Backend/GenericMCPServerBackend.dll CreateAccessToken --Client team-a --ValidForDays 90
+curl -X POST "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: <client-administration-token>"
 ```
 
-The call writes the token into `AccessTokens.csv` (movable with `--InitialAccessTokensFile`) and shows it once:
+- **Only the hash of a token is stored.** Every token exists in a readable form exactly once, namely in the answer
+  which creates it. A token which somebody lost can therefore not be looked up but only replaced.
+- **Every access-token ends.** `validForDays` states when; a token without an end does not exist.
+- **A client can hold several valid access-tokens at the same time**, which is what makes an exchange possible without
+  an interruption: the new token is created, whatever uses it is switched over, and only then the old one is removed.
 
-```
-client;tokenhash;validuntil
-team-a;<the sha256-hash of the token>;2026-11-18T09:12:44Z
-```
-
-The roles are stated by an administrator in `Roles.csv` (movable with `--InitialRolesFile`). A client can be in no
-role, in one or in several - one line per membership:
-
-```
-client;role
-team-a;security
-team-a;developer
-team-b;developer
-```
-
-- **Only the hash of a token is stored.** The token exists in a readable form exactly once, namely in the moment it is
-  created. A token which somebody lost can therefore not be looked up but only replaced.
-- **Every token ends.** `--ValidForDays` states when; a token without an end does not exist.
-- **A client can hold several valid tokens at the same time**, which is what makes an exchange possible without an
-  interruption: the new token is created, the client is switched over, and only then the old one is removed.
-- **A change works immediately.** Both files are read for every request, so a new token, a new role or a removed line
-  takes effect without restarting the server.
-- **Both files are created when they do not exist yet**, so an administrator finds the place where they belong.
-- **A line which can not be read is an error** and is not skipped, because skipping it would silently take an access
-  away or leave one in place.
-
-The client sends its token as a header:
+The client sends its access-token to an mcp-server as a header:
 
 ```
 Authorization: Bearer <access-token>

@@ -22,7 +22,7 @@ one entry in a file (and, depending on its type, a script); it means no change o
 | Whitelist per web-request-tool | Every rule is matched against the whole address, the protocol is always https, redirects are not followed and what no rule allows is denied. |
 | Credentials per tool | An access of the operator (from an environment-variable or a docker-secret) is assigned to a tool by the declaration; no tool receives the accesses of another one, and values are removed from failure-messages. |
 | Several mcp-servers in one process | Every declared mcp-server has its own tools and its own address `<domain>/<url-namespace>`. A client of one of them can neither see nor reach the tools of another one, and the same tool-name may exist in two of them. |
-| Clients with several access-tokens | An administrator creates tokens per client; a client can hold several valid ones at the same time, every token ends at a stated point in time, and only the hash is stored. |
+| Clients with several access-tokens | An administrator creates clients and roles over the api; a client creates its own access-tokens with the token it received. A client can hold several valid ones at the same time, every token ends at a stated point in time, and only the hash is stored. |
 | Roles | A client is in none, one or several roles; an mcp-server declares which roles may use it. Who is in a role and what a role may do are two decisions in two files. |
 | Anonymous mcp-servers | An mcp-server can be declared as one which everybody may use; it then needs no token, while the others of the same process stay behind theirs. |
 | Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a request which may not reach an mcp-server is answered with 401. |
@@ -56,12 +56,15 @@ The exact format of the file and the meaning of each field is documented in the
 
 ## Who may use an mcp-server
 
-Three things decide it, and they are deliberately kept apart: `AccessTokens.csv` states which token belongs to which
-client, `Roles.csv` next to it states which client is in which role, and the declaration of an mcp-server states which
-roles may use it. Both files live in the configuration-folder of the server, are created when they do not exist yet and
-are read for every request, so a new token or a changed role works immediately. An administrator creates a token with
-the call `CreateAccessToken` of the backend; it is shown once, only its hash is stored, and every token ends at a
-stated point in time.
+Three things decide it, and they are deliberately kept apart: `ClientAdministrationTokens.csv` states which clients
+exist, `Roles.csv` and `RoleAssignments.csv` state which roles exist and who is in them, and the declaration of an
+mcp-server states which roles may use it. All of these files live in the configuration-folder of the server, are
+created when they do not exist yet and are read for every request, so a new token or a changed role works immediately.
+
+An administrator manages clients and roles over the routes below `/API/v1/Admin`, which the token in the
+server opens (it is shown on the console at the first start; only its hash is stored). Creating a client answers with a client-administration-token, and whoever runs
+that client creates its access-tokens with it over the routes below `/API/v1/ClientAdministration`. Every token is
+shown exactly once, because only its hash is stored, and every access-token ends at a stated point in time.
 
 ## What a failed tool-call looks like
 

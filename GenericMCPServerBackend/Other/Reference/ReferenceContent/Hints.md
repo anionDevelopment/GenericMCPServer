@@ -24,14 +24,12 @@ dotnet run --project GenericMCPServerBackend -- Run --RealRun true --InitialTool
 Every declared mcp-server is then reachable under `http://127.0.0.1:80/<url-namespace>`. Without the parameter
 the server starts as well but hosts no mcp-server at all.
 
-The access-tokens and the roles are kept in `Other/Workspace/Configuration` (`AccessTokens.csv` and `Roles.csv`), which
-the server creates when they do not exist yet. A token is created with
-
-```
-dotnet run --project GenericMCPServerBackend -- CreateAccessToken --Client my-client --ValidForDays 30
-```
-
-and an mcp-server which is declared with `"anonymous": true` needs none.
+The clients, their roles and their access-tokens are kept in the csv-files of `Other/Workspace/Configuration`, which
+the server creates when they do not exist yet. The token with which an administrator reaches the admin-routes is
+generated at the first start and written to the console; only its hash is stored (`AdminToken.csv`). Whoever missed it
+deletes that file and starts the server again. How a client and its tokens
+are created is described in the [reference](./index.md); an mcp-server which is declared with `"anonymous": true` needs
+none of it.
 
 If a start was aborted, delete the folder `Other/Workspace`: it contains the configuration the server wrote, and an
 incomplete one makes every following start fail with an error which does not point at the actual cause.
