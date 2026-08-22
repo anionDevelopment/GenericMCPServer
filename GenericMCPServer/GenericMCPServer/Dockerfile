@@ -3,7 +3,7 @@ FROM ${image_debian}
 ARG CodeUnitVersion
 ARG DotNetRuntime
 LABEL version=${CodeUnitVersion}
-ENV IsRunningInContainer="true"
+ENV ISRUNNINGINCONTAINER="true"
 ENV ASPNETCORE_URLS="http://+:80"
 RUN mkdir /Workspace && \
     mkdir /Workspace/Application && \
@@ -13,7 +13,7 @@ RUN mkdir /Workspace && \
     mkdir /Workspace/Other && \
     mkdir /Workspace/Other/EntryPoint && \
     apt-get update && \
-    apt-get install -y curl wget uuid-runtime libuuid1 libicu-dev libssl-dev python3 && \
+    apt-get install -y curl wget uuid-runtime libuuid1 libicu-dev libssl-dev python3 python3-venv && \
     wget https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -O packages-microsoft-prod.deb && \
     dpkg -i packages-microsoft-prod.deb && \
     rm packages-microsoft-prod.deb && \

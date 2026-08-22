@@ -1,13 +1,13 @@
 # GenericMCPServer
 
-GenericMCPServer is a MCP-server which is reachable over HTTP. This codeunit builds the container-image which packages the
-backend.
+GenericMCPServer hosts MCP-servers which are reachable over HTTP. This codeunit builds the container-image which packages
+the backend.
 
 ## Content of the image
 
-The image contains the build-result of GenericMCPServerBackend, the .NET-runtime it needs and a python-interpreter, so that tools
-which are implemented as python-scripts can be run. It contains no tool and no declaration: both are provided from
-outside.
+The image contains the build-result of GenericMCPServerBackend, the .NET-runtime it needs and a python-interpreter
+including the module `venv`, so that tools which are implemented as python-scripts can be run in a virtual environment
+of their own. It contains no tool and no declaration: both are provided from outside.
 
 ## Configuration
 
@@ -15,7 +15,10 @@ Every value is passed as an environment-variable.
 
 | Environment-variable | Meaning |
 | -------------------- | ------- |
-| `InitialToolDefinitionsFile` | The file which declares the tools. Without it the server offers no tool. |
+| `InitialToolDefinitionsFile` | The file which declares the mcp-servers with their tools. Without it the server hosts none. |
+| `InitialAccessTokensFile` | The file which holds the access-tokens. Without it: `AccessTokens.csv` in the configuration-folder. |
+| `InitialRolesFile` | The file which states which client is in which role. Without it: `Roles.csv` in the configuration-folder. |
+| `InitialVirtualEnvironmentsFolder` | The folder which holds the virtual environments of the python-tools. Without it: below the data-folder. |
 | `InitialDomain` | The domain the server uses in the links it generates. |
 | `InitialEnableEndpointHealthCheckValue` | Whether the maintenance-health-check-route is available (default: `true`). |
 | `InitialEnableEndpointCurrentVersionValue` | Whether the version-route is available. |

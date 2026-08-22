@@ -1,61 +1,61 @@
 {
-	"folders": [
-		{
-			"path": ".",
-			"name": "Entire repository"
-		}
-	],
-	"tasks": {
-		"version": "2.0.0",
-		"tasks": [
-			{
-				"label": "Base: Build all codeunits",
-				"command": "scbuildcodeunits",
-				"type": "shell",
-				"options": {
-					"cwd": "${workspaceFolder}"
-				},
-				"aliases": [
-					"bb"
-				],
-				"allowcustomarguments": true
-			},
-			{
-				"label": "Run: the example which starts the built image",
-				"command": "python RunExample.py",
-				"args": [],
-				"type": "shell",
-				"options": {
-					"cwd": "${workspaceFolder}/GenericMCPServer/Other/Examples/MinimalDockerComposeFile"
-				},
-				"aliases": [
-					"re"
-				],
-				"allowcustomarguments": true
-			}
-		]
-	},
-	"launch": {
-		"version": "0.2.0",
-		"configurations": [
-			{
-				"name": "Debug current file",
-				"type": "debugpy",
-				"request": "launch",
-				"program": "${file}",
-				"console": "integratedTerminal"
-			}
-		]
-	},
-	"settings": {
-		"terminal.integrated.cwd": "${workspaceFolder}",
-		"window.title": "${dirty} ${rootName}",
-		"spellright.documentTypes": [
-			"markdown",
-			"plaintext"
-		],
-		"spellright.language": [
-			"en"
-		]
-	}
+  "folders": [
+    {
+      "path": ".",
+      "name": "Entire repository"
+    }
+  ],
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Base: Build all codeunits",
+        "command": "scbuildcodeunits",
+        "type": "shell",
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "aliases": [
+          "bb"
+        ],
+        "allowcustomarguments": true
+      },
+      {
+        "label": "Run: the example which starts the built image",
+        "command": "python RunExample.py",
+        "args": [],
+        "type": "shell",
+        "options": {
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Examples/MinimalDockerComposeFile"
+        },
+        "aliases": [
+          "re"
+        ],
+        "allowcustomarguments": true
+      }
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug current file",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal"
+      }
+    ]
+  },
+  "settings": {
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "window.title": "${dirty} ${rootName}",
+    "spellright.documentTypes": [
+      "markdown",
+      "plaintext"
+    ],
+    "spellright.language": [
+      "en"
+    ]
+  }
 }

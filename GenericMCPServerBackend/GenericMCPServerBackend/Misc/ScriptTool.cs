@@ -21,11 +21,19 @@ namespace GenericMCPServerBackend.Core.Misc
     {
         private readonly IBusinessLogicService _BusinessLogicService;
         private readonly ToolDefinition _Definition;
+
+        /// <summary>
+        /// The mcp-server this tool belongs to. A tool-name is unambiguous within its mcp-server and not beyond it, so
+        /// the namespace is part of what identifies this tool.
+        /// </summary>
+        private readonly string _UrlNamespace;
+
         private readonly Tool _ProtocolTool;
 
-        public ScriptTool(IBusinessLogicService businessLogicService, ToolDefinition definition)
+        public ScriptTool(IBusinessLogicService businessLogicService, string urlNamespace, ToolDefinition definition)
         {
             this._BusinessLogicService = businessLogicService;
+            this._UrlNamespace = urlNamespace;
             this._Definition = definition;
             this._ProtocolTool = new Tool()
             {
@@ -70,7 +78,8 @@ namespace GenericMCPServerBackend.Core.Misc
         ///
         /// A failure is answered as a result with <see cref="CallToolResult.IsError"/> and the message of the failure,
         /// and not by letting the exception escape: the client (and the model behind it) can only react to a wrong
-        /// argument if it learns what was wrong with it.
+        /// argument if it learns what was wrong with it. It is additionally reported to
+        /// <see cref="ToolCallFailure"/>, which makes the whole answer carry the status-code 502.
         /// </summary>
         public override ValueTask<CallToolResult> InvokeAsync(RequestContext<CallToolRequestParams> request, CancellationToken cancellationToken = default)
         {
@@ -86,12 +95,15 @@ namespace GenericMCPServerBackend.Core.Misc
                         arguments[argument.Key] = argument.Value.ValueKind == JsonValueKind.String ? argument.Value.GetString() : argument.Value.GetRawText();
                     }
                 }
-                string output = this._BusinessLogicService.RunTool(this._Definition.ToolName, arguments);
+                string output = this._BusinessLogicService.RunTool(this._UrlNamespace, this._Definition.ToolName, arguments);
                 return new ValueTask<CallToolResult>(CreateResult(output, false));
             }
             catch (Exception exception)
             {
-                return new ValueTask<CallToolResult>(CreateResult(exception.Message, true));
+                ToolCallFailure.Report(request.Services);
+                // The message goes to the client, so the values of the credentials are removed from it first: a script
+                // which wrote its credential into a stacktrace would hand it over otherwise.
+                return new ValueTask<CallToolResult>(CreateResult(this._BusinessLogicService.RemoveCredentialValuesFrom(exception.Message), true));
             }
         }
 

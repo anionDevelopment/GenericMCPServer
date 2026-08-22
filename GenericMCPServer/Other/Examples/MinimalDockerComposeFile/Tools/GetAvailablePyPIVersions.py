@@ -24,6 +24,40 @@ TIMEOUT_IN_SECONDS = 30
 PACKAGE_NAME_REGEX = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._\-]*[A-Za-z0-9])?$")
 
 
+# The minimal version is optional. The api which is asked here answers with all versions and offers no filter for a
+# minimal one, so the filtering happens in this script - the answer of the tool is the same either way.
+MINIMAL_VERSION_REGEX = re.compile(r"^[0-9]+(\.[0-9]+)*$")
+
+
+def minimal_version(value: str) -> str:
+    """Returns the given value if it is a version which can be compared and raises otherwise."""
+    if MINIMAL_VERSION_REGEX.match(value) is None:
+        raise argparse.ArgumentTypeError(f"\"{value}\" is not a usable minimal version. Expected format: numbers which are separated by dots, for example \"2.0\" or \"2.0.1\".")
+    return value
+
+
+def as_comparable(version: str) -> tuple:
+    """Returns the numeric parts of a version, so that "1.10" is newer than "1.9"."""
+    # Everything behind a hyphen belongs to a pre-release and is not part of the comparison: this script compares which
+    # version is newer and does not implement the complete order of a versioning-scheme.
+    return tuple(int(part) for part in re.findall(r"[0-9]+", version.split("-")[0]))
+
+
+def is_at_least(version: str, minimal: str) -> bool:
+    """States whether the given version is the minimal one or a newer one."""
+    left = as_comparable(version)
+    right = as_comparable(minimal)
+    length = max(len(left), len(right))
+    return left + (0,) * (length - len(left)) >= right + (0,) * (length - len(right))
+
+
+def only_from(versions: list, minimal: str) -> list:
+    """Returns the versions which are the minimal one or newer. Without a minimal one, all of them are returned."""
+    if minimal is None:
+        return versions
+    return [version for version in versions if is_at_least(version, minimal)]
+
+
 def package_name(value: str) -> str:
     """Returns the given value if it is a python-package-name and raises otherwise."""
     if PACKAGE_NAME_REGEX.match(value) is None:
@@ -31,7 +65,7 @@ def package_name(value: str) -> str:
     return value
 
 
-def get_available_versions(name: str) -> dict:
+def get_available_versions(name: str, minimal: str) -> dict:
     """Returns the versions of the given package which pypi publishes."""
     url = f"{REGISTRY_URL}/{urllib.parse.quote(name, safe='')}/json"
     with urllib.request.urlopen(url, timeout=TIMEOUT_IN_SECONDS) as response:
@@ -39,7 +73,7 @@ def get_available_versions(name: str) -> dict:
     # "releases" contains every version which was ever uploaded, also the ones whose files were removed afterwards;
     # those are the ones with an empty file-list and they are not offered anymore, so they are left out here.
     releases = answer.get("releases", {})
-    versions = [version for version, files_of_version in releases.items() if len(files_of_version) > 0]
+    versions = only_from([version for version, files_of_version in releases.items() if len(files_of_version) > 0], minimal)
     return {
         "packageName": answer.get("info", {}).get("name", name),
         # "info.version" is the version pypi itself considers the current one.
@@ -52,9 +86,10 @@ def get_available_versions(name: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Returns the versions of one python-package which are available on pypi.")
     parser.add_argument("--package-name", type=package_name, required=True, help="The name of the package, for example \"requests\".")
+    parser.add_argument("--minimal-version", type=minimal_version, required=False, help="Optional. Only the versions which are this one or newer are returned.")
     arguments = parser.parse_args()
     try:
-        sys.stdout.write(json.dumps(get_available_versions(arguments.package_name), indent=2))
+        sys.stdout.write(json.dumps(get_available_versions(arguments.package_name, arguments.minimal_version), indent=2))
         return 0
     except urllib.error.HTTPError as exception:
         if exception.code == 404:

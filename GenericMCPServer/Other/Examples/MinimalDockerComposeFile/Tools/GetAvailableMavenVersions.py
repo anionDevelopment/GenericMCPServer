@@ -28,6 +28,40 @@ GROUP_ID_REGEX = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_\-]*(\.[A-Za-z0-9_][A-Za-z
 ARTIFACT_ID_REGEX = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]*$")
 
 
+# The minimal version is optional. The api which is asked here answers with all versions and offers no filter for a
+# minimal one, so the filtering happens in this script - the answer of the tool is the same either way.
+MINIMAL_VERSION_REGEX = re.compile(r"^[0-9]+(\.[0-9]+)*$")
+
+
+def minimal_version(value: str) -> str:
+    """Returns the given value if it is a version which can be compared and raises otherwise."""
+    if MINIMAL_VERSION_REGEX.match(value) is None:
+        raise argparse.ArgumentTypeError(f"\"{value}\" is not a usable minimal version. Expected format: numbers which are separated by dots, for example \"2.0\" or \"2.0.1\".")
+    return value
+
+
+def as_comparable(version: str) -> tuple:
+    """Returns the numeric parts of a version, so that "1.10" is newer than "1.9"."""
+    # Everything behind a hyphen belongs to a pre-release and is not part of the comparison: this script compares which
+    # version is newer and does not implement the complete order of a versioning-scheme.
+    return tuple(int(part) for part in re.findall(r"[0-9]+", version.split("-")[0]))
+
+
+def is_at_least(version: str, minimal: str) -> bool:
+    """States whether the given version is the minimal one or a newer one."""
+    left = as_comparable(version)
+    right = as_comparable(minimal)
+    length = max(len(left), len(right))
+    return left + (0,) * (length - len(left)) >= right + (0,) * (length - len(right))
+
+
+def only_from(versions: list, minimal: str) -> list:
+    """Returns the versions which are the minimal one or newer. Without a minimal one, all of them are returned."""
+    if minimal is None:
+        return versions
+    return [version for version in versions if is_at_least(version, minimal)]
+
+
 def group_id(value: str) -> str:
     """Returns the given value if it is a group-id and raises otherwise."""
     if GROUP_ID_REGEX.match(value) is None:
@@ -42,7 +76,7 @@ def artifact_id(value: str) -> str:
     return value
 
 
-def get_available_versions(group: str, artifact: str) -> dict:
+def get_available_versions(group: str, artifact: str, minimal: str) -> dict:
     """Returns the versions of the given package which maven-central publishes in its metadata."""
     # The metadata-file of the package is used and not the search-api, because it is the authoritative list of the
     # versions of exactly this package and it is not paginated.
@@ -53,7 +87,7 @@ def get_available_versions(group: str, artifact: str) -> dict:
     versioning = metadata.find("versioning")
     if versioning is None:
         raise ValueError(f"The metadata of \"{group}:{artifact}\" does not contain any versioning-information.")
-    versions = [element.text for element in versioning.findall("versions/version") if element.text is not None]
+    versions = only_from([element.text for element in versioning.findall("versions/version") if element.text is not None], minimal)
     latest = versioning.find("latest")
     release = versioning.find("release")
     return {
@@ -71,9 +105,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Returns the versions of one maven-package which are available on maven-central.")
     parser.add_argument("--group-id", type=group_id, required=True, help="The group-id of the package, for example \"org.apache.logging.log4j\".")
     parser.add_argument("--artifact-id", type=artifact_id, required=True, help="The artifact-id of the package, for example \"log4j-core\".")
+    parser.add_argument("--minimal-version", type=minimal_version, required=False, help="Optional. Only the versions which are this one or newer are returned.")
     arguments = parser.parse_args()
     try:
-        sys.stdout.write(json.dumps(get_available_versions(arguments.group_id, arguments.artifact_id), indent=2))
+        sys.stdout.write(json.dumps(get_available_versions(arguments.group_id, arguments.artifact_id, arguments.minimal_version), indent=2))
         return 0
     except urllib.error.HTTPError as exception:
         if exception.code == 404:

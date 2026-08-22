@@ -1,17 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
     <Authors>Marius Göcke</Authors>
-    <Version>0.2.0</Version>
-    <AssemblyVersion>0.2.0</AssemblyVersion>
-    <FileVersion>0.2.0</FileVersion>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+    <FileVersion>1.0.0</FileVersion>
     <SelfContained>false</SelfContained>
     <IsPackable>false</IsPackable>
     <PreserveCompilationContext>false</PreserveCompilationContext>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <Copyright>Copyright © 2026 Marius Göcke</Copyright>
-    <Description>GenericMCPServerBackend is the backend for GenericMCPServer.</Description>
+    <Description>GenericMCPServerBackend is a generic MCP-Server.</Description>
     <PackageProjectUrl>https://github.com/anionDevelopment/GenericMCPServer</PackageProjectUrl>
     <RepositoryUrl>https://github.com/anionDevelopment/GenericMCPServer.git</RepositoryUrl>
     <RootNamespace>GenericMCPServerBackend.Core</RootNamespace>
@@ -27,13 +28,15 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\Other\Resources\PublicKeys\StronglyNamedKey\GenericMCPServerPublicKey.snk</AssemblyOriginatorKeyFile>
+    <DelaySign>true</DelaySign>
     <NoWarn>1701;1702;CA1822;CS1591;CS1573;IDE0045;IDE0046;IDE0054;IDE0058;IDE0074;IDE0090;CA1859;IDE0017;IDE0034;CS8632</NoWarn>
     <WarningsAsErrors>NU1605</WarningsAsErrors>
     <ErrorLog>..\Other\Resources\CodeAnalysisResult\GenericMCPServerBackend.sarif</ErrorLog>
     <OutputType>Exe</OutputType>
     <DocumentationFile>..\Other\Artifacts\MetaInformation\GenericMCPServerBackend.xml</DocumentationFile>
     <StartupObject>GenericMCPServerBackend.Core.Program</StartupObject>
-    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Development'">
     <DebugType>full</DebugType>
@@ -59,7 +62,7 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="[2.9.1]" />
     <PackageReference Include="ExtendedXmlSerializer" Version="[3.10.0]" />
-    <PackageReference Include="GRYLibrary" Version="[2.0.30]" />
+    <PackageReference Include="GRYLibrary" Version="[2.0.32]" />
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="[2.3.9]" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="[10.0.3]" />
     <PackageReference Include="ModelContextProtocol" Version="[2.2.0]" />
