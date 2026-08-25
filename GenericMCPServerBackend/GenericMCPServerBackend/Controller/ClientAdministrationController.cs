@@ -1,7 +1,6 @@
 using GenericMCPServerBackend.Core.Constants;
 using GenericMCPServerBackend.Core.Misc;
 using GenericMCPServerBackend.Core.Services;
-using GRYLibrary.Core.APIServer.Services.Interfaces;
 using GRYLibrary.Core.APIServer.Settings.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -29,13 +28,11 @@ namespace GenericMCPServerBackend.Core.Controller
         /// </summary>
         private const int DefaultAmountOfDays = 365;
 
-        private readonly IAccessTokenService _AccessTokenService;
-        private readonly ITimeService _TimeService;
+        private readonly IBusinessLogicService _BusinessLogicService;
 
-        public ClientAdministrationController(IAccessTokenService accessTokenService, ITimeService timeService)
+        public ClientAdministrationController(IBusinessLogicService businessLogicService)
         {
-            this._AccessTokenService = accessTokenService;
-            this._TimeService = timeService;
+            this._BusinessLogicService = businessLogicService;
         }
 
         /// <summary>
@@ -56,11 +53,11 @@ namespace GenericMCPServerBackend.Core.Controller
         public IActionResult GetAccessTokens()
         {
             string client = this.GetClient();
-            return this.Ok(this._AccessTokenService.GetAccessTokensOf(client).Select(accessToken => new
+            return this.Ok(this._BusinessLogicService.GetAccessTokensOf(client).Select(accessToken => new
             {
                 hash = accessToken.Hash,
                 validUntil = accessToken.ValidUntil,
-                isValid = accessToken.IsValidAt(this._TimeService.GetCurrentTimeInUTCAsDateTimeOffset().UtcDateTime),
+                isValid = accessToken.IsValid,
             }));
         }
 
@@ -83,7 +80,7 @@ namespace GenericMCPServerBackend.Core.Controller
                 return this.Ok(new
                 {
                     client,
-                    accessToken = this._AccessTokenService.CreateAccessToken(client, validForDays),
+                    accessToken = this._BusinessLogicService.CreateAccessToken(client, validForDays),
                     validForDays,
                     hint = "This token is shown now and never again. It is sent as \"Authorization: Bearer <token>\" to an mcp-server which one of the roles of this client may use.",
                 });
@@ -103,7 +100,7 @@ namespace GenericMCPServerBackend.Core.Controller
         public IActionResult DeleteAccessToken(string hash)
         {
             string client = this.GetClient();
-            if (!this._AccessTokenService.RemoveAccessToken(client, hash))
+            if (!this._BusinessLogicService.RemoveAccessToken(client, hash))
             {
                 return this.NotFound($"This client has no access-token with the hash \"{hash}\".");
             }

@@ -15,10 +15,6 @@ Every value is passed as an environment-variable.
 
 | Environment-variable | Meaning |
 | -------------------- | ------- |
-| `InitialToolDefinitionsFile` | The file which declares the mcp-servers with their tools. Without it the server hosts none. |
-| `InitialAccessTokensFile` | The file which holds the access-tokens. Without it: `AccessTokens.csv` in the configuration-folder. |
-| `InitialRolesFile` | The file which states which client is in which role. Without it: `Roles.csv` in the configuration-folder. |
-| `InitialVirtualEnvironmentsFolder` | The folder which holds the virtual environments of the python-tools. Without it: below the data-folder. |
 | `InitialDomain` | The domain the server uses in the links it generates. |
 | `InitialEnableEndpointHealthCheckValue` | Whether the maintenance-health-check-route is available (default: `true`). |
 | `InitialEnableEndpointCurrentVersionValue` | Whether the version-route is available. |
@@ -26,8 +22,12 @@ Every value is passed as an environment-variable.
 | `InitialEnableEndpointMetricsValue` | Whether the metrics-route is available. |
 | `EnforceVerbose` | Set it to `true` to get verbose logging. |
 
-The declaration and the scripts it points to have to be mounted together, because a script is resolved relative to the
-file which declares it. The example in `Other/Examples/MinimalDockerComposeFile` shows that.
+Which file declares the mcp-servers with their tools is not one of these environment-variables: it is part of the
+persisted configuration-file of the server itself (`ToolDefinitionsFile`), which defaults to `./Tools.json`
+(relative to the configuration-folder) the first time that file is generated. The declaration and the scripts it
+points to have to be mounted together at that location, because a script is resolved relative to the file which
+declares it - the example in `Other/Examples/MinimalDockerComposeFile` shows that. Without a file there the server
+hosts no mcp-server at all.
 
 ## Health-check
 

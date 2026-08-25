@@ -50,8 +50,10 @@ in two mcp-servers without becoming ambiguous.
 
 ## How an mcp-server is declared
 
-The server is pointed to the file with the commandline-parameter `--InitialToolDefinitionsFile` (in the image: the
-environment-variable `InitialToolDefinitionsFile`):
+Which file declares the tools is itself part of the persisted configuration-file of the server (`ToolDefinitionsFile`,
+relative to the configuration-folder unless given as an absolute path). It defaults to `./Tools.json` the first
+time the configuration-file is generated; an administrator who wants the tools declared somewhere else changes the
+value there afterwards. Without a file at the resolved location the server simply offers no tool.
 
 ```json
 {
@@ -349,7 +351,6 @@ not have to stand in the compose-file. A trailing line-break of that file is not
 services:
   genericmcpserver:
     environment:
-      InitialToolDefinitionsFile: '/Workspace/Configuration/Tools/Tools.json'
       GITHUB_TOKEN_FILE: '/run/secrets/github_token'
     secrets:
       - github_token

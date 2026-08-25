@@ -36,8 +36,9 @@ tool-collection per declared mcp-server and sets the fitting one per request wit
 Everything else of the protocol (the initialize-handshake, `tools/list`, `tools/call`, the delivery of the schemas)
 stays with the SDK.
 
-The declaration is a json-file which the server is pointed to with `--InitialToolDefinitionsFile` (in the image: the
-environment-variable of the same name):
+The declaration is a json-file whose path (`ToolDefinitionsFile`) is part of the persisted configuration-file of the
+server, defaulting to `./Tools.json` (relative to the configuration-folder) the first time that file is
+generated:
 
 ```json
 {
@@ -89,9 +90,10 @@ What the three types mean:
   `{"status-code":…,"body":…}`.
 
 A mistake in the file (an mcp-server without a url-namespace, a url-namespace which is used twice, a tool without a
-name or without a type, an unknown type, a tool-name which is used twice within one mcp-server, invalid json, a
-configured file which does not exist) makes the server fail on startup. Only *no* configured file means "nothing is
-offered".
+name or without a type, an unknown type, a tool-name which is used twice within one mcp-server, invalid json) makes
+the server fail on startup. A missing file is not such a mistake: neither no file being configured nor the configured
+file not existing at its resolved location stops the server - both mean "nothing is offered", because a freshly set
+up server which nobody pointed at a declaration yet is an expected state.
 
 **When adding a tool, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
 change is wrong: run `grep -rniE "cve|maven|nuget|npm" GenericMCPServerBackend --include=*.cs` — it has to stay empty.
@@ -130,9 +132,14 @@ The client sends its access-token as `Authorization: Bearer <token>` (the header
 as well). Everything which is not allowed answers with 401 — whether the token was missing, unknown, expired or
 belonged to a client without a fitting role is nothing a caller learns.
 
-`Misc/AccessTokenValidatorMiddleware.cs` does that check for the routes of the mcp-servers. It derives from the
-api-key-middleware of GRYLibrary and overrides `Invoke`, because the base-class decides by the `[Authorize]`-attributes
-of controller-actions and the route of an mcp-server is no controller-action.
+`Misc/AccessTokenValidatorMiddleware.cs` guards the routes of the mcp-servers, the admin-routes and the
+client-administration-routes, but it decides none of who-may-reach-what itself: every such decision (whether a token
+matches the administrator, which client an access- or administration-token belongs to, whether that client's roles
+fit the mcp-server) is asked from `IBusinessLogicService`, which is also where `AdminController` and
+`ClientAdministrationController` get the administration of clients, roles and tokens from - a controller or a
+middleware which decided one of those things itself would be a decision the next one could forget. The middleware
+derives from the api-key-middleware of GRYLibrary and overrides `Invoke`, because the base-class decides by the
+`[Authorize]`-attributes of controller-actions and the route of an mcp-server is no controller-action.
 
 ## Credentials of a tool
 
@@ -197,7 +204,7 @@ testcase into one mcp-server, so a testcase states only what it is about.
 For a manual test, start the backend and talk to it directly:
 
 ```
-dotnet GenericMCPServerBackend.dll Run --RealRun true --InitialToolDefinitionsFile <path-to-Tools.json>
+dotnet GenericMCPServerBackend.dll Run --RealRun true
 curl -X POST http://127.0.0.1:80/GeneralTools -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"
 ```
 

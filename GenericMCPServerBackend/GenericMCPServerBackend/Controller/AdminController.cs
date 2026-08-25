@@ -17,21 +17,18 @@ namespace GenericMCPServerBackend.Core.Controller
     ///
     /// That check is not implemented here but in <see cref="Misc.AccessTokenValidatorMiddleware"/>, which decides for
     /// every route of this server who may reach it. A request which arrives here therefore already carried the
-    /// admin-token.
+    /// admin-token. What each route does is decided by <see cref="IBusinessLogicService"/>; this controller only maps
+    /// its result to a response.
     /// </summary>
     [ApiController]
     [Route(CodeUnitSpecificConstants.AdminRoute)]
     public class AdminController : ControllerBase
     {
-        private readonly IClientService _ClientService;
-        private readonly IRolesService _RolesService;
-        private readonly IAccessTokenService _AccessTokenService;
+        private readonly IBusinessLogicService _BusinessLogicService;
 
-        public AdminController(IClientService clientService, IRolesService rolesService, IAccessTokenService accessTokenService)
+        public AdminController(IBusinessLogicService businessLogicService)
         {
-            this._ClientService = clientService;
-            this._RolesService = rolesService;
-            this._AccessTokenService = accessTokenService;
+            this._BusinessLogicService = businessLogicService;
         }
 
         /// <summary>The clients which exist.</summary>
@@ -39,11 +36,11 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Clients")]
         public IActionResult GetClients()
         {
-            return this.Ok(this._ClientService.GetClients().Select(client => new
+            return this.Ok(this._BusinessLogicService.GetClients().Select(overview => new
             {
-                client,
-                roles = this._RolesService.GetRolesOf(client),
-                amountOfAccessTokens = this._AccessTokenService.GetAccessTokensOf(client).Count,
+                client = overview.Client,
+                roles = overview.Roles,
+                amountOfAccessTokens = overview.AmountOfAccessTokens,
             }));
         }
 
@@ -63,7 +60,7 @@ namespace GenericMCPServerBackend.Core.Controller
                 return this.Ok(new
                 {
                     client,
-                    clientAdministrationToken = this._ClientService.CreateClient(client),
+                    clientAdministrationToken = this._BusinessLogicService.CreateClient(client),
                     hint = "This token is shown now and never again. Hand it to whoever runs this client; it administrates the access-tokens of this client and nothing else.",
                 });
             }
@@ -95,7 +92,7 @@ namespace GenericMCPServerBackend.Core.Controller
                 return this.Ok(new
                 {
                     client,
-                    clientAdministrationToken = this._ClientService.RenewAdministrationToken(client),
+                    clientAdministrationToken = this._BusinessLogicService.RenewClientAdministrationToken(client),
                     hint = "This token is shown now and never again, and the previous one does not work anymore. Hand it to whoever runs this client.",
                 });
             }
@@ -112,14 +109,10 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Clients/{client}")]
         public IActionResult DeleteClient(string client)
         {
-            if (!this._ClientService.DeleteClient(client))
+            if (!this._BusinessLogicService.DeleteClient(client))
             {
                 return this.NotFound($"A client with the name \"{client}\" does not exist.");
             }
-            // The tokens and the roles of the client are removed as well: a client which does not exist anymore must
-            // not keep an access, and a client which is created again later must not inherit what its predecessor had.
-            this._AccessTokenService.RemoveAccessTokensOf(client);
-            this._RolesService.RemoveAllRolesOf(client);
             return this.NoContent();
         }
 
@@ -128,7 +121,7 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Roles")]
         public IActionResult GetRoles()
         {
-            return this.Ok(this._RolesService.GetRoles());
+            return this.Ok(this._BusinessLogicService.GetRoles());
         }
 
         /// <summary>
@@ -140,7 +133,7 @@ namespace GenericMCPServerBackend.Core.Controller
         {
             try
             {
-                if (!this._RolesService.CreateRole(role))
+                if (!this._BusinessLogicService.CreateRole(role))
                 {
                     return this.Conflict($"The role \"{role}\" exists already.");
                 }
@@ -159,7 +152,7 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Roles/{role}")]
         public IActionResult DeleteRole(string role)
         {
-            if (!this._RolesService.DeleteRole(role))
+            if (!this._BusinessLogicService.DeleteRole(role))
             {
                 return this.NotFound($"The role \"{role}\" does not exist.");
             }
@@ -171,11 +164,12 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Clients/{client}/Roles")]
         public IActionResult GetRolesOfClient(string client)
         {
-            if (!this._ClientService.ClientExists(client))
+            IReadOnlyCollection<string> roles = this._BusinessLogicService.GetRolesOfClient(client);
+            if (roles == null)
             {
                 return this.NotFound($"A client with the name \"{client}\" does not exist.");
             }
-            return this.Ok((IEnumerable<string>)this._RolesService.GetRolesOf(client));
+            return this.Ok(roles);
         }
 
         /// <summary>Puts a client into a role.</summary>
@@ -183,13 +177,9 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Clients/{client}/Roles/{role}")]
         public IActionResult AssignRole(string client, string role)
         {
-            if (!this._ClientService.ClientExists(client))
-            {
-                return this.NotFound($"A client with the name \"{client}\" does not exist.");
-            }
             try
             {
-                if (!this._RolesService.AssignRole(client, role))
+                if (!this._BusinessLogicService.AssignRole(client, role))
                 {
                     return this.Conflict($"The client \"{client}\" is in the role \"{role}\" already.");
                 }
@@ -210,7 +200,7 @@ namespace GenericMCPServerBackend.Core.Controller
         [Route("Clients/{client}/Roles/{role}")]
         public IActionResult RemoveRoleOfClient(string client, string role)
         {
-            if (!this._RolesService.RemoveRoleOfClient(client, role))
+            if (!this._BusinessLogicService.RemoveRoleOfClient(client, role))
             {
                 return this.NotFound($"The client \"{client}\" is not in the role \"{role}\".");
             }

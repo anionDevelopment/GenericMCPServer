@@ -2,17 +2,12 @@ version: '3.2'
 
 services:
   genericmcpserver:
-    image: genericmcpserver:0.1.0
+    image: genericmcpserver:1.0.1
     container_name: 'genericmcpserver'
     environment:
-      # The server hosts exactly the mcp-servers which this file declares. Without it, it hosts none.
-      # The example declares three of them: "GeneralTools" (anonymous), "Security" and "DeveloperTools". They are
-      # reachable under http://127.0.0.1:8080/<url-namespace>.
-      InitialToolDefinitionsFile: '/Workspace/Configuration/Tools/Tools.json'
       EnforceVerbose: 'true'
     volumes:
-      # The declarations and the scripts they point to are mounted together, because a script is resolved relative to
-      # the file which declares it.
-      - ./Tools:/Workspace/Configuration/Tools:ro
+      - ./Configuration:/Workspace/Configuration
+      - ./Tools:/Workspace/Tools
     ports:
       - "8080:80"
