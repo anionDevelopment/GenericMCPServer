@@ -62,7 +62,7 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="[2.9.1]" />
     <PackageReference Include="ExtendedXmlSerializer" Version="[3.10.0]" />
-    <PackageReference Include="GRYLibrary" Version="[2.0.32]" />
+    <PackageReference Include="GRYLibrary" Version="[2.0.33]" />
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="[2.3.9]" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="[10.0.3]" />
     <PackageReference Include="ModelContextProtocol" Version="[2.2.0]" />

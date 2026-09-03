@@ -21,9 +21,9 @@
       },
       "GRYLibrary": {
         "type": "Direct",
-        "requested": "[2.0.32, 2.0.32]",
-        "resolved": "2.0.32",
-        "contentHash": "2nxfexxkUJgcvk9D11P/QZ6s/g6PUwQ62x3GqztupVzIP7Z96B/yXJzd9VPhxY3Bsu8L9dtUlsHe8c3uapN5ng=="
+        "requested": "[2.0.33, 2.0.33]",
+        "resolved": "2.0.33",
+        "contentHash": "N0X7n4GYJ1Ig/+YghB5WzhvhtiggIyULBvPG7OrLO00Fdobm0xz1zt0PqOAxT4rsPzWhiX63P2t3NIhkdA8LPQ=="
       },
       "Microsoft.AspNetCore.Http": {
         "type": "Direct",
