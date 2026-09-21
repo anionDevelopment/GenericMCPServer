@@ -55,26 +55,14 @@ namespace GenericMCPServerBackend.Core.Misc
         /// <summary>The header the client-administration-token is sent in.</summary>
         internal const string ClientAdministrationTokenHeaderName = "X-Client-Administration-Token";
 
-        private readonly IAccessTokenService _AccessTokenService;
-
         private readonly IBusinessLogicService _BusinessLogicService;
-
-        private readonly IRolesService _RolesService;
-
-        private readonly IClientService _ClientService;
-
-        private readonly IAdminTokenService _AdminTokenService;
 
         // The logger is taken from the service which holds it, the way the middlewares of GRYLibrary do it: the logger
         // itself is not part of the container.
-        public AccessTokenValidatorMiddleware(RequestDelegate next, IAccessTokenService accessTokenService, IRolesService rolesService, IClientService clientService, IBusinessLogicService businessLogicService, IAdminTokenService adminTokenService, IServerLog logger)
+        public AccessTokenValidatorMiddleware(RequestDelegate next, IBusinessLogicService businessLogicService, IServerLog logger)
             : base(next, new AccessTokenValidatorConfiguration(), logger.Logger)
         {
-            this._AccessTokenService = accessTokenService;
-            this._RolesService = rolesService;
-            this._ClientService = clientService;
             this._BusinessLogicService = businessLogicService;
-            this._AdminTokenService = adminTokenService;
         }
 
         /// <summary>
@@ -89,7 +77,7 @@ namespace GenericMCPServerBackend.Core.Misc
                 string value = values.First() ?? string.Empty;
                 if (value.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    return (true, value.Substring(BearerPrefix.Length).Trim());
+                    return (true, value[BearerPrefix.Length..].Trim());
                 }
             }
             return base.TryGetAPIKey(context);
@@ -104,20 +92,16 @@ namespace GenericMCPServerBackend.Core.Misc
         public override bool APIKeyIsAuthorized(string apiKey, HttpContext context)
         {
             MCPServerDefinition mcpServer = this._BusinessLogicService.GetMCPServerOfRoute(context.Request.Path);
-            if (mcpServer == null || !this._AccessTokenService.TryGetClient(apiKey, out string client))
+            if (mcpServer == null)
             {
                 return false;
             }
-            context.Items[ClientInformationName] = client;
-            IReadOnlyCollection<string> rolesOfTheClient = this._RolesService.GetRolesOf(client);
-            foreach (string role in mcpServer.AuthorizedRoles)
+            bool authorized = this._BusinessLogicService.ClientMayReachMCPServer(mcpServer, apiKey, out string client);
+            if (client != null)
             {
-                if (rolesOfTheClient.Contains(role, StringComparer.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                context.Items[ClientInformationName] = client;
             }
-            return false;
+            return authorized;
         }
 
         public override Task Invoke(HttpContext context)
@@ -161,7 +145,7 @@ namespace GenericMCPServerBackend.Core.Misc
         /// </remarks>
         private bool RequestIsFromAnAdministrator(HttpContext context)
         {
-            return this._AdminTokenService.Matches(context.Request.Headers[AdminTokenHeaderName].ToString());
+            return this._BusinessLogicService.RequestIsFromAnAdministrator(context.Request.Headers[AdminTokenHeaderName].ToString());
         }
 
         /// <summary>
@@ -169,7 +153,7 @@ namespace GenericMCPServerBackend.Core.Misc
         /// </summary>
         private bool RequestIsFromAClientWhichAdministratesItself(HttpContext context)
         {
-            if (this._ClientService.TryGetClientOfAdministrationToken(context.Request.Headers[ClientAdministrationTokenHeaderName].ToString(), out string client))
+            if (this._BusinessLogicService.TryGetClientOfAdministrationToken(context.Request.Headers[ClientAdministrationTokenHeaderName].ToString(), out string client))
             {
                 context.Items[ClientInformationName] = client;
                 return true;

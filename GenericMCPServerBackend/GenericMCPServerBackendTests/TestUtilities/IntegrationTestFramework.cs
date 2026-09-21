@@ -24,7 +24,9 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
     public sealed class IntegrationTestFramework : IDisposable
     {
         private readonly Program _Program;
-        private readonly ExampleDataCreator _ExampleDataCreator;
+        // Not readonly: it is only created once the started server tells this instance where its configuration-folder is (see the constructor below), which
+        // happens on the server's own thread while this constructor is still waiting for the server to become ready.
+        private ExampleDataCreator _ExampleDataCreator;
 
         /// <summary>The tools the started server offers come from this example-data.</summary>
         public ExampleDataCreator ExampleData => this._ExampleDataCreator;
@@ -61,7 +63,6 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
             {
                 throw new InvalidOperationException($"The port {HTTP.DefaultPort} which the test-server uses is already in use by a process outside the test-run.");
             }
-            this._ExampleDataCreator = new ExampleDataCreator();
             this._Program = new Program()
             {
                 // The server runs in its own thread and blocks there, so it stays up until Stop is called. Running it
@@ -70,6 +71,10 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // The server has to listen on every ip: with the domain-only binding the testcases would have to
                 // resolve the configured domain, while they address the server under 127.0.0.1.
                 ListenOnEveryIP = true,
+                // ToolDefinitionsFile defaults to "./Tools.json" relative to the configuration-folder, so the example-data is written directly into
+                // that folder as soon as the server (on its own thread) reports where it is - before it gets to read that default -
+                // instead of pointing the server at some independent location, which is no longer configurable from outside at all.
+                OnConfigurationFolderResolved = configurationFolder => this._ExampleDataCreator = new ExampleDataCreator(configurationFolder),
             };
             Thread thread = new Thread(() => this._Program.MainImplementation(new string[]
             {
@@ -77,7 +82,6 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // default-port and therefore needs no certificate.
                 // The initialization-state-route is what the readiness-probe below asks, so it has to be available.
                 $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialEnableEndpointInitializationStateValue)}", "true",
-                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialToolDefinitionsFile)}", this._ExampleDataCreator.ToolDefinitionsFile,
             }));
             thread.Start();
             if (!GRYLibrary.Core.Misc.Utilities.RunWithTimeout(() =>

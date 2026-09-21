@@ -18,11 +18,17 @@ Recommended IDE: [Visual Studio](https://visualstudio.microsoft.com/) or [Visual
 ## Run it locally
 
 ```
-dotnet run --project GenericMCPServerBackend -- Run --RealRun true --InitialToolDefinitionsFile <path-to-Tools.json>
+dotnet run --project GenericMCPServerBackend -- Run --RealRun true
 ```
 
-Every declared mcp-server is then reachable under `http://127.0.0.1:80/<url-namespace>`. Without the parameter
-the server starts as well but hosts no mcp-server at all.
+The first start creates `Other/Workspace/Configuration/Configuration.xml`, which - among the rest of the persisted
+configuration - defaults `ToolDefinitionsFile` to `./Tools.json` (relative to the configuration-folder). Put your
+`Tools.json` (and whatever it declares) at `Other/Workspace/Configuration/Tools.json`, or change the value in
+`Configuration.xml` to point somewhere else; either way the server has to be restarted afterwards, because it only
+reads the tool-definitions-file once, at startup. Without a file at the resolved location the server starts as well
+but hosts no mcp-server at all.
+
+Every declared mcp-server is then reachable under `http://127.0.0.1:80/<url-namespace>`.
 
 The clients, their roles and their access-tokens are kept in the csv-files of `Other/Workspace/Configuration`, which
 the server creates when they do not exist yet. The token with which an administrator reaches the admin-routes is

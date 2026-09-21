@@ -34,6 +34,14 @@ exclusively by the tool-definitions-file the server is configured with.
 - **WHEN** the server is started without a tool-definitions-file
 - **THEN** it starts and offers nothing, because a tool exists only because somebody declared it
 
+#### Scenario: The resolved tool-definitions-file does not exist
+
+- **WHEN** the server is started and the file its configuration points at (its persisted configuration-value
+  `ToolDefinitionsFile`, which defaults to `./Tools.json` the first time that file is generated) does not exist at its
+  resolved location
+- **THEN** it starts and offers nothing, exactly as if no tool-definitions-file was configured at all, because a
+  freshly set up server which nobody pointed at a declaration yet is an expected state and not a mistake
+
 ### Requirement: One process hosts several mcp-servers which are separated from each other
 
 A tool SHALL belong to exactly one declared mcp-server. Every mcp-server SHALL be reachable under an address of its own
@@ -157,12 +165,6 @@ starting.
 
 - **WHEN** an mcp-server is declared which is not anonymous and which states no role which may use it
 - **THEN** the server fails while starting, because such an mcp-server would exist and answer nothing
-
-#### Scenario: A configured tool-definitions-file does not exist
-
-- **WHEN** a tool-definitions-file is configured but does not exist
-- **THEN** the server fails while starting, because a configured-but-missing file is a mistake and not a declaration of
-  zero tools
 
 ### Requirement: An mcp-server is reachable only for a client which is allowed to reach it
 

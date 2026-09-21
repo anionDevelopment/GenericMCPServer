@@ -12,14 +12,6 @@ namespace GenericMCPServerBackend.Core.Configuration
         [Option(nameof(InitialDomain), Required = false)]
         public string? InitialDomain { get; set; }
 
-        /// <summary>
-        /// The file which declares the tools this server offers. Without it the server offers no tool at all, which is
-        /// deliberate: a tool exists because an administrator declared it and not because this codeunit brings it
-        /// along.
-        /// </summary>
-        [Option(nameof(InitialToolDefinitionsFile), Required = false)]
-        public string? InitialToolDefinitionsFile { get; set; }
-
         [Option(nameof(InitialEnableEndpointAvailabilityCheckValue), Required = false, Default = true)]
         public bool InitialEnableEndpointAvailabilityCheckValue { get; set; }
 

@@ -41,15 +41,18 @@ one tool-object per declaration and one endpoint per mcp-server.
 
 Two things belong together and have to be reachable by the server:
 
-- The tool-definitions-file, which the server is pointed to with the commandline-parameter
-  `--InitialToolDefinitionsFile` (in the image: the environment-variable of the same name).
+- The tool-definitions-file, whose path (`ToolDefinitionsFile`, relative to the configuration-folder unless given as
+  an absolute path) is part of the persisted configuration-file of the server. It defaults to `./Tools.json` the
+  first time that configuration-file is generated; an administrator who wants the tools declared somewhere else
+  changes the value there afterwards.
 - The scripts which the declarations name. A script is resolved relative to the folder of the declaration and has to
   stay inside it, so mounting only the declaration into the container leaves every tool broken.
 
-A mistake in the declaration (an mcp-server without a url-namespace, an mcp-server which neither is anonymous nor names
-a role, a tool without a type, a name which is used twice, invalid json, a configured file which does not exist) makes
-the server fail on startup instead of when somebody happens to call the affected tool. Only *no* configured file means
-"nothing is offered".
+A mistake in the declaration itself (an mcp-server without a url-namespace, an mcp-server which neither is anonymous
+nor names a role, a tool without a type, a name which is used twice, invalid json) makes the server fail on startup
+instead of when somebody happens to call the affected tool. No file at the resolved tool-definitions-path - whether
+because none was ever declared or because the configured one does not exist (yet) - is not treated as such a mistake:
+the server starts and simply offers no tool, which is the expected state of a freshly set up server.
 
 The exact format of the file and the meaning of each field is documented in the
 [reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).

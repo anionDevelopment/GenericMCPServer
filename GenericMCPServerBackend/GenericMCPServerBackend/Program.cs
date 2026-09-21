@@ -21,6 +21,7 @@ using GRYLibrary.Core.APIServer.Settings;
 using GRYLibrary.Core.APIServer.Settings.Configuration;
 using GRYLibrary.Core.APIServer.Utilities;
 using GRYLibrary.Core.Logging.GRYLogger;
+using GRYLibrary.Core.Misc.FilePath;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -63,6 +64,17 @@ namespace GenericMCPServerBackend.Core
         internal IHostApplicationLifetime? _HostApplicationLifetime;
         internal APIServerConfiguration<CodeUnitSpecificConstants, CodeUnitSpecificConfiguration, CommandlineParameter>? _Constants;
 
+        /// <summary>
+        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the configuration-folder of this run is known and - for a test-run -
+        /// after GRYLibrary has wiped and recreated it, but before the configuration-file (and therefore the default of
+        /// <see cref="Configuration.CodeUnitSpecificConfiguration.ToolDefinitionsFile"/>) is read. Firing it any earlier (for example right where the
+        /// folder becomes known, during initialization) would have it write into a folder GRYLibrary deletes and recreates for every test-run right
+        /// afterwards, which silently discards whatever was written and is exactly the bug this timing avoids. A test which wants the server to find a
+        /// declaration without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder
+        /// in time; production code has no need for it and leaves it null.
+        /// </summary>
+        internal Action<string>? OnConfigurationFolderResolved { get; set; }
+
         public Program()
         {
             this._Log = new InitialLog().Logger;
@@ -80,10 +92,9 @@ namespace GenericMCPServerBackend.Core
         /// <returns>An integer exit code; <c>0</c> indicates success.</returns>
         internal int MainImplementation(string[] commandlineArguments)
         {
-            // The file which declares the tools is read from the commandline-parameters, which are only available
-            // once the initialization ran, so it is remembered here and used when the services are registered. The
-            // same holds for the folder of the virtual environments of the python-tools.
-            string toolDefinitionsFile = null;
+            // The folder of the virtual environments of the python-tools is read from the application-constants, which
+            // are only available once the initialization ran, so it is remembered here and used when the services are
+            // registered.
             string virtualEnvironmentsFolder = null;
             string administrationFolder = null;
             this.IsRunning = true;
@@ -91,19 +102,10 @@ namespace GenericMCPServerBackend.Core
             {
                 apiServerConfiguration.SetInitializationInformationAction = (initializationInformation) =>
                 {
-                    toolDefinitionsFile = initializationInformation.CommandlineParameter.InitialToolDefinitionsFile;
-                    // The environments are generated content, so they belong below the data-folder of the server. The
-                    // folder of the declarations can not hold them: it is usually mounted read-only. Where they are is
-                    // not stated from outside, because it follows from where this server keeps its data.
+                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString("./Tools.json");
                     virtualEnvironmentsFolder = Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments");
-                    // The clients, their roles and their tokens belong to the configuration of the server, so they are
-                    // kept in its configuration-folder. Where that is is not stated from outside either.
                     administrationFolder = initializationInformation.ApplicationConstants.GetConfigurationFolder();
-                    // The check of the token is the outer of the two custom middlewares: a request which is not
-                    // allowed must not reach anything behind it.
                     initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
-                    // The middleware which answers a failed tool-call with 502 has to wrap the endpoint of the
-                    // protocol, so it is registered as the innermost custom middleware.
                     initializationInformation.ApplicationConstants.CustomMiddlewares2.Add(typeof(ToolCallFailureStatusCodeMiddleware));
                     string domain = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialDomain) ? Tools.GetDefaultDomainValue(GeneralConstants.CodeUnitName) : initializationInformation.CommandlineParameter.InitialDomain;
                     initializationInformation.InitialApplicationConfiguration.ServerConfiguration.SetDomainAndPublichUrlToDefault(domain);
@@ -147,6 +149,9 @@ namespace GenericMCPServerBackend.Core
                 };
                 apiServerConfiguration.SetFunctionalInformationAction = (functionalInformation) => //technical initialization for every run
                 {
+                    // For a test-run GRYLibrary wipes and recreates the configuration-folder between the initialization- and the functional-phase (so
+                    // every test-run starts clean), so this has to fire here and not during initialization - see the doc-comment of OnConfigurationFolderResolved.
+                    this.OnConfigurationFolderResolved?.Invoke(administrationFolder);
                     this._Log = functionalInformation.Logger;//this is now server.log
                     this._Log.Log("Run initialization...");
 
@@ -166,16 +171,29 @@ namespace GenericMCPServerBackend.Core
                     // failed tool-call decide the status-code of the answer.
                     functionalInformation.WebApplicationBuilder.Services.AddHttpContextAccessor();
                     // Only a client with a valid access-token reaches the protocol. The file is created here when it
-                    // does not exist yet, so that an administrator finds the place where the tokens belong.
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAccessTokenService>(new AccessTokenService(AccessTokenService.GetDefaultFile(administrationFolder), timeService));
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IClientService>(new ClientService(ClientService.GetDefaultFile(administrationFolder)));
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IRolesService>(new RolesService(RolesService.GetDefaultRolesFile(administrationFolder), RolesService.GetDefaultAssignmentsFile(administrationFolder)));
+                    // does not exist yet, so that an administrator finds the place where the tokens belong. These
+                    // services are not registered in the container themselves: the business-logic-service is the only
+                    // one which decides anything with them (who may reach what, and the administration of clients,
+                    // roles and tokens), so it is the only one which needs them.
+                    IAccessTokenService accessTokenService = new AccessTokenService(AccessTokenService.GetDefaultFile(administrationFolder), timeService);
+                    IClientService clientService = new ClientService(ClientService.GetDefaultFile(administrationFolder));
+                    IRolesService rolesService = new RolesService(RolesService.GetDefaultRolesFile(administrationFolder), RolesService.GetDefaultAssignmentsFile(administrationFolder));
                     // The token of the administrator is created here when its file does not exist yet, and it is
                     // written to the log while doing so - that is the one moment it is readable.
                     this._AdminTokenService = new AdminTokenService(AdminTokenService.GetDefaultFile(administrationFolder), this._Log);
-                    functionalInformation.WebApplicationBuilder.Services.AddSingleton<IAdminTokenService>(this._AdminTokenService);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration);
-                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder);
+                    // Resolved against the configuration-folder (the same base every other configurable path of this server, e.g. CertificateFolder, uses),
+                    // so a relative value in the configuration-file (like the default "./Tools.json") is not accidentally resolved against the
+                    // process' working-directory instead. If the resolved file does not exist (for example because nobody declared any tool yet), the
+                    // server still starts and simply offers no tool, exactly like it did before this was configurable at all - it does not abort with
+                    // FileNotFoundException, because "no tools declared yet" is an expected, valid state of a freshly set up server.
+                    string toolDefinitionsFile = functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile.GetPath(administrationFolder);
+                    if (!File.Exists(toolDefinitionsFile))
+                    {
+                        GRYLibrary.Core.Misc.Utilities.EnsureFileExists(toolDefinitionsFile);
+                        File.WriteAllText(toolDefinitionsFile, "{}");
+                    }
+                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
                     this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace

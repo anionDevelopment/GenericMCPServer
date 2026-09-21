@@ -1,6 +1,7 @@
 using GenericMCPServerBackend.Core.Constants;
 using GenericMCPServerBackend.Core.Misc;
 using GenericMCPServerBackend.Core.Model;
+using GRYLibrary.Core.APIServer.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,6 +22,11 @@ namespace GenericMCPServerBackend.Core.Services
     /// the script in a way in which they can not be interpreted as anything but one argument each (see
     /// <see cref="RunScript"/>); whether a value has the format the tool expects is checked by the script itself, which
     /// keeps that knowledge next to the code which depends on it.
+    ///
+    /// It is also the one place which decides who may reach what (see <see cref="ClientMayReachMCPServer"/> and the
+    /// administration-methods below) and which administrates the clients, their roles and their tokens: a controller
+    /// or a middleware which decided one of those things itself would be a decision the next one could forget, and
+    /// this codeunit would no longer have a single place which states what "domain-logic" of it means.
     /// </summary>
     public class BusinessLogicService : IBusinessLogicService
     {
@@ -49,14 +55,44 @@ namespace GenericMCPServerBackend.Core.Services
 
         private readonly CredentialsService _CredentialsService;
 
+        private readonly IClientService _ClientService;
+
+        private readonly IRolesService _RolesService;
+
+        private readonly IAccessTokenService _AccessTokenService;
+
+        private readonly IAdminTokenService _AdminTokenService;
+
+        private readonly ITimeService _TimeService;
+
         /// <summary>
-        /// Creates the business-logic for the tools which are declared in the given file.
+        /// Creates the business-logic for the tools which are declared in the given file, without the administration
+        /// of clients, roles and tokens. This is what a testcase which is only about the tools uses; the server itself
+        /// uses the constructor below, because it needs both.
         /// </summary>
         /// <param name="toolDefinitionsFile">The file which declares the tools, or null/empty if none was configured. In that case the server offers no tool at all, which is deliberate: a tool exists because an administrator declared it and not because this codeunit brings it along.</param>
         /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It has to be writable, which is why it is not the folder of the declarations: that one is usually mounted read-only.</param>
         /// <exception cref="FileNotFoundException">Thrown when a file was configured but does not exist.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the file does not declare valid tools or when a declared credential is not available.</exception>
         public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder)
+            : this(toolDefinitionsFile, virtualEnvironmentsFolder, null, null, null, null, null)
+        {
+        }
+
+        /// <summary>
+        /// Creates the business-logic for the tools which are declared in the given file and for the administration
+        /// which is backed by the given services.
+        /// </summary>
+        /// <param name="toolDefinitionsFile">The file which declares the tools, or null/empty if none was configured. In that case the server offers no tool at all, which is deliberate: a tool exists because an administrator declared it and not because this codeunit brings it along.</param>
+        /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It has to be writable, which is why it is not the folder of the declarations: that one is usually mounted read-only.</param>
+        /// <param name="clientService">Where the clients and their administration-tokens are kept.</param>
+        /// <param name="rolesService">Where the roles and their assignments are kept.</param>
+        /// <param name="accessTokenService">Where the access-tokens of the clients are kept.</param>
+        /// <param name="adminTokenService">Where the token of the administrator of this server is kept.</param>
+        /// <param name="timeService">Where the current point in time comes from, so that a testcase can state which point in time it is.</param>
+        /// <exception cref="FileNotFoundException">Thrown when a file was configured but does not exist.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the file does not declare valid tools or when a declared credential is not available.</exception>
+        public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder, IClientService clientService, IRolesService rolesService, IAccessTokenService accessTokenService, IAdminTokenService adminTokenService, ITimeService timeService)
         {
             this._VirtualEnvironmentService = new VirtualEnvironmentService(virtualEnvironmentsFolder);
             if (string.IsNullOrWhiteSpace(toolDefinitionsFile))
@@ -74,6 +110,11 @@ namespace GenericMCPServerBackend.Core.Services
             // needed at all.
             this._CredentialsService = new CredentialsService(this._MCPServers.SelectMany(mcpServer => mcpServer.Tools).SelectMany(definition => definition.Credentials.Values));
             this._WebRequestService = new WebRequestService(this._CredentialsService);
+            this._ClientService = clientService;
+            this._RolesService = rolesService;
+            this._AccessTokenService = accessTokenService;
+            this._AdminTokenService = adminTokenService;
+            this._TimeService = timeService;
         }
 
         public string RemoveCredentialValuesFrom(string text)
@@ -90,6 +131,115 @@ namespace GenericMCPServerBackend.Core.Services
         public MCPServerDefinition GetMCPServerOfRoute(string route)
         {
             return this._MCPServers.FirstOrDefault(mcpServer => string.Equals(CodeUnitSpecificConstants.GetMCPRoute(mcpServer.UrlNamespace), route?.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+        }
+
+        public bool RequestIsFromAnAdministrator(string adminToken)
+        {
+            return this._AdminTokenService.Matches(adminToken);
+        }
+
+        public bool TryGetClientOfAdministrationToken(string clientAdministrationToken, out string client)
+        {
+            return this._ClientService.TryGetClientOfAdministrationToken(clientAdministrationToken, out client);
+        }
+
+        /// <summary>
+        /// The token says which client is calling; whether that client may use this mcp-server is decided by its
+        /// roles. A client which is in none of the declared roles is a known client without an access here.
+        /// </summary>
+        public bool ClientMayReachMCPServer(MCPServerDefinition mcpServer, string accessToken, out string client)
+        {
+            if (!this._AccessTokenService.TryGetClient(accessToken, out client))
+            {
+                return false;
+            }
+            IReadOnlyCollection<string> rolesOfTheClient = this._RolesService.GetRolesOf(client);
+            return mcpServer.AuthorizedRoles.Any(role => rolesOfTheClient.Contains(role, StringComparer.OrdinalIgnoreCase));
+        }
+
+        public IReadOnlyCollection<ClientOverview> GetClients()
+        {
+            return this._ClientService.GetClients().Select(client => new ClientOverview(client, this._RolesService.GetRolesOf(client), this._AccessTokenService.GetAccessTokensOf(client).Count)).ToList();
+        }
+
+        public string CreateClient(string client)
+        {
+            return this._ClientService.CreateClient(client);
+        }
+
+        public string RenewClientAdministrationToken(string client)
+        {
+            return this._ClientService.RenewAdministrationToken(client);
+        }
+
+        /// <summary>
+        /// The tokens and the roles of the client are removed as well: a client which does not exist anymore must not
+        /// keep an access, and a client which is created again later must not inherit what its predecessor had.
+        /// </summary>
+        public bool DeleteClient(string client)
+        {
+            if (!this._ClientService.DeleteClient(client))
+            {
+                return false;
+            }
+            this._AccessTokenService.RemoveAccessTokensOf(client);
+            this._RolesService.RemoveAllRolesOf(client);
+            return true;
+        }
+
+        public IReadOnlyCollection<string> GetRoles()
+        {
+            return this._RolesService.GetRoles();
+        }
+
+        public bool CreateRole(string role)
+        {
+            return this._RolesService.CreateRole(role);
+        }
+
+        public bool DeleteRole(string role)
+        {
+            return this._RolesService.DeleteRole(role);
+        }
+
+        public IReadOnlyCollection<string> GetRolesOfClient(string client)
+        {
+            if (!this._ClientService.ClientExists(client))
+            {
+                return null;
+            }
+            return this._RolesService.GetRolesOf(client);
+        }
+
+        /// <exception cref="InvalidOperationException">Thrown when the client does not exist (the role itself is checked by <see cref="IRolesService.AssignRole"/>, which is also where this comes from).</exception>
+        public bool AssignRole(string client, string role)
+        {
+            if (!this._ClientService.ClientExists(client))
+            {
+                throw new InvalidOperationException($"A client with the name \"{client}\" does not exist.");
+            }
+            return this._RolesService.AssignRole(client, role);
+        }
+
+        public bool RemoveRoleOfClient(string client, string role)
+        {
+            return this._RolesService.RemoveRoleOfClient(client, role);
+        }
+
+        public IReadOnlyList<AccessTokenOverview> GetAccessTokensOf(string client)
+        {
+            DateTime now = this._TimeService.GetCurrentTimeInUTCAsDateTimeOffset().UtcDateTime;
+            return this._AccessTokenService.GetAccessTokensOf(client).Select(accessToken => new AccessTokenOverview(accessToken.Hash, accessToken.ValidUntil, accessToken.IsValidAt(now))).ToList();
+        }
+
+        public string CreateAccessToken(string client, int validForDays)
+        {
+            return this._AccessTokenService.CreateAccessToken(client, validForDays);
+        }
+
+        public bool RemoveAccessToken(string client, string hash)
+        {
+            return this._AccessTokenService.RemoveAccessToken(client, hash);
         }
 
         /// <summary>

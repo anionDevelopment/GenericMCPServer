@@ -10,9 +10,19 @@
       },
       "GRYLibrary": {
         "type": "Direct",
-        "requested": "[2.0.32, 2.0.32]",
-        "resolved": "2.0.32",
-        "contentHash": "2nxfexxkUJgcvk9D11P/QZ6s/g6PUwQ62x3GqztupVzIP7Z96B/yXJzd9VPhxY3Bsu8L9dtUlsHe8c3uapN5ng=="
+        "requested": "[2.1.1, 2.1.1]",
+        "resolved": "2.1.1",
+        "contentHash": "NdVpehbg6rhMQgDQKxnkH36wH13CmXIeA0bOgFjPOrXF7nwU3526AcyzY7mtTtGbK4/Pp9kQj7Wn4s5Bo1J0JA=="
+      },
+      "Microsoft.IdentityModel.Tokens": {
+        "type": "Direct",
+        "requested": "[8.16.0, )",
+        "resolved": "8.16.0",
+        "contentHash": "rtViGJcGsN7WcfUNErwNeQgjuU5cJNl6FDQsfi9TncwO+Epzn0FTfBsg3YuFW1Q0Ch/KPxaVdjLw3/+5Z5ceFQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.0",
+          "Microsoft.IdentityModel.Logging": "8.16.0"
+        }
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -61,6 +71,21 @@
         "dependencies": {
           "MSTest.Analyzers": "3.9.3"
         }
+      },
+      "Swashbuckle.AspNetCore.SwaggerGen": {
+        "type": "Direct",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "y7t4coDRAeFYChmvlMRiH2OjbiRrm9AVIDgt17fQfs3x9PVAI5PiwWYOhg+4F13R4Q36WDc9lqfoOnNa3tNbGg==",
+        "dependencies": {
+          "Swashbuckle.AspNetCore.Swagger": "10.2.3"
+        }
+      },
+      "Swashbuckle.AspNetCore.SwaggerUI": {
+        "type": "Direct",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "nthWONRs/FJ4yyG206g1cC52WEG8EqrjuMWjGdR+5XG7lbjFto6NqcI9EMICgVFom/UivIjUVwI76ZHbHwTPfQ=="
       },
       "Castle.Core": {
         "type": "Transitive",
@@ -272,6 +297,19 @@
         "type": "Transitive",
         "resolved": "10.0.10",
         "contentHash": "5wu/GrYVd8mG2DVUw3vFJzF+O336TyTGg/Kmcgw9bfwYhCoFiV5lR5QeEmKecJyrW4W54nMfD3p3589E8a7czQ=="
+      },
+      "Microsoft.IdentityModel.Abstractions": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "gSxKLWRZzBpIsEoeUPkxfywNCCvRvl7hkq146XHPk5vOQc9izSf1I+uL1vh4y2U19QPxd9Z8K/8AdWyxYz2lSg=="
+      },
+      "Microsoft.IdentityModel.Logging": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "MTzXmETkNQPACR7/XCXM1OGM6oU9RkyibqeJRtO9Ndew2LnGjMf9Atqj2VSf4XC27X0FQycUAlzxxEgQMWn2xQ==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Abstractions": "8.16.0"
+        }
       },
       "Microsoft.Net.Http.Headers": {
         "type": "Transitive",
@@ -519,24 +557,11 @@
       },
       "Swashbuckle.AspNetCore.Swagger": {
         "type": "Transitive",
-        "resolved": "10.2.1",
-        "contentHash": "ej4inPhiWCq+0utG8yaKhIhE8M3k3R/qRaGhpgDZB+O/s+o62/zRMO1Cn2CtQccsrqPE9PYnzCp6hQGYGpJOyQ==",
+        "resolved": "10.2.3",
+        "contentHash": "1jUUs3WQnrS0FUtaZPLSy1yYMEwS1zlvDmvQ2/eldPHUANX0LJSLVZecCMgSMdeGiRqeaRrIXLtSz++TCiTMww==",
         "dependencies": {
           "Microsoft.OpenApi": "2.7.5"
         }
-      },
-      "Swashbuckle.AspNetCore.SwaggerGen": {
-        "type": "Transitive",
-        "resolved": "10.2.1",
-        "contentHash": "JYX6i/y0xEtQWH/hZyfcage1/ldwww83ueD/gBc34uSnMwyvRLUsOpYcxlliFFxFbZMrY6t+R9ENqolE7zTEOg==",
-        "dependencies": {
-          "Swashbuckle.AspNetCore.Swagger": "10.2.1"
-        }
-      },
-      "Swashbuckle.AspNetCore.SwaggerUI": {
-        "type": "Transitive",
-        "resolved": "10.2.1",
-        "contentHash": "vzB8ZAGqXus3fdareJ9GHctaRP9ZL+wW9x8U7s1Y+BWprInFvSg6rpD9VhANNpwXA8fUHqu5Agjl/+hHG1BCQA=="
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
@@ -558,15 +583,18 @@
         "dependencies": {
           "CommandLineParser": "[2.9.1, 2.9.1]",
           "ExtendedXmlSerializer": "[3.10.0, 3.10.0]",
-          "GRYLibrary": "[2.0.32, 2.0.32]",
+          "GRYLibrary": "[2.1.1, 2.1.1]",
           "Microsoft.AspNetCore.Http": "[2.3.9, 2.3.9]",
           "Microsoft.EntityFrameworkCore.Abstractions": "[10.0.3, 10.0.3]",
+          "Microsoft.IdentityModel.Tokens": "[8.16.0, )",
           "ModelContextProtocol": "[2.2.0, 2.2.0]",
           "ModelContextProtocol.AspNetCore": "[2.2.0, 2.2.0]",
           "ModelContextProtocol.Core": "[2.2.0, 2.2.0]",
           "NJsonSchema": "[11.5.2, 11.5.2]",
           "NSwag.AspNetCore": "[14.6.3, 14.6.3]",
           "Swashbuckle.AspNetCore": "[10.2.1, 10.2.1]",
+          "Swashbuckle.AspNetCore.SwaggerGen": "[10.2.3, )",
+          "Swashbuckle.AspNetCore.SwaggerUI": "[10.2.3, )",
           "System.Reactive": "[6.1.0, 6.1.0]",
           "prometheus-net.AspNetCore": "[8.2.1, 8.2.1]"
         }
