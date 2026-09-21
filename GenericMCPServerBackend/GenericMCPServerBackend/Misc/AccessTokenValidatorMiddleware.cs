@@ -77,7 +77,7 @@ namespace GenericMCPServerBackend.Core.Misc
                 string value = values.First() ?? string.Empty;
                 if (value.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    return (true, value.Substring(BearerPrefix.Length).Trim());
+                    return (true, value[BearerPrefix.Length..].Trim());
                 }
             }
             return base.TryGetAPIKey(context);

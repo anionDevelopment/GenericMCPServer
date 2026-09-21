@@ -62,9 +62,10 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="[2.9.1]" />
     <PackageReference Include="ExtendedXmlSerializer" Version="[3.10.0]" />
-    <PackageReference Include="GRYLibrary" Version="[2.0.33]" />
+    <PackageReference Include="GRYLibrary" Version="[2.1.1]" />
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="[2.3.9]" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="[10.0.3]" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.16.0" />
     <PackageReference Include="ModelContextProtocol" Version="[2.2.0]" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="[2.2.0]" />
     <PackageReference Include="ModelContextProtocol.Core" Version="[2.2.0]" />
@@ -72,6 +73,8 @@
     <PackageReference Include="NSwag.AspNetCore" Version="[14.6.3]" />
     <PackageReference Include="prometheus-net.AspNetCore" Version="[8.2.1]" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="[10.2.1]" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
     <PackageReference Include="System.Reactive" Version="[6.1.0]" />
   </ItemGroup>
 </Project>
