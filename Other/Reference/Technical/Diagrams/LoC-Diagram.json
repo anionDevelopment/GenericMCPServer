@@ -1,0 +1,43 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Lines of Code over time",
+  "width": 800,
+  "height": 400,
+  "data": {
+    "url": "./LoC-Diagram.csv",
+    "format": {
+      "type": "csv"
+    }
+  },
+  "mark": {
+    "type": "line",
+    "point": true
+  },
+  "encoding": {
+    "x": {
+      "field": "Timestamp",
+      "type": "temporal",
+      "title": "Date",
+      "scale": {
+        "type": "utc"
+      },
+      "axis": {
+        "format": "%Y-%m-%d %H:%M:%S (UTC)",
+        "labelAngle": -45,
+        "labelLimit": 250,
+        "tickCount": 8
+      }
+    },
+    "y": {
+      "field": "LinesOfCode",
+      "type": "quantitative",
+      "title": "Lines of Code"
+    },
+    "tooltip": [
+      {
+        "field": "Version",
+        "type": "ordinal"
+      }
+    ]
+  }
+}
