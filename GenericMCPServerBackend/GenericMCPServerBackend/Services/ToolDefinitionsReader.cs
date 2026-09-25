@@ -18,11 +18,11 @@ namespace GenericMCPServerBackend.Core.Services
     public static class ToolDefinitionsReader
     {
         /// <summary>
-        /// The form of a tool-name. It is what a client sees, and it is also used as the name of the folder of the
-        /// virtual environment of a python-tool, so a name which contains a path-separator or similar is rejected here
-        /// instead of turning into a folder somewhere else.
+        /// The form of a declared name. It is what a client sees, and it is also used as the name of the folder of the
+        /// virtual environment of a python-declaration, so a name which contains a path-separator or similar is
+        /// rejected here instead of turning into a folder somewhere else.
         /// </summary>
-        private static readonly Regex ToolNameRegex = new Regex("^[A-Za-z0-9_-]{1,128}$", RegexOptions.Compiled);
+        private static readonly Regex NameRegex = new Regex("^[A-Za-z0-9_-]{1,128}$", RegexOptions.Compiled);
 
         /// <summary>
         /// The form of the name of a credential. Such a name becomes an environment-variable of the script, so it has
@@ -35,7 +35,14 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         private static readonly Regex UrlNamespaceRegex = new Regex("^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$", RegexOptions.Compiled);
 
-        /// <summary>How a header refers to a credential of its tool.</summary>
+        /// <summary>
+        /// The form of the type of the content of a resource: a type and a subtype, as "text/markdown". A value which
+        /// states more than that (a charset, for example) is rejected, because the content of a resource is handed
+        /// over as text and such an addition would describe something which does not happen.
+        /// </summary>
+        private static readonly Regex MimeTypeRegex = new Regex(@"^[A-Za-z0-9][A-Za-z0-9.+-]*/[A-Za-z0-9][A-Za-z0-9.+-]*$", RegexOptions.Compiled);
+
+        /// <summary>How a header refers to a credential of its own declaration.</summary>
         private static readonly Regex CredentialReferenceRegex = new Regex(@"\$\{([^}]*)\}", RegexOptions.Compiled);
 
         /// <summary>
@@ -80,8 +87,8 @@ namespace GenericMCPServerBackend.Core.Services
 
         /// <summary>
         /// Checks one mcp-server: its namespace decides its address, so it has to be usable as a part of an url, and
-        /// its tools have to be unambiguous within it. Two mcp-servers may use the same tool-name, because a client of
-        /// one of them never sees the other one.
+        /// its tools and resources have to be unambiguous within it. Two mcp-servers may use the same tool-name or the
+        /// same uri, because a client of one of them never sees the other one.
         /// </summary>
         private static void Validate(MCPServerDefinition mcpServer, string file)
         {
@@ -94,6 +101,7 @@ namespace GenericMCPServerBackend.Core.Services
                 throw new InvalidOperationException($"The url-namespace \"{mcpServer.UrlNamespace}\" in \"{file}\" is not usable. It may consist of parts of letters, digits, underscores and hyphens which are separated by \"/\" (for example \"teamA\" or \"teamA/mcpserver1\").");
             }
             mcpServer.Tools ??= new List<ToolDefinition>();
+            mcpServer.Resources ??= new List<ResourceDefinition>();
             mcpServer.AuthorizedRoles ??= new List<string>();
             foreach (string role in mcpServer.AuthorizedRoles)
             {
@@ -117,6 +125,18 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" declares the tool \"{duplicate}\" more than once.");
             }
+            foreach (ResourceDefinition definition in mcpServer.Resources)
+            {
+                Validate(definition, file);
+            }
+            // A resource is read by its uri, so two resources with the same uri would make it undecidable which of
+            // them a client means. Two resources with the same name are possible, because a name is what a reader
+            // sees and not what identifies a resource.
+            string duplicatedUri = mcpServer.Resources.GroupBy(definition => definition.Uri, StringComparer.Ordinal).Where(group => 1 < group.Count()).Select(group => group.Key).FirstOrDefault();
+            if (duplicatedUri != null)
+            {
+                throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" declares the uri \"{duplicatedUri}\" more than once, so it would not be decidable which resource is meant by it.");
+            }
         }
 
         private static void Validate(ToolDefinition definition, string file)
@@ -125,36 +145,26 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 throw new InvalidOperationException($"The tool-definitions-file \"{file}\" contains a tool without a name.");
             }
-            if (!ToolNameRegex.IsMatch(definition.ToolName))
+            if (!NameRegex.IsMatch(definition.ToolName))
             {
                 throw new InvalidOperationException($"The name \"{definition.ToolName}\" in \"{file}\" is not a usable tool-name. A tool-name may consist of letters, digits, underscores and hyphens.");
             }
-            definition.Parameters ??= new List<string>();
-            definition.Requirements ??= new List<string>();
-            definition.AllowedUrls ??= new List<string>();
-            definition.Credentials ??= new Dictionary<string, string>();
-            definition.Headers ??= new Dictionary<string, string>();
-            if (string.IsNullOrWhiteSpace(definition.Type))
-            {
-                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" does not state its type. The possible types are {ToolTypes.AllowedValues}.");
-            }
-            if (!ToolTypes.TryParse(definition.Type, out ToolType type))
-            {
-                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" states the unknown type \"{definition.Type}\". The possible types are {ToolTypes.AllowedValues}.");
-            }
+            ToolType type = ReadType(definition, file);
             switch (type)
             {
                 case ToolType.Python:
-                    ValidateScriptTool(definition, file);
+                    ValidateScript(definition, file);
+                    ValidateParameters(definition, file);
                     ValidateRequirements(definition, file);
                     ValidateCredentials(definition, file);
                     break;
                 case ToolType.Shell:
-                    ValidateScriptTool(definition, file);
-                    RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a tool of the type \"{ToolTypes.Python}\" installs requirements");
+                    ValidateScript(definition, file);
+                    ValidateParameters(definition, file);
+                    RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
                     // A shell-tool receives no credential yet. Handing one over is a decision of its own, so it is
                     // stated here instead of being silently possible.
-                    RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a tool of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
                     break;
                 case ToolType.WebRequest:
                     ValidateWebRequestTool(definition, file);
@@ -162,12 +172,116 @@ namespace GenericMCPServerBackend.Core.Services
             }
         }
 
-        private static void ValidateScriptTool(ToolDefinition definition, string file)
+        /// <summary>
+        /// Checks one resource. It is declared like a tool and differs in what identifies it: a client reads it by its
+        /// uri and sends nothing else, so a resource states that uri and the type of its content instead of
+        /// parameters.
+        /// </summary>
+        private static void Validate(ResourceDefinition definition, string file)
+        {
+            if (string.IsNullOrWhiteSpace(definition.ResourceName))
+            {
+                throw new InvalidOperationException($"The tool-definitions-file \"{file}\" contains a resource without a name.");
+            }
+            if (!NameRegex.IsMatch(definition.ResourceName))
+            {
+                throw new InvalidOperationException($"The name \"{definition.ResourceName}\" in \"{file}\" is not a usable resource-name. A resource-name may consist of letters, digits, underscores and hyphens.");
+            }
+            ValidateUri(definition, file);
+            if (string.IsNullOrWhiteSpace(definition.MimeType))
+            {
+                throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" in \"{file}\" states no \"mime-type\", which is what tells a client what it received.");
+            }
+            if (!MimeTypeRegex.IsMatch(definition.MimeType))
+            {
+                throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" in \"{file}\" states \"{definition.MimeType}\" as its \"mime-type\", which is not a usable one. Such a value consists of a type and a subtype, as \"text/markdown\".");
+            }
+            ToolType type = ReadType(definition, file);
+            RejectDeclaredValues(definition.Parameters.Count, "parameters", definition, file, "a resource is read by its uri, so there is no value which a client could choose");
+            switch (type)
+            {
+                case ToolType.Python:
+                    ValidateScript(definition, file);
+                    ValidateRequirements(definition, file);
+                    ValidateCredentials(definition, file);
+                    break;
+                case ToolType.Shell:
+                    ValidateScript(definition, file);
+                    RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
+                    RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    break;
+                case ToolType.WebRequest:
+                    ValidateWebRequestResource(definition, file);
+                    break;
+            }
+            if (type != ToolType.WebRequest)
+            {
+                // The script of a resource receives the uri of the resource it is called for, which is what lets one
+                // script implement several resources.
+                definition.Parameters = new List<string>() { ResourceDefinition.UriParameterName };
+            }
+        }
+
+        /// <summary>
+        /// Checks the uri of a resource: it is what a client reads the resource by, so it has to be one which a client
+        /// can send.
+        /// </summary>
+        private static void ValidateUri(ResourceDefinition definition, string file)
+        {
+            if (string.IsNullOrWhiteSpace(definition.Uri))
+            {
+                throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" in \"{file}\" states no \"uri\", which is what a client reads it by.");
+            }
+            if (definition.Uri.Contains('{') || definition.Uri.Contains('}'))
+            {
+                // Such a value would be a uri-template, which is a resource whose uri a client fills in. This server
+                // offers the resources which are declared and nothing which is derived from them.
+                throw new InvalidOperationException($"The uri \"{definition.Uri}\" of the resource \"{definition.ResourceName}\" in \"{file}\" contains a template-expression. A resource is declared with the uri it has.");
+            }
+            if (!Uri.TryCreate(definition.Uri, UriKind.Absolute, out Uri _))
+            {
+                throw new InvalidOperationException($"The uri \"{definition.Uri}\" of the resource \"{definition.ResourceName}\" in \"{file}\" is not usable. A resource is read by an absolute uri (for example \"https://example.com/handbook\" or \"file:///documents/handbook.md\").");
+            }
+        }
+
+        /// <summary>
+        /// Reads the declared type, which every declaration has to state, and makes sure that every list and every
+        /// map of it exists.
+        /// </summary>
+        private static ToolType ReadType(CallableDefinition definition, string file)
+        {
+            definition.Parameters ??= new List<string>();
+            definition.Requirements ??= new List<string>();
+            definition.AllowedUrls ??= new List<string>();
+            definition.Credentials ??= new Dictionary<string, string>();
+            definition.Headers ??= new Dictionary<string, string>();
+            if (string.IsNullOrWhiteSpace(definition.Type))
+            {
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" does not state its type. The possible types are {ToolTypes.AllowedValues}.");
+            }
+            if (!ToolTypes.TryParse(definition.Type, out ToolType result))
+            {
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" states the unknown type \"{definition.Type}\". The possible types are {ToolTypes.AllowedValues}.");
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Checks a declaration which runs a script: it has to state which one, and it must not state what only a
+        /// declaration which requests an address has.
+        /// </summary>
+        private static void ValidateScript(CallableDefinition definition, string file)
         {
             if (string.IsNullOrWhiteSpace(definition.Calls))
             {
-                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" does not state which script it calls.");
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" does not state which script it calls.");
             }
+            RejectDeclaredValues(definition.AllowedUrls.Count, "allowed-urls", definition, file, $"only a declaration of the type \"{ToolTypes.WebRequest}\" requests addresses");
+            RejectDeclaredValues(definition.Headers.Count, "headers", definition, file, $"only a declaration of the type \"{ToolTypes.WebRequest}\" sends headers");
+        }
+
+        private static void ValidateParameters(ToolDefinition definition, string file)
+        {
             foreach (string parameter in definition.Parameters)
             {
                 if (string.IsNullOrWhiteSpace(parameter))
@@ -175,62 +289,60 @@ namespace GenericMCPServerBackend.Core.Services
                     throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" has a parameter without a name.");
                 }
             }
-            RejectDeclaredValues(definition.AllowedUrls.Count, "allowed-urls", definition, file, $"only a tool of the type \"{ToolTypes.WebRequest}\" requests addresses");
-            RejectDeclaredValues(definition.Headers.Count, "headers", definition, file, $"only a tool of the type \"{ToolTypes.WebRequest}\" sends headers");
         }
 
         /// <summary>
-        /// Checks the credentials of a tool. The name the tool sees them under becomes an environment-variable
+        /// Checks the credentials of a declaration. The name they are seen under becomes an environment-variable
         /// respectively the name a header refers to, and the other one is the name of an environment-variable of the
         /// server; whether that variable exists is decided when the server starts (see
         /// <see cref="CredentialsService"/>).
         /// </summary>
-        private static void ValidateCredentials(ToolDefinition definition, string file)
+        private static void ValidateCredentials(CallableDefinition definition, string file)
         {
             foreach (KeyValuePair<string, string> credential in definition.Credentials)
             {
                 if (!CredentialNameRegex.IsMatch(credential.Key ?? string.Empty))
                 {
-                    throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" has the credential \"{credential.Key}\", whose name is not usable. Such a name may consist of letters, digits and underscores and may not begin with a digit.");
+                    throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" has the credential \"{credential.Key}\", whose name is not usable. Such a name may consist of letters, digits and underscores and may not begin with a digit.");
                 }
                 if (!CredentialNameRegex.IsMatch(credential.Value ?? string.Empty))
                 {
-                    throw new InvalidOperationException($"The credential \"{credential.Key}\" of the tool \"{definition.ToolName}\" in \"{file}\" states \"{credential.Value}\" as the environment-variable it is read from, which is not a usable name of an environment-variable.");
+                    throw new InvalidOperationException($"The credential \"{credential.Key}\" of the {definition.Kind} \"{definition.Name}\" in \"{file}\" states \"{credential.Value}\" as the environment-variable it is read from, which is not a usable name of an environment-variable.");
                 }
             }
         }
 
         /// <summary>
-        /// Checks the headers of a tool. A header may refer to a credential of its own tool, and only to one of them:
-        /// a reference which points at nothing would otherwise become a request whose header is incomplete without
-        /// anybody noticing.
+        /// Checks the headers of a declaration. A header may refer to a credential of its own declaration, and only to
+        /// one of them: a reference which points at nothing would otherwise become a request whose header is
+        /// incomplete without anybody noticing.
         /// </summary>
-        private static void ValidateHeaders(ToolDefinition definition, string file)
+        private static void ValidateHeaders(CallableDefinition definition, string file)
         {
             foreach (KeyValuePair<string, string> header in definition.Headers)
             {
                 if (string.IsNullOrWhiteSpace(header.Key))
                 {
-                    throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" has a header without a name.");
+                    throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" has a header without a name.");
                 }
                 foreach (Match reference in CredentialReferenceRegex.Matches(header.Value ?? string.Empty))
                 {
                     string nameOfTheCredential = reference.Groups[1].Value;
                     if (!definition.Credentials.ContainsKey(nameOfTheCredential))
                     {
-                        throw new InvalidOperationException($"The header \"{header.Key}\" of the tool \"{definition.ToolName}\" in \"{file}\" refers to the credential \"{nameOfTheCredential}\", which this tool does not declare.");
+                        throw new InvalidOperationException($"The header \"{header.Key}\" of the {definition.Kind} \"{definition.Name}\" in \"{file}\" refers to the credential \"{nameOfTheCredential}\", which this {definition.Kind} does not declare.");
                     }
                 }
             }
         }
 
-        private static void ValidateRequirements(ToolDefinition definition, string file)
+        private static void ValidateRequirements(CallableDefinition definition, string file)
         {
             foreach (string requirement in definition.Requirements)
             {
                 if (string.IsNullOrWhiteSpace(requirement))
                 {
-                    throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" has an empty requirement.");
+                    throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" has an empty requirement.");
                 }
             }
         }
@@ -241,12 +353,9 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         private static void ValidateWebRequestTool(ToolDefinition definition, string file)
         {
-            if (!string.IsNullOrWhiteSpace(definition.Calls))
-            {
-                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" states a script, but a tool of the type \"{ToolTypes.WebRequest}\" runs no script.");
-            }
+            RejectDeclaredScript(definition, file);
             RejectDeclaredValues(definition.Parameters.Count, "parameters", definition, file, $"a tool of the type \"{ToolTypes.WebRequest}\" has exactly the parameter \"{WebRequestService.UrlParameterName}\"");
-            RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a tool of the type \"{ToolTypes.Python}\" installs requirements");
+            RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
             if (definition.AllowedUrls.Count == 0)
             {
                 throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" allows no address. Everything which no rule allows is denied, so this tool could request nothing at all.");
@@ -272,14 +381,44 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// Rejects a value which was declared although it has no meaning for the type of the tool. Such a declaration
-        /// is not ignored, because ignoring it would let an administrator believe in an effect which does not exist.
+        /// Checks a resource which is requested from an address. Such a resource states no rules for the addresses it
+        /// allows: nothing which a client sends decides what is requested, because the address is the uri of the
+        /// resource itself.
         /// </summary>
-        private static void RejectDeclaredValues(int amountOfDeclaredValues, string nameOfTheField, ToolDefinition definition, string file, string reason)
+        private static void ValidateWebRequestResource(ResourceDefinition definition, string file)
+        {
+            RejectDeclaredScript(definition, file);
+            RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
+            RejectDeclaredValues(definition.AllowedUrls.Count, "allowed-urls", definition, file, $"a resource of the type \"{ToolTypes.WebRequest}\" is requested from its own uri, so there is no address which a client could ask for");
+            if (!definition.Uri.StartsWith($"{WebRequestService.Protocol}://", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" in \"{file}\" is of the type \"{ToolTypes.WebRequest}\", so its uri \"{definition.Uri}\" is the address which is requested and has to state the protocol \"{WebRequestService.Protocol}\".");
+            }
+            ValidateCredentials(definition, file);
+            ValidateHeaders(definition, file);
+        }
+
+        /// <summary>
+        /// Rejects a script which was declared although the declaration requests an address.
+        /// </summary>
+        private static void RejectDeclaredScript(CallableDefinition definition, string file)
+        {
+            if (!string.IsNullOrWhiteSpace(definition.Calls))
+            {
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" states a script, but a declaration of the type \"{ToolTypes.WebRequest}\" runs no script.");
+            }
+        }
+
+        /// <summary>
+        /// Rejects a value which was declared although it has no meaning for the type of the declaration. Such a
+        /// declaration is not ignored, because ignoring it would let an administrator believe in an effect which does
+        /// not exist.
+        /// </summary>
+        private static void RejectDeclaredValues(int amountOfDeclaredValues, string nameOfTheField, CallableDefinition definition, string file, string reason)
         {
             if (0 < amountOfDeclaredValues)
             {
-                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" is of the type \"{definition.Type}\" and states \"{nameOfTheField}\", which does not belong to it: {reason}.");
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" is of the type \"{definition.Type}\" and states \"{nameOfTheField}\", which does not belong to it: {reason}.");
             }
         }
     }

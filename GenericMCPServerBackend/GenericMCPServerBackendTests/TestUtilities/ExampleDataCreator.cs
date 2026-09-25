@@ -4,11 +4,12 @@ using System.IO;
 namespace GenericMCPServerBackend.Tests.TestUtilities
 {
     /// <summary>
-    /// Creates the example-data this product needs to do anything: a tool.
+    /// Creates the example-data this product needs to do anything: a tool and a resource.
     ///
-    /// The product itself contains no tool - which tools exist is declared by an administrator - so a test which wants
-    /// to call one has to bring that declaration along. This class writes a folder which contains a script and the
-    /// tool-definitions-file which turns it into a tool, exactly as an administrator would.
+    /// The product itself contains neither of them - which tools and which resources exist is declared by an
+    /// administrator - so a test which wants to call or read one has to bring that declaration along. This class
+    /// writes a folder which contains the scripts and the tool-definitions-file which turns them into a tool and a
+    /// resource, exactly as an administrator would.
     /// </summary>
     /// <remarks>
     /// It deliberately lives in the test-project and not in the codeunit itself. The name of a tool in the sourcecode
@@ -29,6 +30,21 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// both kinds are declared.
         /// </summary>
         public const string AnonymousExampleToolName = "anonymous_example_tool";
+
+        /// <summary>The uri of the resource which this creator declares. A resource is read by exactly this uri.</summary>
+        public const string ExampleResourceUri = "example://documents/handbook";
+
+        /// <summary>The name of that resource, which is what a client shows a reader.</summary>
+        public const string ExampleResourceName = "example_resource";
+
+        /// <summary>The type of the content of that resource.</summary>
+        public const string ExampleResourceMimeType = "text/plain";
+
+        /// <summary>
+        /// The script which implements that resource. A testcase which wants a read to fail removes it, which is a
+        /// failure the server reports with a readable reason.
+        /// </summary>
+        public const string ExampleResourceScriptFileName = "ExampleResource.py";
 
         /// <summary>The mcp-server which only a client with an access-token reaches.</summary>
         public const string UrlNamespace = "Example";
@@ -62,6 +78,19 @@ arguments = parser.parse_args()
 sys.stdout.write('the answer is ' + arguments.value)
 ";
 
+        /// <summary>
+        /// A script which answers with the uri of the resource it was called for. A resource takes no parameter, so
+        /// the uri is everything such a script receives.
+        /// </summary>
+        private const string ResourceScriptContent = @"import argparse
+import sys
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--uri', required=True)
+arguments = parser.parse_args()
+sys.stdout.write('the content of ' + arguments.uri)
+";
+
         /// <summary>The folder which contains the declaration and the script it points to.</summary>
         public string Folder { get; }
 
@@ -92,6 +121,7 @@ sys.stdout.write('the answer is ' + arguments.value)
             this.Folder = this._Root;
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
+            File.WriteAllText(Path.Combine(this.Folder, ExampleResourceScriptFileName), ResourceScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");
             File.WriteAllText(this.ToolDefinitionsFile, @"{
     ""mcp-servers"": [
@@ -105,6 +135,16 @@ sys.stdout.write('the answer is ' + arguments.value)
                     ""calls"": ""ExampleTool.py"",
                     ""description"": ""Answers with the value it got."",
                     ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+                }
+            ],
+            ""resources"": [
+                {
+                    ""uri"": """ + ExampleResourceUri + @""",
+                    ""resource-name"": """ + ExampleResourceName + @""",
+                    ""type"": ""python"",
+                    ""calls"": """ + ExampleResourceScriptFileName + @""",
+                    ""description"": ""The handbook of the team."",
+                    ""mime-type"": """ + ExampleResourceMimeType + @"""
                 }
             ]
         },
@@ -139,6 +179,7 @@ sys.stdout.write('the answer is ' + arguments.value)
                 // A root this instance does not own may hold other content (for example the rest of a server's configuration-folder) which must survive
                 // this instance being disposed, so only the two files this instance actually wrote are removed, never the whole root.
                 File.Delete(Path.Combine(this.Folder, "ExampleTool.py"));
+                File.Delete(Path.Combine(this.Folder, ExampleResourceScriptFileName));
                 File.Delete(this.ToolDefinitionsFile);
             }
         }

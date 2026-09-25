@@ -1,5 +1,6 @@
 using GenericMCPServerBackend.Tests.TestUtilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
@@ -137,6 +138,121 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
             Assert.IsTrue(result.GetProperty("isError").GetBoolean(), "The message of the failure has to stay part of the answer, so that the caller learns what was wrong.");
             StringAssert.Contains(result.GetProperty("content")[0].GetProperty("text").GetString(), "lowercase letters");
+        }
+
+        /// <remarks>
+        /// A resource is offered with exactly what its declaration states, so that a client can decide by the list
+        /// alone whether it wants to read it.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void TheDeclaredResourcesAreOfferedOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            string answer = framework.SendMCPMessage(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""resources/list""}");
+
+            // assert
+            JsonElement resources = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("resources");
+            Assert.AreEqual(1, resources.GetArrayLength(), "The mcp-server has to offer exactly the resources which the example-data declares for it.");
+            Assert.AreEqual(ExampleDataCreator.ExampleResourceUri, resources[0].GetProperty("uri").GetString());
+            Assert.AreEqual(ExampleDataCreator.ExampleResourceName, resources[0].GetProperty("name").GetString());
+            Assert.AreEqual(ExampleDataCreator.ExampleResourceMimeType, resources[0].GetProperty("mimeType").GetString());
+            Assert.AreEqual("The handbook of the team.", resources[0].GetProperty("description").GetString());
+        }
+
+        /// <remarks>
+        /// Reading a resource hands over what the script wrote, together with the uri it was read by and the declared
+        /// type of the content.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void ReadingAResourceOverHTTPAnswersWithWhatItsScriptWrote()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""resources/read"",""params"":{""uri"":""" + ExampleDataCreator.ExampleResourceUri + @"""}}");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.OK, statusCode);
+            JsonElement contents = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("contents");
+            Assert.AreEqual(1, contents.GetArrayLength());
+            Assert.AreEqual(ExampleDataCreator.ExampleResourceUri, contents[0].GetProperty("uri").GetString());
+            Assert.AreEqual(ExampleDataCreator.ExampleResourceMimeType, contents[0].GetProperty("mimeType").GetString());
+            Assert.AreEqual($"the content of {ExampleDataCreator.ExampleResourceUri}", contents[0].GetProperty("text").GetString());
+        }
+
+        /// <remarks>
+        /// A uri which no declaration states is not a resource of this server. The answer is an error of the protocol
+        /// and not a content, because a client which asked for a document must not receive the reason of a failure as
+        /// if it were that document.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void ReadingAResourceWhichIsNotDeclaredAnswersWithAnError()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            (HttpStatusCode _, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":3,""method"":""resources/read"",""params"":{""uri"":""example://documents/something-else""}}");
+
+            // assert
+            JsonElement root = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement;
+            Assert.IsFalse(root.TryGetProperty("result", out JsonElement _), "A uri which is not declared must not be answered with a content.");
+            Assert.IsTrue(root.TryGetProperty("error", out JsonElement _));
+        }
+
+        /// <remarks>
+        /// An mcp-server which declares no resource does not claim the resources-capability of the protocol at all, so
+        /// a client of it never asks for a list which is empty by definition.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void AnMCPServerWhichDeclaresNoResourceOffersNoResourcesAtAll()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act: the anonymous mcp-server of the example-data declares a tool and no resource
+            (HttpStatusCode _, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""resources/list""}", ExampleDataCreator.AnonymousUrlNamespace, null);
+
+            // assert
+            JsonElement root = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement;
+            Assert.IsFalse(root.TryGetProperty("result", out JsonElement _), "An mcp-server without resources must not answer a list of them.");
+            Assert.IsTrue(root.TryGetProperty("error", out JsonElement _));
+        }
+
+        /// <remarks>
+        /// A read which did not work is answered as an error of the protocol whose message states the reason, so that
+        /// the caller learns why it did not receive the content. The http-answer carries the status-code of a normal
+        /// answer, unlike a failed tool-call: a failed tool-call is a successful answer of the protocol and needs the
+        /// status-code 502 to be visible as a failure, while an error of the protocol is unmistakable on its own.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void AReadWhichFailsAnswersWithTheReasonAsAnErrorOfTheProtocol()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+            // The script of the resource is removed, which is a failure of the program behind the server and which it
+            // reports with a readable reason.
+            File.Delete(Path.Combine(framework.ExampleData.Folder, ExampleDataCreator.ExampleResourceScriptFileName));
+
+            // act
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":4,""method"":""resources/read"",""params"":{""uri"":""" + ExampleDataCreator.ExampleResourceUri + @"""}}");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.OK, statusCode);
+            JsonElement root = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement;
+            Assert.IsFalse(root.TryGetProperty("result", out JsonElement _), "A read which did not work must not be answered with a content.");
+            string message = root.GetProperty("error").GetProperty("message").ToString();
+            StringAssert.Contains(message, ExampleDataCreator.ExampleResourceName);
+            StringAssert.Contains(message, "does not exist");
         }
     }
 }

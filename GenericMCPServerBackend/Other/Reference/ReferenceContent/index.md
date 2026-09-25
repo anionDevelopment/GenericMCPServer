@@ -2,18 +2,19 @@
 
 GenericMCPServerBackend is the backend for GenericMCPServer. It hosts MCP-servers which are reachable over HTTP.
 
-It brings **no tool of its own**. Which mcp-servers exist, which tools they offer and who may use them is decided
-entirely by an administrator, who declares it in a tool-definitions-file. Without such a file the server starts and
-offers nothing.
+It brings **no tool and no resource of its own**. Which mcp-servers exist, which tools and resources they offer and
+who may use them is decided entirely by an administrator, who declares it in a tool-definitions-file. Without such a
+file the server starts and offers nothing.
 
 ## How it is built
 
 The MCP-protocol itself is not implemented in this codeunit. It is implemented by the MCP-SDK of Microsoft (the
 packages `ModelContextProtocol`, `ModelContextProtocol.AspNetCore` and `ModelContextProtocol.Core`), which is
-registered as a service and whose endpoints are mapped in `Program.cs`. Because the tools are not known at
-compile-time, they can not be methods which carry an attribute: one `ScriptTool` is created per declaration.
+registered as a service and whose endpoints are mapped in `Program.cs`. Because the tools and the resources are not
+known at compile-time, they can not be methods which carry an attribute: one `ScriptTool` respectively one
+`ScriptResource` is created per declaration.
 
-The tools are not registered once for the whole process either. Which tools exist is decided per request by the
+They are not registered once for the whole process either. Which of them exist is decided per request by the
 mcp-server the route of that request belongs to - that is what makes several mcp-servers in one process possible:
 
 ```csharp
@@ -25,6 +26,7 @@ services.AddMcpServer()
         {
             MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
             serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
+            serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
             return Task.CompletedTask;
         };
     });
@@ -34,6 +36,9 @@ foreach (MCPServerDefinition mcpServer in businessLogicService.GetMCPServers())
     webApplication.MapMcp($"/{mcpServer.UrlNamespace}");
 }
 ```
+
+An mcp-server which declares no resource gets no collection at all and therefore does not claim the
+resources-capability of the protocol, so a client of it never asks for a list which is empty by definition.
 
 The transport runs in the stateless mode, so no session-id has to be kept by the client.
 
@@ -45,8 +50,8 @@ Every declared mcp-server has one endpoint of its own, over which all messages o
 POST /<url-namespace>
 ```
 
-A client of one mcp-server can neither see nor reach the tools of another one. The same tool-name may therefore exist
-in two mcp-servers without becoming ambiguous.
+A client of one mcp-server can neither see nor reach the tools and resources of another one. The same tool-name and
+the same resource-uri may therefore exist in two mcp-servers without becoming ambiguous.
 
 ## How an mcp-server is declared
 
@@ -81,11 +86,13 @@ value there afterwards. Without a file at the resolved location the server simpl
 | `authorized-roles` | The roles which may use this mcp-server. A client reaches it when it is in at least one of them. See [Access-tokens, clients and roles](#access-tokens-clients-and-roles). |
 | `anonymous` | Optional, `false` by default. `true` makes the mcp-server usable without an access-token; it then needs no `authorized-roles`. |
 | `tools` | The tools of this mcp-server. |
+| `resources` | The resources of this mcp-server. |
 
 An mcp-server which is not anonymous and states no role could be used by nobody, which is a mistake in the declaration
 and makes the server fail while starting. The same holds for a url-namespace which is declared twice, for a tool-name
-which is declared twice within one mcp-server, for a tool without a type and for invalid json. A file which is
-configured but does not exist is an error as well - only *no* configured file means "nothing is offered".
+or a resource-uri which is declared twice within one mcp-server, for a tool or a resource without a type and for
+invalid json. A file which is configured but does not exist is an error as well - only *no* configured file means
+"nothing is offered".
 
 ## How a tool is declared
 
@@ -219,6 +226,86 @@ The answer of the tool is a json-document with the status-code and the body of t
 ```json
 {"status-code":200,"body":"..."}
 ```
+
+## How a resource is declared
+
+A resource is content which a client reads by a uri - a document, a list, the state of something. It is declared in
+the `resources` of the mcp-server it belongs to and is implemented exactly like a tool, by a python-script, a
+shell-script or a web-request.
+
+The difference to a tool is what decides the answer: **a resource takes no parameter**. Its uri is the whole request,
+so nothing which a client sends influences what it receives.
+
+| Field | Meaning |
+| ----- | ------- |
+| `uri` | The uri under which the resource is read. It is what a client sees in the list and what it sends to read the content, so it identifies the resource within its mcp-server. It has to be an absolute uri; which scheme it uses is free (`https://…`, `file:///…`, an own one like `example://…`) - except for the type `web-request`, where it is the address which is requested and therefore states `https`. |
+| `resource-name` | The name under which the resource is offered. It is what a client shows a reader, while the uri is what it reads the content by. It may consist of letters, digits, underscores and hyphens. |
+| `type` | What implements the resource: `python`, `shell` or `web-request`, declared exactly like the type of a tool. |
+| `description` | What the resource contains. |
+| `mime-type` | The type of the content, for example `text/markdown`. It is declared and not guessed from the content or from the uri, because it is what tells a client what it received. |
+| `calls` | For `python` and `shell`: the script which implements the resource, resolved like the script of a tool. |
+| `requirements` | Optional, only for `python`: the packages the script needs. |
+| `credentials` | Optional, for `python` and `web-request`: the accesses which are needed. See [Credentials](#credentials). |
+| `headers` | Optional, only for `web-request`: the headers the request carries. |
+
+```json
+{
+    "mcp-servers": [
+        {
+            "url-namespace": "Security",
+            "authorized-roles": [ "security" ],
+            "resources": [
+                {
+                    "uri": "handbook://security/incident-response",
+                    "resource-name": "incident_response_handbook",
+                    "type": "python",
+                    "calls": "ReadHandbook.py",
+                    "description": "The handbook which states what to do when an incident was reported.",
+                    "mime-type": "text/markdown"
+                }
+            ]
+        }
+    ]
+}
+```
+
+**The script receives the uri of the resource it is read for**, as `--uri=<uri>` and in the same way in which a tool
+receives its values (one token, no shell involved). That is what lets one script implement several resources: the
+script decides by the uri what it answers, and an administrator declares the same script several times with different
+uris. A script which implements a resource therefore has to accept that option, also when it implements exactly one.
+
+```python
+parser = argparse.ArgumentParser()
+parser.add_argument('--uri', required=True)
+```
+
+A resource of the type `python` runs in a virtual environment of its own, exactly like a python-tool. The name of that
+environment carries the kind of the declaration (`resource.<resource-name>`), so a resource and a tool of the same
+name do not end up in the same folder.
+
+A resource of the type `web-request` is requested from its own uri and declares no `allowed-urls`: there is no address
+which a client could ask for, so there are no rules which could allow or deny one. The answer is the body of the
+request and not the json-document with the status-code which a tool of that type answers with - a client reads a
+resource to receive a document, and a document which is wrapped in something else is no document anymore. An answer
+whose status-code is no success is therefore a failed read and not a content, so that what a client receives is never
+the error-page of a foreign service.
+
+```json
+{
+    "uri": "https://example.com/handbook.md",
+    "resource-name": "handbook",
+    "type": "web-request",
+    "description": "The handbook as it is published.",
+    "mime-type": "text/markdown"
+}
+```
+
+What a resource does **not** offer:
+
+- **No subscriptions.** A client is not notified when the content of a resource changed; it reads the resource again.
+- **No uri-templates.** A resource is declared with the uri it has. A declaration whose uri contains `{` or `}` is a
+  mistake and makes the server fail while starting, instead of offering something which nothing answers.
+- **No binary content.** What a script writes is handed over as text.
 
 ## Access-tokens, clients and roles
 
@@ -396,7 +483,7 @@ located inside the folder of the tool-definitions-file, so that a mistake there 
 **What a declared tool does is the responsibility of the administrator who declared it** - see the
 [ReadMe of the image](../../../../GenericMCPServer/ReadMe.md).
 
-## What a failed tool-call looks like
+## What a failed tool-call and a failed read look like
 
 A tool-call which did not work - a script which ended with an exit-code which is not 0, a script which ran into the
 timeout of 60 seconds, an address which no rule allows, a virtual environment which could not be built - is answered in
@@ -408,6 +495,13 @@ two ways at once:
   server and this server is the gateway to it.
 
 The body of such an answer is the normal answer of the protocol; only its status-code differs.
+
+A **read of a resource** which did not work is answered differently, namely as an error of the protocol (a
+json-rpc-error with the message of the failure) and with the status-code of a normal answer. A result of the protocol
+which carries an error-flag does not exist for a read: a client which asked for a document must not receive the reason
+of a failure as if it were the content of that document, and an error of the protocol is unmistakable on its own,
+while a failed tool-call is a successful answer of the protocol and needs the status-code to be visible as a failure.
+The values of the credentials are removed from that message as well.
 
 ## Example
 
@@ -480,18 +574,42 @@ data: {"result":{"content":[{"type":"text","text":"The tool \"research\" does no
 
 A request which may not reach the mcp-server at all answers with the status-code 401 and no result.
 
-Every script can also be called on its own, which is the fastest way to check what a tool answers:
+Which **resources** an mcp-server offers, and reading one of them by its uri:
+
+```
+curl -X POST http://127.0.0.1:8080/Security -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"resources/list\"}"
+curl -X POST http://127.0.0.1:8080/Security -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"resources/read\",\"params\":{\"uri\":\"handbook://security/incident-response\"}}"
+```
+
+The answer of a read contains the content together with the uri it was read by and the declared type of the content:
+
+```
+data: {"result":{"contents":[{"uri":"handbook://security/incident-response","mimeType":"text/markdown","text":"# Incident-response\n..."}]},"id":6,"jsonrpc":"2.0"}
+```
+
+A read which did not work answers with an error instead of a result:
+
+```
+data: {"error":{"code":-32603,"message":"The resource \"incident_response_handbook\" failed (exit-code 1): the document does not exist"},"id":6,"jsonrpc":"2.0"}
+```
+
+Every script can also be called on its own, which is the fastest way to check what a tool or a resource answers:
 
 ```
 python GetCVEDetails.py --cve-identifier=CVE-2021-44228
+python ReadHandbook.py --uri=handbook://security/incident-response
 ```
 
-## How to add a tool
+## How to add a tool or a resource
 
 Put the tool into the `tools` of the mcp-server it belongs to. For a tool with a script: put the script into the folder
 of the tool-definitions-file, let it check every argument against the format it must have, and state its type and its
 parameters. For a tool of the type `web-request`: state the addresses it may request. Nothing in this codeunit has to
 be changed and nothing has to be recompiled - the server picks the tool up when it is restarted.
+
+Put a resource into the `resources` of that mcp-server, with the uri it is read by, its name, its type and the
+`mime-type` of its content. A script of a resource takes no argument of the client but receives the uri it was read
+for, so it has to accept `--uri`.
 
 To add a whole mcp-server, add an entry to `mcp-servers` with its `url-namespace` and either its `authorized-roles` or
 `"anonymous": true`.

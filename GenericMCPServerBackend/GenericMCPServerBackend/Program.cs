@@ -195,10 +195,15 @@ namespace GenericMCPServerBackend.Core
                     }
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
-                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) and {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace
                     // of its route, so the same tool-name may exist in two mcp-servers without becoming ambiguous.
                     Dictionary<string, McpServerPrimitiveCollection<McpServerTool>> toolsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerTool>>(StringComparer.OrdinalIgnoreCase);
+                    // The resources are kept the same way. Only an mcp-server which declares at least one of them
+                    // appears here: a server without an entry offers no resources at all and does not claim that
+                    // capability of the protocol, which keeps a client from asking for a list which is empty by
+                    // definition.
+                    Dictionary<string, McpServerResourceCollection> resourcesOfTheMCPServers = new Dictionary<string, McpServerResourceCollection>(StringComparer.OrdinalIgnoreCase);
                     foreach (MCPServerDefinition mcpServer in mcpServers)
                     {
                         McpServerPrimitiveCollection<McpServerTool> tools = new McpServerPrimitiveCollection<McpServerTool>();
@@ -207,6 +212,15 @@ namespace GenericMCPServerBackend.Core
                             tools.Add(new ScriptTool(businessLogicService, mcpServer.UrlNamespace, definition));
                         }
                         toolsOfTheMCPServers[mcpServer.UrlNamespace] = tools;
+                        if (0 < mcpServer.Resources.Count)
+                        {
+                            McpServerResourceCollection resources = new McpServerResourceCollection();
+                            foreach (ResourceDefinition definition in mcpServer.Resources)
+                            {
+                                resources.Add(new ScriptResource(businessLogicService, mcpServer.UrlNamespace, definition));
+                            }
+                            resourcesOfTheMCPServers[mcpServer.UrlNamespace] = resources;
+                        }
                     }
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
                     // The maintenance-route which reports the initialization-state asks this service, so it has to
@@ -231,6 +245,7 @@ namespace GenericMCPServerBackend.Core
                             {
                                 MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
                                 serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
+                                serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
                                 return Task.CompletedTask;
                             };
                         });

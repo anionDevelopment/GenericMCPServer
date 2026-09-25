@@ -40,5 +40,12 @@ namespace GenericMCPServerBackend.Core.Model
         /// <summary>The tools this server offers. A tool belongs to exactly one server.</summary>
         [JsonPropertyName("tools")]
         public IList<ToolDefinition> Tools { get; set; } = new List<ToolDefinition>();
+
+        /// <summary>
+        /// The resources this server offers. A resource belongs to exactly one server, exactly like a tool: a client
+        /// of one server can neither see nor read the resources of another one.
+        /// </summary>
+        [JsonPropertyName("resources")]
+        public IList<ResourceDefinition> Resources { get; set; } = new List<ResourceDefinition>();
     }
 }

@@ -12,11 +12,14 @@ using System.Threading.Tasks;
 namespace GenericMCPServerBackend.Core.Services
 {
     /// <summary>
-    /// Runs the web-requests of a tool of the type <see cref="ToolType.WebRequest"/>.
+    /// Runs the web-requests of a tool and of a resource of the type <see cref="ToolType.WebRequest"/>.
     ///
     /// Such a tool implements no script: the client states which address it wants, and the declaration states which
     /// addresses the tool allows. Everything which is not allowed by a rule of the declaration is denied - a tool
     /// without a rule can therefore reach nothing, which is the safe direction for a mistake in a declaration.
+    ///
+    /// Such a resource states no rules at all, because there is nothing to decide: a resource is read by its uri, and
+    /// that uri - which the declaration states and not the client - is the address which is requested.
     /// </summary>
     public sealed class WebRequestService
     {
@@ -74,12 +77,37 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 throw new InvalidOperationException($"The tool \"{definition.ToolName}\" needs the argument \"{UrlParameterName}\".");
             }
-            string address = GetAddress(definition.ToolName, requestedAddress);
+            string address = GetAddress(definition, requestedAddress);
             if (!IsAllowed(definition, address))
             {
                 throw new InvalidOperationException($"The tool \"{definition.ToolName}\" does not allow a request to \"{address}\". A tool allows exactly the addresses which the rules of its declaration match.");
             }
-            return this.Request(definition, address);
+            (int statusCode, string body) = this.Request(definition, address);
+            return JsonSerializer.Serialize(new Dictionary<string, object>()
+            {
+                { "status-code", statusCode },
+                { "body", body },
+            });
+        }
+
+        /// <summary>
+        /// Requests the address of the given resource and returns its content.
+        ///
+        /// Unlike a tool, a resource answers with the content itself and not with the status-code and the body: a
+        /// client reads a resource to receive a document, and a document which is wrapped in something else is no
+        /// document anymore. An answer which is no success is therefore a failure of the read and not a content, so
+        /// that what a client receives is never the error-page of a foreign service.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when the address is not usable, the request failed or the answer is no success.</exception>
+        public string ReadResource(ResourceDefinition definition)
+        {
+            string address = GetAddress(definition, definition.Uri);
+            (int statusCode, string body) = this.Request(definition, address);
+            if (statusCode < 200 || 299 < statusCode)
+            {
+                throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" is not available: \"{address}\" answered with the status-code {statusCode}.");
+            }
+            return body;
         }
 
         /// <summary>
@@ -88,7 +116,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// while the declarations were read.
         /// </summary>
         /// <param name="credentialValues">The credentials of the tool, keyed by the name the declaration gave them.</param>
-        internal static IDictionary<string, string> BuildHeaders(ToolDefinition definition, IReadOnlyDictionary<string, string> credentialValues)
+        internal static IDictionary<string, string> BuildHeaders(CallableDefinition definition, IReadOnlyDictionary<string, string> credentialValues)
         {
             Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> header in definition.Headers)
@@ -112,7 +140,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// them.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the address is not a usable https-address.</exception>
-        private static string GetAddress(string toolName, string requestedAddress)
+        private static string GetAddress(CallableDefinition definition, string requestedAddress)
         {
             string addressWithoutProtocol = requestedAddress.Trim();
             string protocolPrefix = $"{Protocol}://";
@@ -122,17 +150,17 @@ namespace GenericMCPServerBackend.Core.Services
             }
             else if (addressWithoutProtocol.Contains("://", StringComparison.Ordinal))
             {
-                throw new InvalidOperationException($"The tool \"{toolName}\" can only request addresses of the protocol \"{Protocol}\", but \"{requestedAddress}\" states another one.");
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" can only request addresses of the protocol \"{Protocol}\", but \"{requestedAddress}\" states another one.");
             }
             if (!Uri.TryCreate(protocolPrefix + addressWithoutProtocol, UriKind.Absolute, out Uri url))
             {
-                throw new InvalidOperationException($"The tool \"{toolName}\" can not request \"{requestedAddress}\", because it is not a usable address.");
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" can not request \"{requestedAddress}\", because it is not a usable address.");
             }
             if (!string.IsNullOrEmpty(url.UserInfo))
             {
                 // Such an address would be matched by the rules without its credentials while the request would send
                 // them, so what is allowed and what happens would not be the same thing anymore.
-                throw new InvalidOperationException($"The tool \"{toolName}\" can not request \"{requestedAddress}\", because an address with credentials is not supported.");
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" can not request \"{requestedAddress}\", because an address with credentials is not supported.");
             }
             string port = url.IsDefaultPort ? string.Empty : $":{url.Port}";
             return $"{url.Host}{port}{url.PathAndQuery}";
@@ -157,38 +185,36 @@ namespace GenericMCPServerBackend.Core.Services
             return false;
         }
 
+        /// <summary>
+        /// Requests the given address and returns what came back. What is made of that answer is decided by the
+        /// caller, because a tool hands over the status-code together with the body while a resource is the body.
+        /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the request failed or the answer is too large.</exception>
-        private string Request(ToolDefinition definition, string address)
+        private (int StatusCode, string Body) Request(CallableDefinition definition, string address)
         {
-            string toolName = definition.ToolName;
             try
             {
                 using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{Protocol}://{address}"))
                 using (HttpResponseMessage response = this.Send(definition, request))
                 {
-                    string body = ReadBody(toolName, response);
-                    return JsonSerializer.Serialize(new Dictionary<string, object>()
-                    {
-                        { "status-code", (int)response.StatusCode },
-                        { "body", body },
-                    });
+                    return ((int)response.StatusCode, ReadBody(definition, response));
                 }
             }
             catch (HttpRequestException exception)
             {
-                throw new InvalidOperationException($"The tool \"{toolName}\" could not request \"{address}\": {exception.Message}", exception);
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" could not request \"{address}\": {exception.Message}", exception);
             }
             catch (TaskCanceledException exception)
             {
-                throw new InvalidOperationException($"The tool \"{toolName}\" did not get an answer from \"{address}\" within {TimeoutInSeconds} seconds.", exception);
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" did not get an answer from \"{address}\" within {TimeoutInSeconds} seconds.", exception);
             }
         }
 
         /// <summary>
-        /// Sends the request with the headers the tool declares. They are added without validation, because a header
-        /// which a foreign service expects is not necessarily one which this codeunit knows.
+        /// Sends the request with the headers the declaration states. They are added without validation, because a
+        /// header which a foreign service expects is not necessarily one which this codeunit knows.
         /// </summary>
-        private HttpResponseMessage Send(ToolDefinition definition, HttpRequestMessage request)
+        private HttpResponseMessage Send(CallableDefinition definition, HttpRequestMessage request)
         {
             IReadOnlyDictionary<string, string> credentialValues = definition.Credentials.ToDictionary(credential => credential.Key, credential => this._CredentialsService.GetValue(credential.Value), StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> header in BuildHeaders(definition, credentialValues))
@@ -199,7 +225,7 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <exception cref="InvalidOperationException">Thrown when the answer is larger than <see cref="MaximalLengthOfBodyInCharacters"/>.</exception>
-        private static string ReadBody(string toolName, HttpResponseMessage response)
+        private static string ReadBody(CallableDefinition definition, HttpResponseMessage response)
         {
             using (Stream stream = response.Content.ReadAsStream())
             using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
@@ -212,7 +238,7 @@ namespace GenericMCPServerBackend.Core.Services
                     result.Append(buffer, 0, readCharacters);
                     if (MaximalLengthOfBodyInCharacters < result.Length)
                     {
-                        throw new InvalidOperationException($"The answer of the tool \"{toolName}\" is larger than {MaximalLengthOfBodyInCharacters} characters.");
+                        throw new InvalidOperationException($"The answer of the {definition.Kind} \"{definition.Name}\" is larger than {MaximalLengthOfBodyInCharacters} characters.");
                     }
                 }
                 return result.ToString();

@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Defines the property which makes this product generic: it offers tools without knowing any of them. The product provides
-the means to declare an mcp-server with its tools; which of them exist is decided by an administrator and never by the
-product itself.
+Defines the property which makes this product generic: it offers tools and resources without knowing any of them. The
+product provides the means to declare an mcp-server with its tools and its resources; which of them exist is decided by
+an administrator and never by the product itself.
 
 This is not an implementation-detail but the reason the product exists. A tool which was built into the product would
 make every user of the product carry it, would make its lifecycle depend on the release-cycle of the product and would
@@ -14,8 +14,8 @@ turn the product into an application for one purpose instead of a server for arb
 
 ### Requirement: The product contains no tool of its own
 
-The source-code of this product SHALL NOT contain any tool. The set of tools which is offered SHALL be determined
-exclusively by the tool-definitions-file the server is configured with.
+The source-code of this product SHALL NOT contain any tool and any resource. The set of tools and resources which is
+offered SHALL be determined exclusively by the tool-definitions-file the server is configured with.
 
 #### Scenario: A new tool is needed
 
@@ -83,6 +83,54 @@ its parameters. The server SHALL offer exactly those values to its clients.
 
 - **WHEN** a client calls a declared tool with values for its parameters
 - **THEN** what the declaration names is run with those values, and what it answers is the result of the call
+
+### Requirement: A resource is declared like a tool and is read by its uri
+
+An mcp-server SHALL offer the resources which its declaration states. Such a declaration SHALL state the uri the
+resource is read by, its name, the type of its content and what implements it, which is one of the same types a tool is
+implemented by. A resource SHALL take no parameter of the client, and the server SHALL hand the uri of the resource to
+the script which implements it.
+
+#### Scenario: A client asks which resources exist
+
+- **WHEN** a client asks an mcp-server which resources it offers
+- **THEN** it receives, per declared resource, the declared uri, the declared name, the declared description and the
+  declared type of the content
+
+#### Scenario: A client reads a resource
+
+- **WHEN** a client reads a declared resource by its uri
+- **THEN** what the declaration names is run, it receives the uri of that resource, and what it answers is the content
+  of the resource together with the declared type of that content
+
+#### Scenario: An mcp-server declares no resource
+
+- **WHEN** an mcp-server declares no resource
+- **THEN** it does not offer the resources of the protocol at all, so that a client of it does not ask for a list which
+  is empty by definition
+
+#### Scenario: A resource states parameters
+
+- **WHEN** a declaration of a resource states parameters
+- **THEN** the server fails while starting, because a resource is read by its uri and there is no value which a client
+  could choose
+
+#### Scenario: The same uri is declared twice within one mcp-server
+
+- **WHEN** two resources of one mcp-server declare the same uri
+- **THEN** the server fails while starting, because it would not be decidable which of them a client means
+
+#### Scenario: A resource is requested from an address
+
+- **WHEN** a resource of the type "web-request" is read
+- **THEN** its own uri is the address which is requested, it states no rules for allowed addresses, and an answer whose
+  status-code is no success is a failed read and not a content
+
+#### Scenario: A read of a resource does not work
+
+- **WHEN** a read of a resource does not work
+- **THEN** it is answered as an error of the protocol whose message states the reason, and not as a content, because a
+  client which asked for a document must not receive the reason of a failure as if it were that document
 
 ### Requirement: The type of a tool is declared and not guessed
 

@@ -5,8 +5,8 @@ description: What GenericMCPServer is, how this repository is structured, how an
 
 # GenericMCPServer
 
-GenericMCPServer hosts MCP-servers which are reachable over HTTP. It offers exactly the tools which an administrator
-declares; it brings no tool of its own along, which is what the "generic" in its name means.
+GenericMCPServer hosts MCP-servers which are reachable over HTTP. It offers exactly the tools and resources which an
+administrator declares; it brings none of them of its own along, which is what the "generic" in its name means.
 
 A declaration names an mcp-server, the tools it offers, what implements each of them and which roles may use it. A model
 which talks to the server therefore sees tools like `get_cve_details` or `get_npm_versions`, although nothing in the
@@ -36,6 +36,11 @@ tool-collection per declared mcp-server and sets the fitting one per request wit
 Everything else of the protocol (the initialize-handshake, `tools/list`, `tools/call`, the delivery of the schemas)
 stays with the SDK.
 
+The resources work exactly the same way: `Misc/ScriptResource.cs` derives from `McpServerResource` and overrides
+`ProtocolResourceTemplate`, `Metadata`, `IsMatch` and `ReadAsync`, and `Program.cs` sets a `ResourceCollection` per
+request. An mcp-server which declares no resource gets no collection at all, so it does not claim the
+resources-capability of the protocol.
+
 The declaration is a json-file whose path (`ToolDefinitionsFile`) is part of the persisted configuration-file of the
 server, defaulting to `./Tools.json` (relative to the configuration-folder) the first time that file is
 generated:
@@ -63,7 +68,12 @@ generated:
 ```
 
 - Every mcp-server is reachable under `<domain>/<url-namespace>`; a client of one of them can neither see nor
-  reach the tools of another one, so the same tool-name may exist in two of them.
+  reach the tools and resources of another one, so the same tool-name may exist in two of them.
+- Next to `tools` an mcp-server may declare `resources`: content which a client reads by a uri. Such a declaration
+  states `uri`, `resource-name`, `type`, `mime-type` and (for a script) `calls`, it declares no `parameters` (the uri
+  is the whole request and is handed to the script as `--uri=<uri>`), and a resource of the type `web-request`
+  declares no `allowed-urls` because its own uri is the address which is requested. The shared part of both
+  declarations lives in `Model/CallableDefinition.cs`.
 - `authorized-roles` states which roles may use the mcp-server; `"anonymous": true` makes it usable by everybody and
   then no role is needed. An mcp-server which is neither anonymous nor names a role is a mistake and fails the start.
 - `type` is `python`, `shell` or `web-request` and has to be declared. It is never derived from the extension of a
@@ -95,7 +105,7 @@ the server fail on startup. A missing file is not such a mistake: neither no fil
 file not existing at its resolved location stops the server - both mean "nothing is offered", because a freshly set
 up server which nobody pointed at a declaration yet is an expected state.
 
-**When adding a tool, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
+**When adding a tool or a resource, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
 change is wrong: run `grep -rniE "cve|maven|nuget|npm" GenericMCPServerBackend --include=*.cs` — it has to stay empty.
 
 ## Who may use an mcp-server
@@ -170,7 +180,10 @@ break by "improving" them:
 
 A failure is answered as a `CallToolResult` with `IsError` and the message of the script, and additionally with the
 http-status-code 502 for the whole answer (`Misc/ToolCallFailureStatusCodeMiddleware.cs`), because the failure comes
-from the program behind this server.
+from the program behind this server. A failed read of a resource is answered as an error of the protocol
+(`McpException`, whose message is the one which reaches the client) with the status-code of a normal answer: a result
+which carries an error-flag does not exist for a read, and a client which asked for a document must not receive the
+reason of a failure as if it were that document.
 
 **When testing this, use a canary and not a destructive payload.** A payload like `; rm -rf /` tests a protection with
 a failure-mode which destroys the machine if the protection does not hold. Use a value which would create a file in a

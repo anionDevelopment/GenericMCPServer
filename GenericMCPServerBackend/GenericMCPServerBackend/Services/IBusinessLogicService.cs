@@ -4,8 +4,9 @@ using System.Collections.Generic;
 namespace GenericMCPServerBackend.Core.Services
 {
     /// <summary>
-    /// The business-logic of this codeunit. It contains no tool of its own: it makes the mcp-servers available which an
-    /// administrator declared, and it runs the tool which belongs to one of them.
+    /// The business-logic of this codeunit. It contains no tool and no resource of its own: it makes the mcp-servers
+    /// available which an administrator declared, and it runs the tool respectively reads the resource which belongs
+    /// to one of them.
     /// </summary>
     public interface IBusinessLogicService
     {
@@ -30,6 +31,17 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="arguments">The values of the parameters of the tool, keyed by the name of the parameter.</param>
         /// <returns>What the tool answered.</returns>
         string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments);
+
+        /// <summary>
+        /// Reads the resource of the given mcp-server which is declared under the given uri.
+        ///
+        /// A resource takes no argument: its uri is the whole request, so what it answers is decided by the
+        /// declaration alone.
+        /// </summary>
+        /// <param name="urlNamespace">The namespace of the mcp-server the resource belongs to.</param>
+        /// <param name="uri">The uri of the resource, which has to be one of the resources of that mcp-server.</param>
+        /// <returns>The content of the resource.</returns>
+        string ReadResource(string urlNamespace, string uri);
 
         /// <summary>
         /// Removes the values of the credentials from a text which is about to be handed to a client.

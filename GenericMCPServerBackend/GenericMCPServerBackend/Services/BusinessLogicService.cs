@@ -14,9 +14,10 @@ namespace GenericMCPServerBackend.Core.Services
     /// <summary>
     /// Implements the business-logic of this codeunit.
     ///
-    /// This class contains no tool: which tools the server offers is decided entirely by the tool-definitions-file an
-    /// administrator points the server to. That file names, for every tool, its type, what implements it and the
-    /// parameters it takes, so a new tool needs a new entry there - and no change of this codeunit.
+    /// This class contains no tool and no resource: which of them the server offers is decided entirely by the
+    /// tool-definitions-file an administrator points the server to. That file names, for every tool, its type, what
+    /// implements it and the parameters it takes, respectively, for every resource, the uri it is read by and what
+    /// implements it - so a new one needs a new entry there and no change of this codeunit.
     ///
     /// The values of the parameters are provided by the client and are therefore untrusted. They are handed over to
     /// the script in a way in which they can not be interpreted as anything but one argument each (see
@@ -108,13 +109,23 @@ namespace GenericMCPServerBackend.Core.Services
             }
             // The credentials are read after the declarations, because the declarations are what states which ones are
             // needed at all.
-            this._CredentialsService = new CredentialsService(this._MCPServers.SelectMany(mcpServer => mcpServer.Tools).SelectMany(definition => definition.Credentials.Values));
+            this._CredentialsService = new CredentialsService(this._MCPServers.SelectMany(GetCallables).SelectMany(definition => definition.Credentials.Values));
             this._WebRequestService = new WebRequestService(this._CredentialsService);
             this._ClientService = clientService;
             this._RolesService = rolesService;
             this._AccessTokenService = accessTokenService;
             this._AdminTokenService = adminTokenService;
             this._TimeService = timeService;
+        }
+
+        /// <summary>
+        /// Everything which the given mcp-server declares as something the server runs. A credential is assigned to a
+        /// tool and to a resource in the same way, so both of them have to be known where the assigned credentials are
+        /// collected.
+        /// </summary>
+        private static IEnumerable<CallableDefinition> GetCallables(MCPServerDefinition mcpServer)
+        {
+            return mcpServer.Tools.Cast<CallableDefinition>().Concat(mcpServer.Resources);
         }
 
         public string RemoveCredentialValuesFrom(string text)
@@ -251,11 +262,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// <exception cref="InvalidOperationException">Thrown when the tool failed. The message contains what it reported.</exception>
         public string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments)
         {
-            MCPServerDefinition mcpServer = this._MCPServers.FirstOrDefault(server => string.Equals(server.UrlNamespace, urlNamespace, StringComparison.OrdinalIgnoreCase));
-            if (mcpServer == null)
-            {
-                throw new KeyNotFoundException($"No mcp-server with the url-namespace \"{urlNamespace}\" is declared.");
-            }
+            MCPServerDefinition mcpServer = this.GetMCPServer(urlNamespace);
             ToolDefinition definition = mcpServer.Tools.FirstOrDefault(tool => tool.ToolName == toolName);
             if (definition == null)
             {
@@ -272,7 +279,45 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// Runs the script of the given tool.
+        /// Reads the resource of the given mcp-server which is declared under the given uri.
+        ///
+        /// A resource is run like a tool, and nothing which a client sends decides what it answers: the uri is the
+        /// whole request, and the script receives exactly that uri - which is what lets one script implement several
+        /// resources.
+        /// </summary>
+        /// <exception cref="KeyNotFoundException">Thrown when no resource with that uri is declared.</exception>
+        /// <exception cref="FileNotFoundException">Thrown when the script of the resource does not exist.</exception>
+        /// <exception cref="PlatformNotSupportedException">Thrown when the resource can not be read on this system.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the resource could not be read. The message contains what was reported.</exception>
+        public string ReadResource(string urlNamespace, string uri)
+        {
+            MCPServerDefinition mcpServer = this.GetMCPServer(urlNamespace);
+            ResourceDefinition definition = mcpServer.Resources.FirstOrDefault(resource => string.Equals(resource.Uri, uri, StringComparison.Ordinal));
+            if (definition == null)
+            {
+                throw new KeyNotFoundException($"The mcp-server \"{urlNamespace}\" declares no resource with the uri \"{uri}\".");
+            }
+            ToolTypes.TryParse(definition.Type, out ToolType type);
+            if (type == ToolType.WebRequest)
+            {
+                return this._WebRequestService.ReadResource(definition);
+            }
+            return this.RunScript(definition, type, new Dictionary<string, string>() { { ResourceDefinition.UriParameterName, definition.Uri } });
+        }
+
+        /// <exception cref="KeyNotFoundException">Thrown when no mcp-server with that url-namespace is declared.</exception>
+        private MCPServerDefinition GetMCPServer(string urlNamespace)
+        {
+            MCPServerDefinition result = this._MCPServers.FirstOrDefault(server => string.Equals(server.UrlNamespace, urlNamespace, StringComparison.OrdinalIgnoreCase));
+            if (result == null)
+            {
+                throw new KeyNotFoundException($"No mcp-server with the url-namespace \"{urlNamespace}\" is declared.");
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Runs the script of the given tool respectively of the given resource.
         ///
         /// The arguments are handed over without any escaping, and that is deliberate: no shell is involved at all
         /// (see <see cref="ProcessExecutor"/>) and every argument is added as its own entry of
@@ -285,7 +330,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// A shell-script is run by the shell itself and not by starting the file: the file comes from a folder which
         /// is usually mounted into the container, where it would not necessarily carry the permission to be executed.
         /// </summary>
-        private string RunScript(ToolDefinition definition, ToolType type, IReadOnlyDictionary<string, string> arguments)
+        private string RunScript(CallableDefinition definition, ToolType type, IReadOnlyDictionary<string, string> arguments)
         {
             string scriptFile = Path.GetFullPath(Path.Combine(this._ScriptFolder, definition.Calls));
             // The script has to stay inside the folder of the tool-definitions-file. The declaration itself comes from
@@ -293,11 +338,11 @@ namespace GenericMCPServerBackend.Core.Services
             // else entirely) from turning into the start of an unrelated program.
             if (!scriptFile.StartsWith(this._ScriptFolder + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             {
-                throw new InvalidOperationException($"The script \"{definition.Calls}\" of the tool \"{definition.ToolName}\" is not located inside \"{this._ScriptFolder}\".");
+                throw new InvalidOperationException($"The script \"{definition.Calls}\" of the {definition.Kind} \"{definition.Name}\" is not located inside \"{this._ScriptFolder}\".");
             }
             if (!File.Exists(scriptFile))
             {
-                throw new FileNotFoundException($"The script \"{scriptFile}\" of the tool \"{definition.ToolName}\" does not exist.", scriptFile);
+                throw new FileNotFoundException($"The script \"{scriptFile}\" of the {definition.Kind} \"{definition.Name}\" does not exist.", scriptFile);
             }
             ProcessStartInfo startInfo = new ProcessStartInfo()
             {
@@ -313,24 +358,24 @@ namespace GenericMCPServerBackend.Core.Services
                     startInfo.ArgumentList.Add($"--{parameter}={value}");
                 }
             }
-            string description = $"The script of the tool \"{definition.ToolName}\"";
+            string description = $"The script of the {definition.Kind} \"{definition.Name}\"";
             ProcessExecutionResult result = ProcessExecutor.Run(startInfo, ToolScriptTimeoutInSeconds, description);
             if (result.ExitCode != 0)
             {
-                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" failed (exit-code {result.ExitCode}): {result.ErrorOutput.Trim()}");
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" failed (exit-code {result.ExitCode}): {result.ErrorOutput.Trim()}");
             }
             return result.Output;
         }
 
         /// <summary>
-        /// Puts the credentials of the tool into the environment of the script.
+        /// Puts the credentials of the declaration into the environment of the script.
         ///
         /// A script inherits the environment of the server, so the variables which the credentials are read from would
         /// otherwise be readable by every tool. They are therefore removed first and only the ones the tool declared
         /// are added afterwards, under the name the declaration gave them. Everything else of the environment (PATH,
         /// HOME, ...) stays untouched: a script needs it, and it is no secret of another tool.
         /// </summary>
-        private void SetCredentials(ProcessStartInfo startInfo, ToolDefinition definition)
+        private void SetCredentials(ProcessStartInfo startInfo, CallableDefinition definition)
         {
             foreach (string name in this._CredentialsService.GetNames())
             {
@@ -346,21 +391,21 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// The program which runs the script of the tool: for a python-tool the interpreter of its own virtual
-        /// environment, for a shell-tool the shell of the system.
+        /// The program which runs the script: for the type "python" the interpreter of the virtual environment which
+        /// belongs to that declaration, for the type "shell" the shell of the system.
         /// </summary>
-        /// <exception cref="PlatformNotSupportedException">Thrown when a shell-tool is run on a system which is not a linux-system.</exception>
-        private string GetInterpreter(ToolDefinition definition, ToolType type)
+        /// <exception cref="PlatformNotSupportedException">Thrown when a shell-script is run on a system which is not a linux-system.</exception>
+        private string GetInterpreter(CallableDefinition definition, ToolType type)
         {
             if (type == ToolType.Shell)
             {
                 if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    throw new PlatformNotSupportedException($"The tool \"{definition.ToolName}\" is of the type \"{ToolTypes.Shell}\", which is only supported on a linux-system.");
+                    throw new PlatformNotSupportedException($"The {definition.Kind} \"{definition.Name}\" is of the type \"{ToolTypes.Shell}\", which is only supported on a linux-system.");
                 }
                 return ShellInterpreter;
             }
-            return this._VirtualEnvironmentService.GetInterpreter(definition.ToolName, new List<string>(definition.Requirements));
+            return this._VirtualEnvironmentService.GetInterpreter(definition.NameOfTheVirtualEnvironment, new List<string>(definition.Requirements));
         }
     }
 }
