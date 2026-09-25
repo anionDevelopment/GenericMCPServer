@@ -116,18 +116,18 @@ MCP-server can additionally offer, and which this product does not have (yet):
 
 | Primitive / mechanism | What is missing |
 | ---------------------- | ---------------- |
-| **Resources** | No `resources/list`, `resources/read` or subscriptions - the server offers tools only. |
-| **Prompts** | No `prompts/list` or `prompts/get`. |
-| **Sampling** | The server can not ask the client for a completion of its own. |
-| **Elicitation** | The server can not ask the client to collect structured input from its user. |
-| **Completions** | No autocompletion for the argument of a prompt or a resource. |
-| **Logging-notifications** | No `notifications/message` is sent to the client. |
-| **Roots** | A root the client offers is not used. |
-| **Structured tool-output** | Every tool answers with plain text; no `outputSchema` and no `structuredContent` of a `tools/call`-result is used. |
-| **Progress of a tool-call** | A `progressToken` a client sends with `tools/call` is not used; no `notifications/progress` is sent while a tool runs. |
-| **Cancellation of a tool-call** | A `notifications/cancelled` of the client does not stop the script or the web-request behind a running tool-call. |
-| **stdio-transport** | Only HTTP is offered; a client which needs a local process (for example a classic desktop-integration) can not use it. |
-| **OAuth 2.1** | The current MCP-specification recommends it for a remote HTTP-server; this product uses its own client/role/access-token-mechanism instead (see [Several clients, each with several access-tokens](#features)). |
+| **1: Resources** | No `resources/list`, `resources/read` or subscriptions - the server offers tools only. |
+| **2: Prompts** | No `prompts/list` or `prompts/get`. |
+| **3: Sampling** | The server can not ask the client for a completion of its own. |
+| **4: Elicitation** | The server can not ask the client to collect structured input from its user. |
+| **5: Completions** | No autocompletion for the argument of a prompt or a resource. |
+| **6: Logging-notifications** | No `notifications/message` is sent to the client. |
+| **7: Roots** | A root the client offers is not used. |
+| **8: Structured tool-output** | Every tool answers with plain text; no `outputSchema` and no `structuredContent` of a `tools/call`-result is used. |
+| **9: Progress of a tool-call** | A `progressToken` a client sends with `tools/call` is not used; no `notifications/progress` is sent while a tool runs. |
+| **10: Cancellation of a tool-call** | A `notifications/cancelled` of the client does not stop the script or the web-request behind a running tool-call. |
+| **11: stdio-transport** | Only HTTP is offered; a client which needs a local process (for example a classic desktop-integration) can not use it. |
+| **12: OAuth 2.1** | The current MCP-specification recommends it for a remote HTTP-server; this product uses its own client/role/access-token-mechanism instead (see [Several clients, each with several access-tokens](#features)). |
 
 This list follows the capabilities the pinned SDK-version defines (`ServerCapabilities` and `ClientCapabilities` of
 `ModelContextProtocol.Core` 2.2.0: `Logging`, `Prompts`, `Resources`, `Tools`, `Completions` on the server-side,
