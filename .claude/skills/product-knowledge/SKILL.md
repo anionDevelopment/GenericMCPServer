@@ -46,6 +46,11 @@ The prompts work the same way once more: `Misc/ScriptPrompt.cs` derives from `Mc
 `ProtocolPrompt`, `Metadata` and `GetAsync`, and `Program.cs` sets a `PromptCollection` per request - again only for an
 mcp-server which declares at least one prompt, so one without prompts does not claim the prompts-capability.
 
+The completions are the one exception to that shape: the protocol has one request (`completion/complete`) for all of
+them, so there is no primitive of the SDK to derive from. `Misc/ScriptCompletionHandler.cs` is a handler which
+`Program.cs` assigns to `serverOptions.Handlers.CompleteHandler` per request - only for an mcp-server which declares at
+least one completion, so one without them does not claim the completions-capability.
+
 The declaration is a json-file whose path (`ToolDefinitionsFile`) is part of the persisted configuration-file of the
 server, defaulting to `./Tools.json` (relative to the configuration-folder) the first time that file is
 generated:
@@ -82,7 +87,13 @@ generated:
   declaration states `prompt-name`, `type`, `description`, `calls` and its `parameters`, which reach the script exactly
   like the parameters of a tool; what the script writes is the text of the prompt, handed over as one message of the
   role `user`. A prompt is never of the type `web-request`, because such a declaration takes the address it requests
-  from the client (a tool) or from its own uri (a resource) and a prompt has neither. The shared part of all three
+  from the client (a tool) or from its own uri (a resource) and a prompt has neither.
+- A prompt may declare `completions`: which values its arguments can have, keyed by the name of the argument (so an
+  argument has one provider or none, and the key has to be one of its `parameters`). Such a declaration states `type`,
+  `calls`, `requirements` and `credentials` and neither `parameters` nor a `description`; the script is told which
+  argument it is asked about (`--argument=<name>`) and which value was entered so far (`--value=<value>`) and writes
+  one value per line. A completion is never of the type `web-request`, for the same reason a prompt is not. At most 100
+  values reach the client, and how many there are in total is handed over with them. The shared part of all four
   declarations lives in `Model/CallableDefinition.cs`.
 - `authorized-roles` states which roles may use the mcp-server; `"anonymous": true` makes it usable by everybody and
   then no role is needed. An mcp-server which is neither anonymous nor names a role is a mistake and fails the start.
@@ -115,7 +126,7 @@ prompt of the type `web-request`, invalid json) makes the server fail on startup
 file not existing at its resolved location stops the server - both mean "nothing is offered", because a freshly set
 up server which nobody pointed at a declaration yet is an expected state.
 
-**When adding a tool, a resource or a prompt, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
+**When adding a tool, a resource, a prompt or a completion, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
 change is wrong: run `grep -rniE "cve|maven|nuget|npm" GenericMCPServerBackend --include=*.cs` — it has to stay empty.
 
 ## Who may use an mcp-server
@@ -190,10 +201,11 @@ break by "improving" them:
 
 A failure is answered as a `CallToolResult` with `IsError` and the message of the script, and additionally with the
 http-status-code 502 for the whole answer (`Misc/ToolCallFailureStatusCodeMiddleware.cs`), because the failure comes
-from the program behind this server. A failed read of a resource and a prompt which could not be built are answered as
-an error of the protocol (`McpException`, whose message is the one which reaches the client) with the status-code of a
-normal answer: a result which carries an error-flag does not exist for either of them, and a client which asked for a
-document or for a text must not receive the reason of a failure as if it were that document respectively that text.
+from the program behind this server. A failed read of a resource, a prompt which could not be built and a completion
+which did not work are answered as an error of the protocol (`McpException`, whose message is the one which reaches the
+client) with the status-code of a normal answer: a result which carries an error-flag does not exist for any of them,
+and a client which asked for a document, for a text or for the possible values of an argument must not receive the
+reason of a failure as if it were that document, that text respectively one of those values.
 
 **When testing this, use a canary and not a destructive payload.** A payload like `; rm -rf /` tests a protection with
 a failure-mode which destroys the machine if the protection does not hold. Use a value which would create a file in a

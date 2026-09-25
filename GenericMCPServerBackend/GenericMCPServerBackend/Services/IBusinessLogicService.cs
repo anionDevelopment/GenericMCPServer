@@ -56,6 +56,19 @@ namespace GenericMCPServerBackend.Core.Services
         string GetPrompt(string urlNamespace, string promptName, IReadOnlyDictionary<string, string> arguments);
 
         /// <summary>
+        /// Returns the values which the given argument of the given prompt of the given mcp-server can have.
+        ///
+        /// The completion which is declared for that argument is run like a tool and is told which argument it is
+        /// asked about and which value was entered so far; every non-empty line it writes is one value.
+        /// </summary>
+        /// <param name="urlNamespace">The namespace of the mcp-server the prompt belongs to.</param>
+        /// <param name="promptName">The name of the prompt the argument belongs to.</param>
+        /// <param name="argumentName">The name of the argument whose values are asked for.</param>
+        /// <param name="argumentValue">The value which was entered so far, which the completion uses to decide which values it offers.</param>
+        /// <returns>The possible values; empty when that argument declares no completion or when no prompt of that name is declared.</returns>
+        IReadOnlyList<string> GetCompletions(string urlNamespace, string promptName, string argumentName, string argumentValue);
+
+        /// <summary>
         /// Removes the values of the credentials from a text which is about to be handed to a client.
         ///
         /// The message of a failed tool-call goes to the client, and a script which wrote its credential into a

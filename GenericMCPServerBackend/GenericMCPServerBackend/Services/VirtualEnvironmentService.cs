@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 namespace GenericMCPServerBackend.Core.Services
 {
     /// <summary>
-    /// Provides the python-interpreter a tool or a resource is run with.
+    /// Provides the python-interpreter a tool, a resource, a prompt or a completion is run with.
     ///
     /// Every python-declaration gets a virtual environment of its own, named after that declaration. That is what
     /// makes the requirements of two of them independent of each other: without it, they would share the packages of

@@ -269,6 +269,76 @@ namespace GenericMCPServerBackend.Core.Services
                     // it is rejected here instead of behaving like one of them without saying which.
                     throw new InvalidOperationException($"The prompt \"{definition.PromptName}\" in \"{file}\" states the type \"{ToolTypes.WebRequest}\", which does not belong to a prompt: the arguments of a prompt are the values which are filled into its text, so there is no address which a client could ask for. A prompt is of the type \"{ToolTypes.Python}\" or \"{ToolTypes.Shell}\".");
             }
+            ValidateCompletions(definition, file);
+        }
+
+        /// <summary>
+        /// Checks what provides the possible values of the arguments of one prompt. Such a declaration stands under the
+        /// name of the argument it completes, which has to be an argument that prompt actually takes: a provider for an
+        /// argument which does not exist would be a script nobody ever calls.
+        /// </summary>
+        private static void ValidateCompletions(PromptDefinition prompt, string file)
+        {
+            prompt.Completions ??= new Dictionary<string, CompletionDefinition>();
+            foreach (KeyValuePair<string, CompletionDefinition> completion in prompt.Completions)
+            {
+                if (completion.Value == null)
+                {
+                    throw new InvalidOperationException($"The prompt \"{prompt.PromptName}\" in \"{file}\" states a completion for the argument \"{completion.Key}\" without declaring what provides its values.");
+                }
+                completion.Value.PromptName = prompt.PromptName;
+                completion.Value.ArgumentName = completion.Key;
+                if (!NameRegex.IsMatch(completion.Key))
+                {
+                    // The name of the argument is a part of the name of the folder of the virtual environment of a
+                    // python-completion, so a name which contains a path-separator is rejected here instead of turning
+                    // into a folder somewhere else.
+                    throw new InvalidOperationException($"The prompt \"{prompt.PromptName}\" in \"{file}\" states a completion for \"{completion.Key}\", which is not a usable name of an argument. Such a name may consist of letters, digits, underscores and hyphens.");
+                }
+                if (!prompt.Parameters.Contains(completion.Key, StringComparer.Ordinal))
+                {
+                    throw new InvalidOperationException($"The prompt \"{prompt.PromptName}\" in \"{file}\" states a completion for the argument \"{completion.Key}\", which this prompt does not declare in its \"parameters\".");
+                }
+                Validate(completion.Value, file);
+            }
+        }
+
+        /// <summary>
+        /// Checks one completion. It is declared like a prompt and differs in what it receives and in what a client
+        /// does with its answer: it is told which argument it is asked about and which value was entered so far, and
+        /// the lines it writes are offered as the possible values of that argument.
+        /// </summary>
+        private static void Validate(CompletionDefinition definition, string file)
+        {
+            ToolType type = ReadType(definition, file);
+            RejectDeclaredValues(definition.Parameters.Count, "parameters", definition, file, "a completion receives the argument it is asked about and the value which was entered so far, so there is no parameter which could be declared");
+            if (!string.IsNullOrWhiteSpace(definition.Description))
+            {
+                // A client never chooses a completion; it asks for the possible values of an argument it already
+                // chose. A description would therefore be a text which nobody ever reads.
+                throw new InvalidOperationException($"The completion \"{definition.Name}\" in \"{file}\" states a \"description\", which does not belong to it: a client asks for the possible values of an argument of a prompt and never chooses a completion itself, so there is nobody who would read it.");
+            }
+            switch (type)
+            {
+                case ToolType.Python:
+                    ValidateScript(definition, file);
+                    ValidateRequirements(definition, file);
+                    ValidateCredentials(definition, file);
+                    break;
+                case ToolType.Shell:
+                    ValidateScript(definition, file);
+                    RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
+                    RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    break;
+                case ToolType.WebRequest:
+                    // Such a declaration takes the address it requests from the client (a tool) or from its own uri (a
+                    // resource), and a completion has neither: it is asked which values one argument of one prompt can
+                    // have. Offering the type anyway would mean inventing one of those two for it.
+                    throw new InvalidOperationException($"The completion \"{definition.Name}\" in \"{file}\" states the type \"{ToolTypes.WebRequest}\", which does not belong to a completion: it is asked which values an argument of a prompt can have, so there is no address which a client could ask for. A completion is of the type \"{ToolTypes.Python}\" or \"{ToolTypes.Shell}\".");
+            }
+            // The script is told which argument it is asked about and which value was entered so far, which is what
+            // lets one script complete several arguments.
+            definition.Parameters = new List<string>() { CompletionDefinition.ArgumentParameterName, CompletionDefinition.ValueParameterName };
         }
 
         /// <summary>

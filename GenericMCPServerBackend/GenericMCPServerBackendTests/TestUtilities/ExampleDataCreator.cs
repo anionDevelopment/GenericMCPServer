@@ -4,12 +4,13 @@ using System.IO;
 namespace GenericMCPServerBackend.Tests.TestUtilities
 {
     /// <summary>
-    /// Creates the example-data this product needs to do anything: a tool, a resource and a prompt.
+    /// Creates the example-data this product needs to do anything: a tool, a resource, a prompt and the completion
+    /// of the argument of that prompt.
     ///
     /// The product itself contains none of them - which tools, which resources and which prompts exist is declared by
     /// an administrator - so a test which wants to call, read or ask for one has to bring that declaration along. This
     /// class writes a folder which contains the scripts and the tool-definitions-file which turns them into a tool, a
-    /// resource and a prompt, exactly as an administrator would.
+    /// resource, a prompt and the completion of its argument, exactly as an administrator would.
     /// </summary>
     /// <remarks>
     /// It deliberately lives in the test-project and not in the codeunit itself. The name of a tool in the sourcecode
@@ -57,6 +58,12 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// failure the server reports with a readable reason.
         /// </summary>
         public const string ExamplePromptScriptFileName = "ExamplePrompt.py";
+
+        /// <summary>
+        /// The script which provides the possible values of the argument of that prompt. A testcase which wants a
+        /// completion to fail removes it, which is a failure the server reports with a readable reason.
+        /// </summary>
+        public const string ExampleCompletionScriptFileName = "ExampleCompletion.py";
 
         /// <summary>The mcp-server which only a client with an access-token reaches.</summary>
         public const string UrlNamespace = "Example";
@@ -116,6 +123,23 @@ arguments = parser.parse_args()
 sys.stdout.write('Explain ' + arguments.topic + ' to a beginner.')
 ";
 
+        /// <summary>
+        /// A script which writes the values the argument of that prompt can have, one per line and only the ones which
+        /// fit the value which was entered so far. A completion is run like a tool, so it receives what it is asked
+        /// about in the same way.
+        /// </summary>
+        private const string CompletionScriptContent = @"import argparse
+import sys
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--argument', required=True)
+parser.add_argument('--value', required=True)
+arguments = parser.parse_args()
+for value in ['cryptography', 'compilers', 'networking']:
+    if value.startswith(arguments.value):
+        sys.stdout.write(value + '\n')
+";
+
         /// <summary>The folder which contains the declaration and the script it points to.</summary>
         public string Folder { get; }
 
@@ -148,6 +172,7 @@ sys.stdout.write('Explain ' + arguments.topic + ' to a beginner.')
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExampleResourceScriptFileName), ResourceScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExamplePromptScriptFileName), PromptScriptContent);
+            File.WriteAllText(Path.Combine(this.Folder, ExampleCompletionScriptFileName), CompletionScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");
             File.WriteAllText(this.ToolDefinitionsFile, @"{
     ""mcp-servers"": [
@@ -179,7 +204,13 @@ sys.stdout.write('Explain ' + arguments.topic + ' to a beginner.')
                     ""type"": ""python"",
                     ""calls"": """ + ExamplePromptScriptFileName + @""",
                     ""description"": ""Asks for an explanation of a topic."",
-                    ""parameters"": [ """ + ExamplePromptArgumentName + @""" ]
+                    ""parameters"": [ """ + ExamplePromptArgumentName + @""" ],
+                    ""completions"": {
+                        """ + ExamplePromptArgumentName + @""": {
+                            ""type"": ""python"",
+                            ""calls"": """ + ExampleCompletionScriptFileName + @"""
+                        }
+                    }
                 }
             ]
         },
@@ -216,6 +247,7 @@ sys.stdout.write('Explain ' + arguments.topic + ' to a beginner.')
                 File.Delete(Path.Combine(this.Folder, "ExampleTool.py"));
                 File.Delete(Path.Combine(this.Folder, ExampleResourceScriptFileName));
                 File.Delete(Path.Combine(this.Folder, ExamplePromptScriptFileName));
+                File.Delete(Path.Combine(this.Folder, ExampleCompletionScriptFileName));
                 File.Delete(this.ToolDefinitionsFile);
             }
         }

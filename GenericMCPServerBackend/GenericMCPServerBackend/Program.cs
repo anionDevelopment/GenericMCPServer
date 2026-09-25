@@ -195,7 +195,7 @@ namespace GenericMCPServerBackend.Core
                     }
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
-                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s), {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s) and {mcpServers.Sum(mcpServer => mcpServer.Prompts.Count)} prompt(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s), {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s), {mcpServers.Sum(mcpServer => mcpServer.Prompts.Count)} prompt(s) and {mcpServers.Sum(mcpServer => mcpServer.Prompts.Sum(prompt => prompt.Completions.Count))} completion(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace
                     // of its route, so the same tool-name may exist in two mcp-servers without becoming ambiguous.
                     Dictionary<string, McpServerPrimitiveCollection<McpServerTool>> toolsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerTool>>(StringComparer.OrdinalIgnoreCase);
@@ -208,6 +208,11 @@ namespace GenericMCPServerBackend.Core
                     // least one of them appears here, so a server without an entry does not claim the
                     // prompts-capability of the protocol.
                     Dictionary<string, McpServerPrimitiveCollection<McpServerPrompt>> promptsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerPrompt>>(StringComparer.OrdinalIgnoreCase);
+                    // A completion is no primitive of the SDK: the protocol has one request for all of them, so what
+                    // is kept here is one handler per mcp-server and not one object per declaration. Only an mcp-server
+                    // which declares at least one completion appears here, for the same reason as above: a server
+                    // without an entry does not claim the completions-capability of the protocol.
+                    Dictionary<string, ScriptCompletionHandler> completionHandlersOfTheMCPServers = new Dictionary<string, ScriptCompletionHandler>(StringComparer.OrdinalIgnoreCase);
                     foreach (MCPServerDefinition mcpServer in mcpServers)
                     {
                         McpServerPrimitiveCollection<McpServerTool> tools = new McpServerPrimitiveCollection<McpServerTool>();
@@ -234,6 +239,10 @@ namespace GenericMCPServerBackend.Core
                             }
                             promptsOfTheMCPServers[mcpServer.UrlNamespace] = prompts;
                         }
+                        if (mcpServer.Prompts.Any(prompt => 0 < prompt.Completions.Count))
+                        {
+                            completionHandlersOfTheMCPServers[mcpServer.UrlNamespace] = new ScriptCompletionHandler(businessLogicService, mcpServer.UrlNamespace);
+                        }
                     }
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
                     // The maintenance-route which reports the initialization-state asks this service, so it has to
@@ -243,8 +252,8 @@ namespace GenericMCPServerBackend.Core
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IInitializationService>(serviceProvider => serviceProvider.GetRequiredService<IInitializationService<CommandlineParameter>>());
 
                     // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
-                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools, the resources
-                    // and the prompts.
+                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools, the resources,
+                    // the prompts and what answers a request for the possible values of an argument.
                     functionalInformation.WebApplicationBuilder.Services.AddMcpServer()
                         .WithHttpTransport(options =>
                         {
@@ -261,6 +270,10 @@ namespace GenericMCPServerBackend.Core
                                 serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
                                 serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
                                 serverOptions.PromptCollection = mcpServer != null && promptsOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerPrimitiveCollection<McpServerPrompt> prompts) ? prompts : null;
+                                // The handler is set for every request and not only where one exists, so that an
+                                // mcp-server which declares no completion never inherits the handler of one which
+                                // does, no matter how the transport reuses the options of a request.
+                                serverOptions.Handlers.CompleteHandler = mcpServer != null && completionHandlersOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out ScriptCompletionHandler completionHandler) ? completionHandler.HandleAsync : null;
                                 return Task.CompletedTask;
                             };
                         });

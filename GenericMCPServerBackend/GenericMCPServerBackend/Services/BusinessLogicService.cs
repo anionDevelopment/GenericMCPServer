@@ -126,7 +126,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         private static IEnumerable<CallableDefinition> GetCallables(MCPServerDefinition mcpServer)
         {
-            return mcpServer.Tools.Cast<CallableDefinition>().Concat(mcpServer.Resources).Concat(mcpServer.Prompts);
+            return mcpServer.Tools.Cast<CallableDefinition>().Concat(mcpServer.Resources).Concat(mcpServer.Prompts).Concat(mcpServer.Prompts.SelectMany(prompt => prompt.Completions.Values));
         }
 
         public string RemoveCredentialValuesFrom(string text)
@@ -327,6 +327,60 @@ namespace GenericMCPServerBackend.Core.Services
             // A prompt is never of the type "web-request" (see ToolDefinitionsReader), so it always runs a script.
             ToolTypes.TryParse(definition.Type, out ToolType type);
             return this.RunScript(definition, type, arguments);
+        }
+
+        /// <summary>
+        /// Returns the values which the argument of the given prompt can have, as the script which is declared for
+        /// that argument states them.
+        ///
+        /// The script is run exactly like the one of a tool and is told which argument it is asked about and which
+        /// value was entered so far; every non-empty line it writes is one value.
+        ///
+        /// An argument which declares no completion is answered with no value at all, and so is a prompt which is not
+        /// declared: "which values are possible" is a question a client may ask about anything, and "none are known
+        /// here" is an answer to it and not a failure.
+        /// </summary>
+        /// <exception cref="KeyNotFoundException">Thrown when no mcp-server with that url-namespace is declared.</exception>
+        /// <exception cref="FileNotFoundException">Thrown when the script of the completion does not exist.</exception>
+        /// <exception cref="PlatformNotSupportedException">Thrown when the completion can not run on this system.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the completion failed. The message contains what it reported.</exception>
+        public IReadOnlyList<string> GetCompletions(string urlNamespace, string promptName, string argumentName, string argumentValue)
+        {
+            MCPServerDefinition mcpServer = this.GetMCPServer(urlNamespace);
+            PromptDefinition prompt = mcpServer.Prompts.FirstOrDefault(declaredPrompt => declaredPrompt.PromptName == promptName);
+            if (prompt == null || !prompt.Completions.TryGetValue(argumentName, out CompletionDefinition definition))
+            {
+                return new List<string>();
+            }
+            // A completion is never of the type "web-request" (see ToolDefinitionsReader), so it always runs a script.
+            ToolTypes.TryParse(definition.Type, out ToolType type);
+            string output = this.RunScript(definition, type, new Dictionary<string, string>()
+            {
+                { CompletionDefinition.ArgumentParameterName, argumentName },
+                { CompletionDefinition.ValueParameterName, argumentValue },
+            });
+            return ReadValues(output);
+        }
+
+        /// <summary>
+        /// Reads the values which the script of a completion wrote: one per line.
+        ///
+        /// A line-based answer is what a script can write without knowing anything about this server, and the lines
+        /// are trimmed and empty ones are dropped, because a trailing newline is what every usual way of writing a
+        /// line leaves behind and not a value which happens to be empty.
+        /// </summary>
+        private static IReadOnlyList<string> ReadValues(string output)
+        {
+            List<string> result = new List<string>();
+            foreach (string line in output.Split('\n'))
+            {
+                string value = line.Trim();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    result.Add(value);
+                }
+            }
+            return result;
         }
 
         /// <exception cref="KeyNotFoundException">Thrown when no mcp-server with that url-namespace is declared.</exception>

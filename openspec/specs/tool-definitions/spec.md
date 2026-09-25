@@ -3,8 +3,9 @@
 ## Purpose
 
 Defines the property which makes this product generic: it offers tools, resources and prompts without knowing any of
-them. The product provides the means to declare an mcp-server with its tools, its resources and its prompts; which of
-them exist is decided by an administrator and never by the product itself.
+them. The product provides the means to declare an mcp-server with its tools, its resources, its prompts and the values
+which the arguments of those prompts can have; which of them exist is decided by an administrator and never by the
+product itself.
 
 This is not an implementation-detail but the reason the product exists. A tool which was built into the product would
 make every user of the product carry it, would make its lifecycle depend on the release-cycle of the product and would
@@ -174,6 +175,58 @@ which it hands the values of a tool to its script.
 - **THEN** it is answered as an error of the protocol whose message states the reason, and not as a message of the
   prompt, because a client which asked for a prompt must not hand the reason of a failure to its model as if it were
   that prompt
+
+### Requirement: The values which an argument of a prompt can have are declared with that argument
+
+A declaration of a prompt MAY state, per argument, what provides the values which that argument can have. Such a
+declaration SHALL be stated under the name of the argument it belongs to, and that name SHALL be one of the arguments
+which the prompt declares. The server SHALL hand the script which provides those values the argument it is asked about
+and the value which the client entered so far, in the same way in which it hands the values of a tool to its script,
+and SHALL offer what that script wrote as the possible values of that argument.
+
+#### Scenario: A client asks which values an argument can have
+
+- **WHEN** a client asks which values an argument of a declared prompt can have and states the value which was entered
+  so far
+- **THEN** what the declaration names is run, it receives that argument and that value, and every non-empty line it
+  wrote is one of the values the client receives
+
+#### Scenario: An argument declares no values
+
+- **WHEN** a client asks which values an argument can have which declares no such provider, or asks about something
+  which is no prompt of that mcp-server
+- **THEN** it is answered with no value and not with a failure, because "which values are possible" is a question a
+  client may ask about anything and "none are known here" is an answer to it
+
+#### Scenario: There are more values than one answer carries
+
+- **WHEN** the script writes more values than the protocol allows one answer to carry
+- **THEN** the client receives as many of them as the protocol allows together with how many there are in total, so
+  that it can tell a complete list from a cut off one
+
+#### Scenario: An mcp-server declares no such provider
+
+- **WHEN** no prompt of an mcp-server declares the values of one of its arguments
+- **THEN** that mcp-server does not offer the completions of the protocol at all, so that a client of it does not ask
+  for values which are empty by definition
+
+#### Scenario: Values are declared for an argument which the prompt does not take
+
+- **WHEN** such a declaration stands under a name which is none of the arguments of its prompt
+- **THEN** the server fails while starting, because it would describe a script which nobody ever calls
+
+#### Scenario: Such a declaration states the type "web-request", parameters or a description
+
+- **WHEN** such a declaration states the type "web-request", states parameters or states a description
+- **THEN** the server fails while starting: it is asked which values an argument can have, so it has no address which a
+  client could ask for, which values its script receives is decided by the mechanism, and a client asks about an
+  argument it already chose and never chooses such a declaration itself
+
+#### Scenario: Such a script does not work
+
+- **WHEN** the script which provides the values does not work
+- **THEN** it is answered as an error of the protocol whose message states the reason, and not as a value, because a
+  client which asked which values are possible must not receive the reason of a failure as if it were one of them
 
 ### Requirement: The type of a tool is declared and not guessed
 

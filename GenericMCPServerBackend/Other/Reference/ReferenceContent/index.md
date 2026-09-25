@@ -3,8 +3,8 @@
 GenericMCPServerBackend is the backend for GenericMCPServer. It hosts MCP-servers which are reachable over HTTP.
 
 It brings **no tool, no resource and no prompt of its own**. Which mcp-servers exist, which tools, resources and
-prompts they offer and who may use them is decided entirely by an administrator, who declares it in a
-tool-definitions-file. Without such a file the server starts and offers nothing.
+prompts they offer, which values the argument of a prompt can have and who may use them is decided entirely by an
+administrator, who declares it in a tool-definitions-file. Without such a file the server starts and offers nothing.
 
 ## How it is built
 
@@ -12,7 +12,9 @@ The MCP-protocol itself is not implemented in this codeunit. It is implemented b
 packages `ModelContextProtocol`, `ModelContextProtocol.AspNetCore` and `ModelContextProtocol.Core`), which is
 registered as a service and whose endpoints are mapped in `Program.cs`. Because the tools, the resources and the
 prompts are not known at compile-time, they can not be methods which carry an attribute: one `ScriptTool`, one
-`ScriptResource` respectively one `ScriptPrompt` is created per declaration.
+`ScriptResource` respectively one `ScriptPrompt` is created per declaration. A completion is no primitive of the SDK -
+the protocol has one request for all of them - so it is a handler and not one object per declaration: one
+`ScriptCompletionHandler` per mcp-server answers which values an argument of one of its prompts can have.
 
 They are not registered once for the whole process either. Which of them exist is decided per request by the
 mcp-server the route of that request belongs to - that is what makes several mcp-servers in one process possible:
@@ -28,6 +30,7 @@ services.AddMcpServer()
             serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
             serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
             serverOptions.PromptCollection = mcpServer != null && promptsOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerPrimitiveCollection<McpServerPrompt> prompts) ? prompts : null;
+            serverOptions.Handlers.CompleteHandler = mcpServer != null && completionHandlersOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out ScriptCompletionHandler completionHandler) ? completionHandler.HandleAsync : null;
             return Task.CompletedTask;
         };
     });
@@ -39,8 +42,9 @@ foreach (MCPServerDefinition mcpServer in businessLogicService.GetMCPServers())
 ```
 
 An mcp-server which declares no resource gets no collection at all and therefore does not claim the
-resources-capability of the protocol, and one which declares no prompt does not claim the prompts-capability, so a
-client of it never asks for a list which is empty by definition.
+resources-capability of the protocol, one which declares no prompt does not claim the prompts-capability and one which
+declares no completion gets no handler and therefore does not claim the completions-capability, so a client of it
+never asks for a list which is empty by definition.
 
 The transport runs in the stateless mode, so no session-id has to be kept by the client.
 
@@ -52,9 +56,9 @@ Every declared mcp-server has one endpoint of its own, over which all messages o
 POST /<url-namespace>
 ```
 
-A client of one mcp-server can neither see nor reach the tools, resources and prompts of another one. The same
-tool-name, the same resource-uri and the same prompt-name may therefore exist in two mcp-servers without becoming
-ambiguous.
+A client of one mcp-server can neither see nor reach the tools, resources, prompts and completions of another one.
+The same tool-name, the same resource-uri and the same prompt-name may therefore exist in two mcp-servers without
+becoming ambiguous.
 
 ## How an mcp-server is declared
 
@@ -330,6 +334,7 @@ like a tool takes the values of its parameters.
 | `parameters` | Optional. The names of the arguments of the prompt. Each of them is passed to the script as `--<name>=<value>`, exactly like the parameter of a tool, and each of them is offered to the client as a required one. |
 | `requirements` | Optional, only for `python`: the packages the script needs. |
 | `credentials` | Optional, only for `python`: the accesses which are needed. See [Credentials](#credentials). |
+| `completions` | Optional. What provides the possible values of the arguments of this prompt, keyed by the name of the argument. See [How a completion is declared](#how-a-completion-is-declared). |
 
 ```json
 {
@@ -377,9 +382,83 @@ What a prompt does **not** offer:
   server fail while starting, instead of behaving like one of the two without saying which.
 - **No optional argument and no description per argument.** Every declared argument is offered as a required one,
   exactly like the parameter of a tool.
-- **No autocompletion of an argument.** A client is not offered the possible values of an argument; it states them.
 - **No notification when the list changed.** The declaration is read once, while the server starts, so a new prompt
   needs a restart of the server and not a notification to the clients.
+
+## How a completion is declared
+
+A completion states which values one argument of one prompt can have (`completion/complete` of the protocol). A client
+asks for them while somebody fills in that argument and offers what it receives; the model behind it never sees them,
+so a completion is a help for whoever chooses the values and not a further answer of the server.
+
+It is declared inside the prompt whose argument it completes, under the name of that argument, because it belongs to
+that one argument and to nothing else. An argument has one completion or none: an argument without one is simply one
+whose values a client states without being offered any.
+
+| Field | Meaning |
+| ----- | ------- |
+| `type` | What implements the completion: `python` or `shell`, declared exactly like the type of a tool. |
+| `calls` | The script which writes the possible values, resolved like the script of a tool. |
+| `requirements` | Optional, only for `python`: the packages the script needs. |
+| `credentials` | Optional, only for `python`: the accesses which are needed. See [Credentials](#credentials). |
+
+The key under which the completion stands has to be one of the `parameters` of its prompt and may consist of letters,
+digits, underscores and hyphens; a completion for an argument which the prompt does not take would be a script nobody
+ever calls and makes the server fail while starting.
+
+```json
+{
+    "prompt-name": "review_a_finding",
+    "type": "python",
+    "calls": "BuildReviewPrompt.py",
+    "description": "Asks for a review of a security-finding in a stated component.",
+    "parameters": [ "component" ],
+    "completions": {
+        "component": {
+            "type": "python",
+            "calls": "ListComponents.py"
+        }
+    }
+}
+```
+
+The script receives which argument it is asked about and which value was entered so far - both in the same way in
+which a tool receives its values (one token per value, no shell involved) - and writes one value per line to its
+standard-output. It is told the argument although it is declared for exactly one, which is what lets one script
+complete the arguments of several prompts:
+
+```python
+parser = argparse.ArgumentParser()
+parser.add_argument('--argument', required=True)
+parser.add_argument('--value', required=True)
+arguments = parser.parse_args()
+for component in ['backend', 'frontend', 'database']:
+    if component.startswith(arguments.value):
+        sys.stdout.write(component + '\n')
+```
+
+`--value` is empty when nothing was entered yet, which is the usual case for the first request. Empty lines of the
+answer are dropped, because a trailing newline is what every usual way of writing a line leaves behind.
+
+At most 100 values are handed to the client, which is the limit the protocol states; how many there are in total is
+handed over with them, so that whoever asked can tell "these are all of them" from "these are the first of them".
+
+A completion of the type `python` runs in a virtual environment of its own, exactly like a python-tool. The name of
+that environment is `completion.<prompt-name>.<argument-name>`, so a completion and a tool, a resource or a prompt of
+the same name do not end up in the same folder.
+
+What a completion does **not** offer:
+
+- **No type `web-request`.** Such a declaration takes the address it requests either from the client (a tool) or from
+  its own uri (a resource), and a completion has neither: it is asked which values an argument of a prompt can have.
+  A completion which states that type makes the server fail while starting.
+- **No description.** A client asks for the possible values of an argument it already chose and never chooses a
+  completion itself, so a declared `description` is a text nobody would read and is a mistake.
+- **No completion of a resource.** The other reference the protocol knows is a uri-template, and this server declares
+  every resource with the uri it has and derives none from a template - so such a request names nothing which could be
+  completed and is answered with no value.
+- **No completion of the parameter of a tool.** The protocol knows completions for prompts and for uri-templates only;
+  what a tool accepts is stated by the schema of its parameters.
 
 ## Access-tokens, clients and roles
 
@@ -559,7 +638,7 @@ located inside the folder of the tool-definitions-file, so that a mistake there 
 **What a declared tool does is the responsibility of the administrator who declared it** - see the
 [ReadMe of the image](../../../../GenericMCPServer/ReadMe.md).
 
-## What a failed tool-call, a failed read and a failed prompt look like
+## What a failed tool-call, a failed read, a failed prompt and a failed completion look like
 
 A tool-call which did not work - a script which ended with an exit-code which is not 0, a script which ran into the
 timeout of 60 seconds, an address which no rule allows, a virtual environment which could not be built - is answered in
@@ -572,13 +651,13 @@ two ways at once:
 
 The body of such an answer is the normal answer of the protocol; only its status-code differs.
 
-A **read of a resource** and a **prompt which could not be built** are answered differently, namely as an error of
-the protocol (a json-rpc-error with the message of the failure) and with the status-code of a normal answer. A result
-of the protocol which carries an error-flag does not exist for either of them: a client which asked for a document or
-for a text must not receive the reason of a failure as if it were the content of that document respectively that text,
-and an error of the protocol is unmistakable on its own, while a failed tool-call is a successful answer of the
-protocol and needs the status-code to be visible as a failure. The values of the credentials are removed from those
-messages as well.
+A **read of a resource**, a **prompt which could not be built** and a **completion which did not work** are answered
+differently, namely as an error of the protocol (a json-rpc-error with the message of the failure) and with the
+status-code of a normal answer. A result of the protocol which carries an error-flag does not exist for any of them: a
+client which asked for a document, for a text or for the possible values of an argument must not receive the reason of
+a failure as if it were the content of that document, that text respectively one of those values, and an error of the
+protocol is unmistakable on its own, while a failed tool-call is a successful answer of the protocol and needs the
+status-code to be visible as a failure. The values of the credentials are removed from those messages as well.
 
 ## Example
 
@@ -689,16 +768,32 @@ A prompt which could not be built answers with an error instead of a result, exa
 data: {"error":{"code":-32603,"message":"The prompt \"review_a_finding\" failed (exit-code 1): the component is unknown"},"id":8,"jsonrpc":"2.0"}
 ```
 
-Every script can also be called on its own, which is the fastest way to check what a tool, a resource or a prompt
-answers:
+Which values an **argument of a prompt** can have, for the value which was entered so far:
+
+```
+curl -X POST http://127.0.0.1:8080/Security -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"completion/complete\",\"params\":{\"ref\":{\"type\":\"ref/prompt\",\"name\":\"review_a_finding\"},\"argument\":{\"name\":\"component\",\"value\":\"b\"}}}"
+```
+
+The answer contains the values which the script wrote, together with how many of them there are:
+
+```
+data: {"result":{"completion":{"values":["backend"],"total":1,"hasMore":false}},"id":9,"jsonrpc":"2.0"}
+```
+
+An argument which declares no completion is answered with no value at all and not with an error, because "which values
+are possible" is a question a client may ask about every argument.
+
+Every script can also be called on its own, which is the fastest way to check what a tool, a resource, a prompt or a
+completion answers:
 
 ```
 python GetCVEDetails.py --cve-identifier=CVE-2021-44228
 python ReadHandbook.py --uri=handbook://security/incident-response
 python BuildReviewPrompt.py --component="the login-service"
+python ListComponents.py --argument=component --value=b
 ```
 
-## How to add a tool, a resource or a prompt
+## How to add a tool, a resource, a prompt or a completion
 
 Put the tool into the `tools` of the mcp-server it belongs to. For a tool with a script: put the script into the folder
 of the tool-definitions-file, let it check every argument against the format it must have, and state its type and its
@@ -712,6 +807,10 @@ for, so it has to accept `--uri`.
 Put a prompt into the `prompts` of that mcp-server, with its name, its type, its description and the arguments it
 takes. A script of a prompt receives those arguments like a tool does and writes the text of the prompt; a prompt is
 never of the type `web-request`.
+
+Put a completion into the `completions` of the prompt whose argument it completes, under the name of that argument. A
+script of a completion is told which argument it is asked about and which value was entered so far, so it has to
+accept `--argument` and `--value`, and it writes one possible value per line.
 
 To add a whole mcp-server, add an entry to `mcp-servers` with its `url-namespace` and either its `authorized-roles` or
 `"anonymous": true`.

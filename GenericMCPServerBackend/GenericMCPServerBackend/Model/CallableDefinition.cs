@@ -5,7 +5,8 @@ namespace GenericMCPServerBackend.Core.Model
 {
     /// <summary>
     /// What an administrator declares for something which the server runs: a tool (<see cref="ToolDefinition"/>), a
-    /// resource (<see cref="ResourceDefinition"/>) or a prompt (<see cref="PromptDefinition"/>).
+    /// resource (<see cref="ResourceDefinition"/>), a prompt (<see cref="PromptDefinition"/>) or what provides the
+    /// possible values of an argument of such a prompt (<see cref="CompletionDefinition"/>).
     ///
     /// All of them are run in exactly the same way - a python-script, a shell-script or a web-request - and only what a
     /// client does with the answer differs. Everything which describes that run therefore lives here and not several
@@ -72,9 +73,9 @@ namespace GenericMCPServerBackend.Core.Model
         /// The names of the parameters. Each of them is passed to the script as "--&lt;name&gt;=&lt;value&gt;", so a
         /// name here has to be the name of an option the script accepts.
         ///
-        /// A tool of the type <see cref="ToolType.WebRequest"/> and a resource declare no parameters: each of them
-        /// takes exactly the one parameter which its mechanism defines. A prompt declares the arguments which are
-        /// filled into its text.
+        /// A tool of the type <see cref="ToolType.WebRequest"/>, a resource and a completion declare no parameters:
+        /// each of them takes exactly the parameters which its mechanism defines. A prompt declares the arguments
+        /// which are filled into its text.
         /// </summary>
         [JsonPropertyName("parameters")]
         public IList<string> Parameters { get; set; } = new List<string>();

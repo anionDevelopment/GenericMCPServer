@@ -369,5 +369,128 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             StringAssert.Contains(message, ExampleDataCreator.ExampleResourceName);
             StringAssert.Contains(message, "does not exist");
         }
+
+        /// <remarks>
+        /// An mcp-server which declares a completion claims the completions-capability of the protocol, and one which
+        /// declares none does not: a client reads the capabilities of the handshake to decide whether it asks for the
+        /// possible values of an argument at all.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void OnlyAnMCPServerWhichDeclaresACompletionClaimsTheCompletionsCapability()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+            string initialize = @"{""jsonrpc"":""2.0"",""id"":1,""method"":""initialize"",""params"":{""protocolVersion"":""2025-06-18"",""capabilities"":{},""clientInfo"":{""name"":""testcase"",""version"":""1.0.0""}}}";
+
+            // act
+            (HttpStatusCode _, string withACompletion) = framework.SendMCPMessageAndGetStatusCode(initialize, ExampleDataCreator.UrlNamespace, framework.AccessToken);
+            (HttpStatusCode _, string withoutACompletion) = framework.SendMCPMessageAndGetStatusCode(initialize, ExampleDataCreator.AnonymousUrlNamespace, null);
+
+            // assert
+            JsonElement capabilitiesWithACompletion = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(withACompletion)).RootElement.GetProperty("result").GetProperty("capabilities");
+            JsonElement capabilitiesWithoutACompletion = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(withoutACompletion)).RootElement.GetProperty("result").GetProperty("capabilities");
+            Assert.IsTrue(capabilitiesWithACompletion.TryGetProperty("completions", out JsonElement _), "The mcp-server which declares a completion has to claim that capability.");
+            Assert.IsFalse(capabilitiesWithoutACompletion.TryGetProperty("completions", out JsonElement _), "An mcp-server without a completion must not claim a capability which nothing of it answers.");
+        }
+
+        /// <remarks>
+        /// Asking which values an argument of a prompt can have hands over the lines which the declared script wrote
+        /// for the value which was entered so far, together with how many of them there are.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void AskingForTheValuesOfAnArgumentOverHTTPAnswersWithWhatItsScriptWrote()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""completion/complete"",""params"":{""ref"":{""type"":""ref/prompt"",""name"":""" + ExampleDataCreator.ExamplePromptName + @"""},""argument"":{""name"":""" + ExampleDataCreator.ExamplePromptArgumentName + @""",""value"":""c""}}}");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.OK, statusCode);
+            JsonElement completion = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("completion");
+            JsonElement values = completion.GetProperty("values");
+            Assert.AreEqual(2, values.GetArrayLength(), "Exactly the values which fit the value which was entered so far have to reach the client.");
+            Assert.AreEqual("cryptography", values[0].GetString());
+            Assert.AreEqual("compilers", values[1].GetString());
+            Assert.AreEqual(2, completion.GetProperty("total").GetInt32());
+            Assert.IsFalse(completion.GetProperty("hasMore").GetBoolean());
+        }
+
+        /// <remarks>
+        /// An argument which declares no completion and a reference which names no prompt are answered with no value
+        /// and not with a failure: "which values are possible" is a question a client may ask about anything, and
+        /// "none are known here" is an answer to it. A reference to a resource is such a case by definition, because
+        /// this server declares every resource with the uri it has and derives none from a template.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void AskingForTheValuesOfSomethingWithoutACompletionAnswersWithNoValue()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            (HttpStatusCode _, string ofAnotherArgument) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""completion/complete"",""params"":{""ref"":{""type"":""ref/prompt"",""name"":""" + ExampleDataCreator.ExamplePromptName + @"""},""argument"":{""name"":""another_argument"",""value"":""""}}}");
+            (HttpStatusCode _, string ofAResource) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""completion/complete"",""params"":{""ref"":{""type"":""ref/resource"",""uri"":""" + ExampleDataCreator.ExampleResourceUri + @"""},""argument"":{""name"":""" + ExampleDataCreator.ExamplePromptArgumentName + @""",""value"":""""}}}");
+
+            // assert
+            foreach (string answer in new string[] { ofAnotherArgument, ofAResource })
+            {
+                JsonElement completion = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("completion");
+                Assert.AreEqual(0, completion.GetProperty("values").GetArrayLength());
+                Assert.AreEqual(0, completion.GetProperty("total").GetInt32());
+            }
+        }
+
+        /// <remarks>
+        /// An mcp-server which declares no completion answers nothing at all here, exactly like one without resources
+        /// and one without prompts: it claims the capability not at all, so a client of it never asks for values which
+        /// are empty by definition.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void AnMCPServerWhichDeclaresNoCompletionOffersNoCompletionsAtAll()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act: the anonymous mcp-server of the example-data declares a tool and no prompt, so it declares no completion either
+            (HttpStatusCode _, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""completion/complete"",""params"":{""ref"":{""type"":""ref/prompt"",""name"":""" + ExampleDataCreator.ExamplePromptName + @"""},""argument"":{""name"":""topic"",""value"":""""}}}", ExampleDataCreator.AnonymousUrlNamespace, null);
+
+            // assert
+            JsonElement root = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement;
+            Assert.IsFalse(root.TryGetProperty("result", out JsonElement _), "An mcp-server without completions must not answer values.");
+            Assert.IsTrue(root.TryGetProperty("error", out JsonElement _));
+        }
+
+        /// <remarks>
+        /// A completion which did not work is answered as an error of the protocol whose message states the reason,
+        /// exactly like a failed read of a resource and a prompt which could not be built: a client which asked which
+        /// values are possible must not receive the reason of a failure as if it were one of them.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void ACompletionWhichFailsAnswersWithTheReasonAsAnErrorOfTheProtocol()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+            // The script of the completion is removed, which is a failure of the program behind the server and which it
+            // reports with a readable reason.
+            File.Delete(Path.Combine(framework.ExampleData.Folder, ExampleDataCreator.ExampleCompletionScriptFileName));
+
+            // act
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""completion/complete"",""params"":{""ref"":{""type"":""ref/prompt"",""name"":""" + ExampleDataCreator.ExamplePromptName + @"""},""argument"":{""name"":""" + ExampleDataCreator.ExamplePromptArgumentName + @""",""value"":""""}}}");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.OK, statusCode);
+            JsonElement root = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement;
+            Assert.IsFalse(root.TryGetProperty("result", out JsonElement _), "A completion which did not work must not be answered with values.");
+            string message = root.GetProperty("error").GetProperty("message").ToString();
+            StringAssert.Contains(message, ExampleDataCreator.ExamplePromptName);
+            StringAssert.Contains(message, "does not exist");
+        }
     }
 }
