@@ -4,9 +4,9 @@ using System.Collections.Generic;
 namespace GenericMCPServerBackend.Core.Services
 {
     /// <summary>
-    /// The business-logic of this codeunit. It contains no tool and no resource of its own: it makes the mcp-servers
-    /// available which an administrator declared, and it runs the tool respectively reads the resource which belongs
-    /// to one of them.
+    /// The business-logic of this codeunit. It contains no tool, no resource and no prompt of its own: it makes the
+    /// mcp-servers available which an administrator declared, and it runs the tool, reads the resource respectively
+    /// builds the prompt which belongs to one of them.
     /// </summary>
     public interface IBusinessLogicService
     {
@@ -42,6 +42,18 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="uri">The uri of the resource, which has to be one of the resources of that mcp-server.</param>
         /// <returns>The content of the resource.</returns>
         string ReadResource(string urlNamespace, string uri);
+
+        /// <summary>
+        /// Builds the prompt of the given mcp-server with the given arguments.
+        ///
+        /// A prompt is run like a tool and differs in what a client does with the answer: it hands it to its model
+        /// instead of reading it as the result of something which was done.
+        /// </summary>
+        /// <param name="urlNamespace">The namespace of the mcp-server the prompt belongs to.</param>
+        /// <param name="promptName">The name of the prompt, which has to be one of the prompts of that mcp-server.</param>
+        /// <param name="arguments">The values of the arguments of the prompt, keyed by the name of the argument.</param>
+        /// <returns>The text of the prompt.</returns>
+        string GetPrompt(string urlNamespace, string promptName, IReadOnlyDictionary<string, string> arguments);
 
         /// <summary>
         /// Removes the values of the credentials from a text which is about to be handed to a client.

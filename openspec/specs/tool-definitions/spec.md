@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Defines the property which makes this product generic: it offers tools and resources without knowing any of them. The
-product provides the means to declare an mcp-server with its tools and its resources; which of them exist is decided by
-an administrator and never by the product itself.
+Defines the property which makes this product generic: it offers tools, resources and prompts without knowing any of
+them. The product provides the means to declare an mcp-server with its tools, its resources and its prompts; which of
+them exist is decided by an administrator and never by the product itself.
 
 This is not an implementation-detail but the reason the product exists. A tool which was built into the product would
 make every user of the product carry it, would make its lifecycle depend on the release-cycle of the product and would
@@ -14,8 +14,8 @@ turn the product into an application for one purpose instead of a server for arb
 
 ### Requirement: The product contains no tool of its own
 
-The source-code of this product SHALL NOT contain any tool and any resource. The set of tools and resources which is
-offered SHALL be determined exclusively by the tool-definitions-file the server is configured with.
+The source-code of this product SHALL NOT contain any tool, any resource and any prompt. The set of tools, resources and
+prompts which is offered SHALL be determined exclusively by the tool-definitions-file the server is configured with.
 
 #### Scenario: A new tool is needed
 
@@ -132,6 +132,49 @@ the script which implements it.
 - **THEN** it is answered as an error of the protocol whose message states the reason, and not as a content, because a
   client which asked for a document must not receive the reason of a failure as if it were that document
 
+### Requirement: A prompt is declared like a tool and is asked for by its name
+
+An mcp-server SHALL offer the prompts which its declaration states. Such a declaration SHALL state the name the prompt
+is asked for by, its type, what implements it and the arguments it takes. A prompt SHALL be implemented by a script, and
+the server SHALL hand the values which a client states for the declared arguments to that script in the same way in
+which it hands the values of a tool to its script.
+
+#### Scenario: A client asks which prompts exist
+
+- **WHEN** a client asks an mcp-server which prompts it offers
+- **THEN** it receives, per declared prompt, the declared name, the declared description and the declared arguments,
+  each of them as a required one
+
+#### Scenario: A client asks for a prompt
+
+- **WHEN** a client asks for a declared prompt and states the values of its arguments
+- **THEN** what the declaration names is run with those values, and what it wrote is the text of the prompt, handed over
+  as one message of the role "user"
+
+#### Scenario: An mcp-server declares no prompt
+
+- **WHEN** an mcp-server declares no prompt
+- **THEN** it does not offer the prompts of the protocol at all, so that a client of it does not ask for a list which is
+  empty by definition
+
+#### Scenario: A prompt is declared as one which requests an address
+
+- **WHEN** a declaration of a prompt states the type "web-request"
+- **THEN** the server fails while starting, because such a declaration takes the address it requests either from the
+  client or from its own uri and a prompt has neither, so the type would have to invent one of the two for it
+
+#### Scenario: The same prompt-name is declared twice within one mcp-server
+
+- **WHEN** two prompts of one mcp-server declare the same name
+- **THEN** the server fails while starting, because it would not be decidable which of them a client means
+
+#### Scenario: A prompt could not be built
+
+- **WHEN** the script of a prompt does not work
+- **THEN** it is answered as an error of the protocol whose message states the reason, and not as a message of the
+  prompt, because a client which asked for a prompt must not hand the reason of a failure to its model as if it were
+  that prompt
+
 ### Requirement: The type of a tool is declared and not guessed
 
 Every declaration SHALL state the type of the tool, which is one of "python", "shell" and "web-request". The server
@@ -204,8 +247,8 @@ starting.
 #### Scenario: A declaration is incomplete or ambiguous
 
 - **WHEN** a tool-definitions-file declares an mcp-server without a url-namespace, a tool without a name, a tool without
-  a type, a parameter without a name or the same tool-name more than once within one mcp-server, or is not a valid
-  json-document
+  a type, a parameter without a name, the same tool-name more than once within one mcp-server or a prompt which states
+  no name, no type or no script, or is not a valid json-document
 - **THEN** the server fails while starting, so that the mistake is visible immediately instead of only when somebody
   happens to call the affected tool
 

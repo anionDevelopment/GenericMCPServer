@@ -14,8 +14,9 @@ The built image is published on docker hub as
 A declared tool is a program on the server: a python-script, a shell-script or a request to an address. It runs with
 the rights of the server, it can read and change what the server can read and change, and it can reach whatever the
 network of the server reaches. The product decides which tool exists and which values reach it - it never decides
-whether what the tool does is a good idea. **A declared resource is the same kind of program**, only that a client
-reads it by a uri instead of calling it with values.
+whether what the tool does is a good idea. **A declared resource and a declared prompt are the same kind of program**,
+only that a client reads the one by a uri instead of calling it with values and asks for the other one by its name to
+hand its text to a model.
 
 **Whoever declares a tool is responsible for it**, and that responsibility covers at least these questions:
 
@@ -23,13 +24,13 @@ reads it by a uri instead of calling it with values.
 - Who may declare a tool and who may change the folder which holds the declarations and the scripts?
 - Which addresses does a tool of the type `web-request` allow? A rule like `".*"` lets a client reach every address
   which the server reaches, including the ones inside its own network.
-- Which credentials does a tool or a resource receive, and what can be done with them if the script is not what it
-  seemed?
+- Which credentials does a tool, a resource or a prompt receive, and what can be done with them if the script is not
+  what it seemed?
 - Who holds an access-token, who is in which role, and which mcp-servers are declared as anonymous and are
   therefore usable by everybody?
 
-A tool or a resource from an unknown source is a program from an unknown source. It is to be read before it is
-declared, in the same way as any other program which is put onto a server.
+A tool, a resource or a prompt from an unknown source is a program from an unknown source. It is to be read before it
+is declared, in the same way as any other program which is put onto a server.
 
 ## Reference
 

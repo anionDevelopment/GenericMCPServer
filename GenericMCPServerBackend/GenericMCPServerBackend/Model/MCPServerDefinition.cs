@@ -47,5 +47,12 @@ namespace GenericMCPServerBackend.Core.Model
         /// </summary>
         [JsonPropertyName("resources")]
         public IList<ResourceDefinition> Resources { get; set; } = new List<ResourceDefinition>();
+
+        /// <summary>
+        /// The prompts this server offers. A prompt belongs to exactly one server, exactly like a tool and a resource:
+        /// a client of one server can neither see nor ask for the prompts of another one.
+        /// </summary>
+        [JsonPropertyName("prompts")]
+        public IList<PromptDefinition> Prompts { get; set; } = new List<PromptDefinition>();
     }
 }

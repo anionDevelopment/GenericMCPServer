@@ -195,7 +195,7 @@ namespace GenericMCPServerBackend.Core
                     }
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
-                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) and {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s), {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s) and {mcpServers.Sum(mcpServer => mcpServer.Prompts.Count)} prompt(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace
                     // of its route, so the same tool-name may exist in two mcp-servers without becoming ambiguous.
                     Dictionary<string, McpServerPrimitiveCollection<McpServerTool>> toolsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerTool>>(StringComparer.OrdinalIgnoreCase);
@@ -204,6 +204,10 @@ namespace GenericMCPServerBackend.Core
                     // capability of the protocol, which keeps a client from asking for a list which is empty by
                     // definition.
                     Dictionary<string, McpServerResourceCollection> resourcesOfTheMCPServers = new Dictionary<string, McpServerResourceCollection>(StringComparer.OrdinalIgnoreCase);
+                    // The prompts are kept the same way and for the same reason: only an mcp-server which declares at
+                    // least one of them appears here, so a server without an entry does not claim the
+                    // prompts-capability of the protocol.
+                    Dictionary<string, McpServerPrimitiveCollection<McpServerPrompt>> promptsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerPrompt>>(StringComparer.OrdinalIgnoreCase);
                     foreach (MCPServerDefinition mcpServer in mcpServers)
                     {
                         McpServerPrimitiveCollection<McpServerTool> tools = new McpServerPrimitiveCollection<McpServerTool>();
@@ -221,6 +225,15 @@ namespace GenericMCPServerBackend.Core
                             }
                             resourcesOfTheMCPServers[mcpServer.UrlNamespace] = resources;
                         }
+                        if (0 < mcpServer.Prompts.Count)
+                        {
+                            McpServerPrimitiveCollection<McpServerPrompt> prompts = new McpServerPrimitiveCollection<McpServerPrompt>();
+                            foreach (PromptDefinition definition in mcpServer.Prompts)
+                            {
+                                prompts.Add(new ScriptPrompt(businessLogicService, mcpServer.UrlNamespace, definition));
+                            }
+                            promptsOfTheMCPServers[mcpServer.UrlNamespace] = prompts;
+                        }
                     }
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
                     // The maintenance-route which reports the initialization-state asks this service, so it has to
@@ -230,7 +243,8 @@ namespace GenericMCPServerBackend.Core
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IInitializationService>(serviceProvider => serviceProvider.GetRequiredService<IInitializationService<CommandlineParameter>>());
 
                     // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
-                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools.
+                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools, the resources
+                    // and the prompts.
                     functionalInformation.WebApplicationBuilder.Services.AddMcpServer()
                         .WithHttpTransport(options =>
                         {
@@ -246,6 +260,7 @@ namespace GenericMCPServerBackend.Core
                                 MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
                                 serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
                                 serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
+                                serverOptions.PromptCollection = mcpServer != null && promptsOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerPrimitiveCollection<McpServerPrompt> prompts) ? prompts : null;
                                 return Task.CompletedTask;
                             };
                         });

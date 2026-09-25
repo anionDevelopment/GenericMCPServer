@@ -14,10 +14,11 @@ namespace GenericMCPServerBackend.Core.Services
     /// <summary>
     /// Implements the business-logic of this codeunit.
     ///
-    /// This class contains no tool and no resource: which of them the server offers is decided entirely by the
-    /// tool-definitions-file an administrator points the server to. That file names, for every tool, its type, what
+    /// This class contains no tool, no resource and no prompt: which of them the server offers is decided entirely by
+    /// the tool-definitions-file an administrator points the server to. That file names, for every tool, its type, what
     /// implements it and the parameters it takes, respectively, for every resource, the uri it is read by and what
-    /// implements it - so a new one needs a new entry there and no change of this codeunit.
+    /// implements it, respectively, for every prompt, its name, the arguments it takes and what implements it - so a
+    /// new one needs a new entry there and no change of this codeunit.
     ///
     /// The values of the parameters are provided by the client and are therefore untrusted. They are handed over to
     /// the script in a way in which they can not be interpreted as anything but one argument each (see
@@ -120,12 +121,12 @@ namespace GenericMCPServerBackend.Core.Services
 
         /// <summary>
         /// Everything which the given mcp-server declares as something the server runs. A credential is assigned to a
-        /// tool and to a resource in the same way, so both of them have to be known where the assigned credentials are
-        /// collected.
+        /// tool, to a resource and to a prompt in the same way, so every one of them has to be known where the assigned
+        /// credentials are collected.
         /// </summary>
         private static IEnumerable<CallableDefinition> GetCallables(MCPServerDefinition mcpServer)
         {
-            return mcpServer.Tools.Cast<CallableDefinition>().Concat(mcpServer.Resources);
+            return mcpServer.Tools.Cast<CallableDefinition>().Concat(mcpServer.Resources).Concat(mcpServer.Prompts);
         }
 
         public string RemoveCredentialValuesFrom(string text)
@@ -305,6 +306,29 @@ namespace GenericMCPServerBackend.Core.Services
             return this.RunScript(definition, type, new Dictionary<string, string>() { { ResourceDefinition.UriParameterName, definition.Uri } });
         }
 
+        /// <summary>
+        /// Builds the prompt of the given mcp-server with the given arguments.
+        ///
+        /// A prompt is run exactly like a tool - the values of its arguments come from the client and are handed to the
+        /// script in the same way - and what the script writes is the text of the prompt.
+        /// </summary>
+        /// <exception cref="KeyNotFoundException">Thrown when no prompt with that name is declared.</exception>
+        /// <exception cref="FileNotFoundException">Thrown when the script of the prompt does not exist.</exception>
+        /// <exception cref="PlatformNotSupportedException">Thrown when the prompt can not be built on this system.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the prompt could not be built. The message contains what was reported.</exception>
+        public string GetPrompt(string urlNamespace, string promptName, IReadOnlyDictionary<string, string> arguments)
+        {
+            MCPServerDefinition mcpServer = this.GetMCPServer(urlNamespace);
+            PromptDefinition definition = mcpServer.Prompts.FirstOrDefault(prompt => prompt.PromptName == promptName);
+            if (definition == null)
+            {
+                throw new KeyNotFoundException($"The mcp-server \"{urlNamespace}\" declares no prompt with the name \"{promptName}\".");
+            }
+            // A prompt is never of the type "web-request" (see ToolDefinitionsReader), so it always runs a script.
+            ToolTypes.TryParse(definition.Type, out ToolType type);
+            return this.RunScript(definition, type, arguments);
+        }
+
         /// <exception cref="KeyNotFoundException">Thrown when no mcp-server with that url-namespace is declared.</exception>
         private MCPServerDefinition GetMCPServer(string urlNamespace)
         {
@@ -317,7 +341,7 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// Runs the script of the given tool respectively of the given resource.
+        /// Runs the script of the given tool, of the given resource respectively of the given prompt.
         ///
         /// The arguments are handed over without any escaping, and that is deliberate: no shell is involved at all
         /// (see <see cref="ProcessExecutor"/>) and every argument is added as its own entry of

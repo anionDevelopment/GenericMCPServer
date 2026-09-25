@@ -2,17 +2,17 @@
 
 GenericMCPServerBackend is the backend for GenericMCPServer. It hosts MCP-servers which are reachable over HTTP.
 
-It brings **no tool and no resource of its own**. Which mcp-servers exist, which tools and resources they offer and
-who may use them is decided entirely by an administrator, who declares it in a tool-definitions-file. Without such a
-file the server starts and offers nothing.
+It brings **no tool, no resource and no prompt of its own**. Which mcp-servers exist, which tools, resources and
+prompts they offer and who may use them is decided entirely by an administrator, who declares it in a
+tool-definitions-file. Without such a file the server starts and offers nothing.
 
 ## How it is built
 
 The MCP-protocol itself is not implemented in this codeunit. It is implemented by the MCP-SDK of Microsoft (the
 packages `ModelContextProtocol`, `ModelContextProtocol.AspNetCore` and `ModelContextProtocol.Core`), which is
-registered as a service and whose endpoints are mapped in `Program.cs`. Because the tools and the resources are not
-known at compile-time, they can not be methods which carry an attribute: one `ScriptTool` respectively one
-`ScriptResource` is created per declaration.
+registered as a service and whose endpoints are mapped in `Program.cs`. Because the tools, the resources and the
+prompts are not known at compile-time, they can not be methods which carry an attribute: one `ScriptTool`, one
+`ScriptResource` respectively one `ScriptPrompt` is created per declaration.
 
 They are not registered once for the whole process either. Which of them exist is decided per request by the
 mcp-server the route of that request belongs to - that is what makes several mcp-servers in one process possible:
@@ -27,6 +27,7 @@ services.AddMcpServer()
             MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
             serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
             serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
+            serverOptions.PromptCollection = mcpServer != null && promptsOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerPrimitiveCollection<McpServerPrompt> prompts) ? prompts : null;
             return Task.CompletedTask;
         };
     });
@@ -38,7 +39,8 @@ foreach (MCPServerDefinition mcpServer in businessLogicService.GetMCPServers())
 ```
 
 An mcp-server which declares no resource gets no collection at all and therefore does not claim the
-resources-capability of the protocol, so a client of it never asks for a list which is empty by definition.
+resources-capability of the protocol, and one which declares no prompt does not claim the prompts-capability, so a
+client of it never asks for a list which is empty by definition.
 
 The transport runs in the stateless mode, so no session-id has to be kept by the client.
 
@@ -50,8 +52,9 @@ Every declared mcp-server has one endpoint of its own, over which all messages o
 POST /<url-namespace>
 ```
 
-A client of one mcp-server can neither see nor reach the tools and resources of another one. The same tool-name and
-the same resource-uri may therefore exist in two mcp-servers without becoming ambiguous.
+A client of one mcp-server can neither see nor reach the tools, resources and prompts of another one. The same
+tool-name, the same resource-uri and the same prompt-name may therefore exist in two mcp-servers without becoming
+ambiguous.
 
 ## How an mcp-server is declared
 
@@ -87,11 +90,12 @@ value there afterwards. Without a file at the resolved location the server simpl
 | `anonymous` | Optional, `false` by default. `true` makes the mcp-server usable without an access-token; it then needs no `authorized-roles`. |
 | `tools` | The tools of this mcp-server. |
 | `resources` | The resources of this mcp-server. |
+| `prompts` | The prompts of this mcp-server. |
 
 An mcp-server which is not anonymous and states no role could be used by nobody, which is a mistake in the declaration
-and makes the server fail while starting. The same holds for a url-namespace which is declared twice, for a tool-name
-or a resource-uri which is declared twice within one mcp-server, for a tool or a resource without a type and for
-invalid json. A file which is configured but does not exist is an error as well - only *no* configured file means
+and makes the server fail while starting. The same holds for a url-namespace which is declared twice, for a tool-name,
+a resource-uri or a prompt-name which is declared twice within one mcp-server, for a tool, a resource or a prompt
+without a type and for invalid json. A file which is configured but does not exist is an error as well - only *no* configured file means
 "nothing is offered".
 
 ## How a tool is declared
@@ -307,6 +311,76 @@ What a resource does **not** offer:
   mistake and makes the server fail while starting, instead of offering something which nothing answers.
 - **No binary content.** What a script writes is handed over as text.
 
+## How a prompt is declared
+
+A prompt is a text which a client asks for by its name and hands to the model behind it - an instruction, a
+question, a checklist. It is declared in the `prompts` of the mcp-server it belongs to and is implemented like a
+tool, by a python-script or a shell-script which writes that text.
+
+The difference to a tool is what a client does with the answer: it hands it to its model instead of reading it as the
+result of something which was done. A prompt therefore takes the values of its arguments from the client, exactly
+like a tool takes the values of its parameters.
+
+| Field | Meaning |
+| ----- | ------- |
+| `prompt-name` | The name under which the prompt is offered. It is what a client asks for, so it identifies the prompt within its mcp-server. It may consist of letters, digits, underscores and hyphens. |
+| `type` | What implements the prompt: `python` or `shell`, declared exactly like the type of a tool. |
+| `description` | What the prompt is for. A client shows this to whoever chooses a prompt, so it should describe what the text asks for. |
+| `calls` | The script which writes the text of the prompt, resolved like the script of a tool. |
+| `parameters` | Optional. The names of the arguments of the prompt. Each of them is passed to the script as `--<name>=<value>`, exactly like the parameter of a tool, and each of them is offered to the client as a required one. |
+| `requirements` | Optional, only for `python`: the packages the script needs. |
+| `credentials` | Optional, only for `python`: the accesses which are needed. See [Credentials](#credentials). |
+
+```json
+{
+    "mcp-servers": [
+        {
+            "url-namespace": "Security",
+            "authorized-roles": [ "security" ],
+            "prompts": [
+                {
+                    "prompt-name": "review_a_finding",
+                    "type": "python",
+                    "calls": "BuildReviewPrompt.py",
+                    "description": "Asks for a review of a security-finding in a stated component.",
+                    "parameters": [ "component" ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+The script writes the text of the prompt to its standard-output, and it receives the values of the declared arguments
+in the same way in which a tool receives its values (one token per value, no shell involved):
+
+```python
+parser = argparse.ArgumentParser()
+parser.add_argument('--component', required=True)
+arguments = parser.parse_args()
+sys.stdout.write('Review the finding in ' + arguments.component + ' and state whether it is reachable.')
+```
+
+What the script wrote becomes one message of the role `user` of the answer of `prompts/get`, together with the
+declared description. A prompt of this server is a text and not a conversation of several turns: a declaration states
+what is asked, and what an assistant answered is not part of it.
+
+A prompt of the type `python` runs in a virtual environment of its own, exactly like a python-tool. The name of that
+environment carries the kind of the declaration (`prompt.<prompt-name>`), so a prompt and a tool of the same name do
+not end up in the same folder.
+
+What a prompt does **not** offer:
+
+- **No type `web-request`.** Such a declaration takes the address it requests either from the client (a tool, whose
+  parameter `url` states it) or from its own uri (a resource, whose uri is it), and a prompt has neither: its
+  arguments are the values which are filled into its text. A prompt which states that type is a mistake and makes the
+  server fail while starting, instead of behaving like one of the two without saying which.
+- **No optional argument and no description per argument.** Every declared argument is offered as a required one,
+  exactly like the parameter of a tool.
+- **No autocompletion of an argument.** A client is not offered the possible values of an argument; it states them.
+- **No notification when the list changed.** The declaration is read once, while the server starts, so a new prompt
+  needs a restart of the server and not a notification to the clients.
+
 ## Access-tokens, clients and roles
 
 Who may use an mcp-server is decided by three things which are deliberately kept apart:
@@ -426,7 +500,9 @@ A tool of the type `web-request` uses its accesses in its headers, where `${<nam
 }
 ```
 
-A tool of the type `shell` receives no credentials.
+A tool of the type `shell` receives no credentials. A resource and a prompt are assigned their accesses in exactly the
+same way and with the same rules, because a credential belongs to the declaration and not to what a client does with
+the answer.
 
 ### How the value reaches the container
 
@@ -483,7 +559,7 @@ located inside the folder of the tool-definitions-file, so that a mistake there 
 **What a declared tool does is the responsibility of the administrator who declared it** - see the
 [ReadMe of the image](../../../../GenericMCPServer/ReadMe.md).
 
-## What a failed tool-call and a failed read look like
+## What a failed tool-call, a failed read and a failed prompt look like
 
 A tool-call which did not work - a script which ended with an exit-code which is not 0, a script which ran into the
 timeout of 60 seconds, an address which no rule allows, a virtual environment which could not be built - is answered in
@@ -496,12 +572,13 @@ two ways at once:
 
 The body of such an answer is the normal answer of the protocol; only its status-code differs.
 
-A **read of a resource** which did not work is answered differently, namely as an error of the protocol (a
-json-rpc-error with the message of the failure) and with the status-code of a normal answer. A result of the protocol
-which carries an error-flag does not exist for a read: a client which asked for a document must not receive the reason
-of a failure as if it were the content of that document, and an error of the protocol is unmistakable on its own,
-while a failed tool-call is a successful answer of the protocol and needs the status-code to be visible as a failure.
-The values of the credentials are removed from that message as well.
+A **read of a resource** and a **prompt which could not be built** are answered differently, namely as an error of
+the protocol (a json-rpc-error with the message of the failure) and with the status-code of a normal answer. A result
+of the protocol which carries an error-flag does not exist for either of them: a client which asked for a document or
+for a text must not receive the reason of a failure as if it were the content of that document respectively that text,
+and an error of the protocol is unmistakable on its own, while a failed tool-call is a successful answer of the
+protocol and needs the status-code to be visible as a failure. The values of the credentials are removed from those
+messages as well.
 
 ## Example
 
@@ -593,14 +670,35 @@ A read which did not work answers with an error instead of a result:
 data: {"error":{"code":-32603,"message":"The resource \"incident_response_handbook\" failed (exit-code 1): the document does not exist"},"id":6,"jsonrpc":"2.0"}
 ```
 
-Every script can also be called on its own, which is the fastest way to check what a tool or a resource answers:
+Which **prompts** an mcp-server offers, and asking for one of them by its name:
+
+```
+curl -X POST http://127.0.0.1:8080/Security -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"prompts/list\"}"
+curl -X POST http://127.0.0.1:8080/Security -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"prompts/get\",\"params\":{\"name\":\"review_a_finding\",\"arguments\":{\"component\":\"the login-service\"}}}"
+```
+
+The answer contains the text which the script wrote, as one message of the role `user`:
+
+```
+data: {"result":{"description":"Asks for a review of a security-finding in a stated component.","messages":[{"role":"user","content":{"type":"text","text":"Review the finding in the login-service and state whether it is reachable."}}]},"id":8,"jsonrpc":"2.0"}
+```
+
+A prompt which could not be built answers with an error instead of a result, exactly like a failed read:
+
+```
+data: {"error":{"code":-32603,"message":"The prompt \"review_a_finding\" failed (exit-code 1): the component is unknown"},"id":8,"jsonrpc":"2.0"}
+```
+
+Every script can also be called on its own, which is the fastest way to check what a tool, a resource or a prompt
+answers:
 
 ```
 python GetCVEDetails.py --cve-identifier=CVE-2021-44228
 python ReadHandbook.py --uri=handbook://security/incident-response
+python BuildReviewPrompt.py --component="the login-service"
 ```
 
-## How to add a tool or a resource
+## How to add a tool, a resource or a prompt
 
 Put the tool into the `tools` of the mcp-server it belongs to. For a tool with a script: put the script into the folder
 of the tool-definitions-file, let it check every argument against the format it must have, and state its type and its
@@ -610,6 +708,10 @@ be changed and nothing has to be recompiled - the server picks the tool up when 
 Put a resource into the `resources` of that mcp-server, with the uri it is read by, its name, its type and the
 `mime-type` of its content. A script of a resource takes no argument of the client but receives the uri it was read
 for, so it has to accept `--uri`.
+
+Put a prompt into the `prompts` of that mcp-server, with its name, its type, its description and the arguments it
+takes. A script of a prompt receives those arguments like a tool does and writes the text of the prompt; a prompt is
+never of the type `web-request`.
 
 To add a whole mcp-server, add an entry to `mcp-servers` with its `url-namespace` and either its `authorized-roles` or
 `"anonymous": true`.

@@ -4,12 +4,12 @@ using System.IO;
 namespace GenericMCPServerBackend.Tests.TestUtilities
 {
     /// <summary>
-    /// Creates the example-data this product needs to do anything: a tool and a resource.
+    /// Creates the example-data this product needs to do anything: a tool, a resource and a prompt.
     ///
-    /// The product itself contains neither of them - which tools and which resources exist is declared by an
-    /// administrator - so a test which wants to call or read one has to bring that declaration along. This class
-    /// writes a folder which contains the scripts and the tool-definitions-file which turns them into a tool and a
-    /// resource, exactly as an administrator would.
+    /// The product itself contains none of them - which tools, which resources and which prompts exist is declared by
+    /// an administrator - so a test which wants to call, read or ask for one has to bring that declaration along. This
+    /// class writes a folder which contains the scripts and the tool-definitions-file which turns them into a tool, a
+    /// resource and a prompt, exactly as an administrator would.
     /// </summary>
     /// <remarks>
     /// It deliberately lives in the test-project and not in the codeunit itself. The name of a tool in the sourcecode
@@ -45,6 +45,18 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// failure the server reports with a readable reason.
         /// </summary>
         public const string ExampleResourceScriptFileName = "ExampleResource.py";
+
+        /// <summary>The name of the prompt which this creator declares. A prompt is asked for by exactly this name.</summary>
+        public const string ExamplePromptName = "example_prompt";
+
+        /// <summary>The name of the argument of that prompt, which is filled into its text.</summary>
+        public const string ExamplePromptArgumentName = "topic";
+
+        /// <summary>
+        /// The script which implements that prompt. A testcase which wants a prompt to fail removes it, which is a
+        /// failure the server reports with a readable reason.
+        /// </summary>
+        public const string ExamplePromptScriptFileName = "ExamplePrompt.py";
 
         /// <summary>The mcp-server which only a client with an access-token reaches.</summary>
         public const string UrlNamespace = "Example";
@@ -91,6 +103,19 @@ arguments = parser.parse_args()
 sys.stdout.write('the content of ' + arguments.uri)
 ";
 
+        /// <summary>
+        /// A script which writes the text of a prompt, with the value of the argument it got filled into it. A prompt
+        /// is run like a tool, so it receives its arguments in the same way.
+        /// </summary>
+        private const string PromptScriptContent = @"import argparse
+import sys
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--topic', required=True)
+arguments = parser.parse_args()
+sys.stdout.write('Explain ' + arguments.topic + ' to a beginner.')
+";
+
         /// <summary>The folder which contains the declaration and the script it points to.</summary>
         public string Folder { get; }
 
@@ -122,6 +147,7 @@ sys.stdout.write('the content of ' + arguments.uri)
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExampleResourceScriptFileName), ResourceScriptContent);
+            File.WriteAllText(Path.Combine(this.Folder, ExamplePromptScriptFileName), PromptScriptContent);
             this.ToolDefinitionsFile = Path.Combine(this.Folder, "Tools.json");
             File.WriteAllText(this.ToolDefinitionsFile, @"{
     ""mcp-servers"": [
@@ -145,6 +171,15 @@ sys.stdout.write('the content of ' + arguments.uri)
                     ""calls"": """ + ExampleResourceScriptFileName + @""",
                     ""description"": ""The handbook of the team."",
                     ""mime-type"": """ + ExampleResourceMimeType + @"""
+                }
+            ],
+            ""prompts"": [
+                {
+                    ""prompt-name"": """ + ExamplePromptName + @""",
+                    ""type"": ""python"",
+                    ""calls"": """ + ExamplePromptScriptFileName + @""",
+                    ""description"": ""Asks for an explanation of a topic."",
+                    ""parameters"": [ """ + ExamplePromptArgumentName + @""" ]
                 }
             ]
         },
@@ -177,9 +212,10 @@ sys.stdout.write('the content of ' + arguments.uri)
             else
             {
                 // A root this instance does not own may hold other content (for example the rest of a server's configuration-folder) which must survive
-                // this instance being disposed, so only the two files this instance actually wrote are removed, never the whole root.
+                // this instance being disposed, so only the files this instance actually wrote are removed, never the whole root.
                 File.Delete(Path.Combine(this.Folder, "ExampleTool.py"));
                 File.Delete(Path.Combine(this.Folder, ExampleResourceScriptFileName));
+                File.Delete(Path.Combine(this.Folder, ExamplePromptScriptFileName));
                 File.Delete(this.ToolDefinitionsFile);
             }
         }

@@ -5,8 +5,8 @@ details of each part are documented. The reference of a single codeunit is locat
 
 ## What the product does
 
-GenericMCPServer hosts MCP-servers which are reachable over HTTP. It offers exactly the tools which an administrator
-declares and brings no tool of its own along - that is what "generic" means here.
+GenericMCPServer hosts MCP-servers which are reachable over HTTP. It offers exactly the tools, resources and prompts
+which an administrator declares and brings none of them of its own along - that is what "generic" means here.
 
 A declaration names an mcp-server, the tools it offers, what implements each of them and who may use it. A client
 therefore sees tools like `get_cve_details`, although nothing in the sourcecode knows that name. Adding a tool means
@@ -25,17 +25,18 @@ one entry in a file (and, depending on its type, a script); it means no change o
 | Clients with several access-tokens | An administrator creates clients and roles over the api; a client creates its own access-tokens with the token it received. A client can hold several valid ones at the same time, every token ends at a stated point in time, and only the hash is stored. |
 | Roles | A client is in none, one or several roles; an mcp-server declares which roles may use it. Who is in a role and what a role may do are two decisions in two files. |
 | Anonymous mcp-servers | An mcp-server can be declared as one which everybody may use; it then needs no token, while the others of the same process stay behind theirs. |
-| Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a request which may not reach an mcp-server is answered with 401. |
+| Resources and prompts are declared like tools | Next to its tools an mcp-server offers `resources` (content which a client reads by a uri, which takes no parameter and whose script receives that uri) and `prompts` (a text which a client asks for by its name and hands to its model, whose script receives the declared arguments like a tool). Both are declared in the same file and implemented in the same ways as a tool, except that a prompt is never a `web-request`. |
+| Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a read of a resource and a prompt which did not work are answered as an error of the protocol with the message of the failure; a request which may not reach an mcp-server is answered with 401. |
 
 ## Parts of the product
 
 | Codeunit | Content |
 | -------- | ------- |
-| [GenericMCPServerBackend](../../GenericMCPServerBackend/ReadMe.md) | The server itself: it reads the declarations, offers them as mcp-servers with their tools and runs what is behind them. |
+| [GenericMCPServerBackend](../../GenericMCPServerBackend/ReadMe.md) | The server itself: it reads the declarations, offers them as mcp-servers with their tools, resources and prompts and runs what is behind them. |
 | [GenericMCPServer](../../GenericMCPServer/ReadMe.md) | The container-image which packages the backend together with a python-interpreter, because a declared tool is usually a python-script. |
 
 The MCP-protocol itself is not implemented here. It is implemented by the MCP-SDK of Microsoft; the backend provides
-one tool-object per declaration and one endpoint per mcp-server.
+one object per declaration - a tool, a resource respectively a prompt - and one endpoint per mcp-server.
 
 ## What has to be provided to run it
 
@@ -75,6 +76,10 @@ A tool-call which did not work is answered in two ways at once: as a result of t
 of the failure (so that the model learns what was wrong), and with the http-status-code 502 for the whole answer,
 because the failure comes from the program behind the server and the server is the gateway to it.
 
+A read of a resource and a prompt which did not work are answered as an error of the protocol instead, with the
+status-code of a normal answer: a client which asked for a document or for a text must not receive the reason of a
+failure as if it were that document respectively that text.
+
 ## Why a declared tool can be trusted with untrusted values
 
 The values of the parameters come from the client, so they are untrusted. The product does not try to make them
@@ -107,9 +112,9 @@ three mcp-servers and mounts them into the container; `GeneralTools` is anonymou
 
 | Question | Document |
 | -------- | -------- |
-| How is an mcp-server declared, how is a tool declared, who may use it and how is it tested without a client? | [Reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md) |
+| How is an mcp-server declared, how is a tool, a resource or a prompt declared, who may use it and how is it tested without a client? | [Reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md) |
 | What is needed to work on the backend and to start it during development? | [Hints of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/Hints.md) |
-| What is the responsibility of an administrator who declares a tool? | [ReadMe of the image](../../GenericMCPServer/ReadMe.md) |
+| What is the responsibility of an administrator who declares a tool, a resource or a prompt? | [ReadMe of the image](../../GenericMCPServer/ReadMe.md) |
 | Which mcp-servers and tools does the example declare and how is it started? | [Example](../../GenericMCPServer/Other/Examples/MinimalDockerComposeFile) |
 | Which versions of the product are supported? | [InformationAboutSupportedVersions.csv](../Resources/Support/InformationAboutSupportedVersions.csv) |
 | What changed in a version? | [Changelog](../Resources/Changelog) |

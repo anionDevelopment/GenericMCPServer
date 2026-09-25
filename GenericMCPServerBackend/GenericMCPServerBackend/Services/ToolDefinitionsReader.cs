@@ -87,8 +87,8 @@ namespace GenericMCPServerBackend.Core.Services
 
         /// <summary>
         /// Checks one mcp-server: its namespace decides its address, so it has to be usable as a part of an url, and
-        /// its tools and resources have to be unambiguous within it. Two mcp-servers may use the same tool-name or the
-        /// same uri, because a client of one of them never sees the other one.
+        /// its tools, resources and prompts have to be unambiguous within it. Two mcp-servers may use the same
+        /// tool-name, the same uri or the same prompt-name, because a client of one of them never sees the other one.
         /// </summary>
         private static void Validate(MCPServerDefinition mcpServer, string file)
         {
@@ -102,6 +102,7 @@ namespace GenericMCPServerBackend.Core.Services
             }
             mcpServer.Tools ??= new List<ToolDefinition>();
             mcpServer.Resources ??= new List<ResourceDefinition>();
+            mcpServer.Prompts ??= new List<PromptDefinition>();
             mcpServer.AuthorizedRoles ??= new List<string>();
             foreach (string role in mcpServer.AuthorizedRoles)
             {
@@ -136,6 +137,15 @@ namespace GenericMCPServerBackend.Core.Services
             if (duplicatedUri != null)
             {
                 throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" declares the uri \"{duplicatedUri}\" more than once, so it would not be decidable which resource is meant by it.");
+            }
+            foreach (PromptDefinition definition in mcpServer.Prompts)
+            {
+                Validate(definition, file);
+            }
+            string duplicatedPrompt = mcpServer.Prompts.GroupBy(definition => definition.PromptName).Where(group => 1 < group.Count()).Select(group => group.Key).FirstOrDefault();
+            if (duplicatedPrompt != null)
+            {
+                throw new InvalidOperationException($"The mcp-server \"{mcpServer.UrlNamespace}\" in \"{file}\" declares the prompt \"{duplicatedPrompt}\" more than once.");
             }
         }
 
@@ -223,6 +233,45 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
+        /// Checks one prompt. It is declared like a tool: a client asks for it by its name and states the values of
+        /// the arguments the declaration names, and what the script writes is the text of the prompt.
+        /// </summary>
+        private static void Validate(PromptDefinition definition, string file)
+        {
+            if (string.IsNullOrWhiteSpace(definition.PromptName))
+            {
+                throw new InvalidOperationException($"The tool-definitions-file \"{file}\" contains a prompt without a name.");
+            }
+            if (!NameRegex.IsMatch(definition.PromptName))
+            {
+                throw new InvalidOperationException($"The name \"{definition.PromptName}\" in \"{file}\" is not a usable prompt-name. A prompt-name may consist of letters, digits, underscores and hyphens.");
+            }
+            ToolType type = ReadType(definition, file);
+            switch (type)
+            {
+                case ToolType.Python:
+                    ValidateScript(definition, file);
+                    ValidateParameters(definition, file);
+                    ValidateRequirements(definition, file);
+                    ValidateCredentials(definition, file);
+                    break;
+                case ToolType.Shell:
+                    ValidateScript(definition, file);
+                    ValidateParameters(definition, file);
+                    RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
+                    RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    break;
+                case ToolType.WebRequest:
+                    // A declaration of that type requests an address, and that address comes either from the client
+                    // (a tool, whose parameter "url" states it) or from the declaration itself (a resource, whose uri
+                    // is it). A prompt has neither: its arguments are the values which are filled into its text, and
+                    // it has no uri. Offering the type anyway would mean inventing one of those two for a prompt, so
+                    // it is rejected here instead of behaving like one of them without saying which.
+                    throw new InvalidOperationException($"The prompt \"{definition.PromptName}\" in \"{file}\" states the type \"{ToolTypes.WebRequest}\", which does not belong to a prompt: the arguments of a prompt are the values which are filled into its text, so there is no address which a client could ask for. A prompt is of the type \"{ToolTypes.Python}\" or \"{ToolTypes.Shell}\".");
+            }
+        }
+
+        /// <summary>
         /// Checks the uri of a resource: it is what a client reads the resource by, so it has to be one which a client
         /// can send.
         /// </summary>
@@ -280,13 +329,17 @@ namespace GenericMCPServerBackend.Core.Services
             RejectDeclaredValues(definition.Headers.Count, "headers", definition, file, $"only a declaration of the type \"{ToolTypes.WebRequest}\" sends headers");
         }
 
-        private static void ValidateParameters(ToolDefinition definition, string file)
+        /// <summary>
+        /// Checks the parameters of a declaration which takes values of the client: a tool, which is called with them,
+        /// and a prompt, whose text they are filled into.
+        /// </summary>
+        private static void ValidateParameters(CallableDefinition definition, string file)
         {
             foreach (string parameter in definition.Parameters)
             {
                 if (string.IsNullOrWhiteSpace(parameter))
                 {
-                    throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" has a parameter without a name.");
+                    throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" has a parameter without a name.");
                 }
             }
         }

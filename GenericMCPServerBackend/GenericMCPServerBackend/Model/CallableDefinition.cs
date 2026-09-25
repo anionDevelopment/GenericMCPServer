@@ -4,18 +4,18 @@ using System.Text.Json.Serialization;
 namespace GenericMCPServerBackend.Core.Model
 {
     /// <summary>
-    /// What an administrator declares for something which the server runs: a tool (<see cref="ToolDefinition"/>) or a
-    /// resource (<see cref="ResourceDefinition"/>).
+    /// What an administrator declares for something which the server runs: a tool (<see cref="ToolDefinition"/>), a
+    /// resource (<see cref="ResourceDefinition"/>) or a prompt (<see cref="PromptDefinition"/>).
     ///
-    /// Both are run in exactly the same way - a python-script, a shell-script or a web-request - and only what a
-    /// client does with the answer differs. Everything which describes that run therefore lives here and not twice:
-    /// a change of the mechanism (a further type, another way of handing over a credential) has to apply to both of
-    /// them, and a mechanism which existed twice could apply to one of them and not to the other.
+    /// All of them are run in exactly the same way - a python-script, a shell-script or a web-request - and only what a
+    /// client does with the answer differs. Everything which describes that run therefore lives here and not several
+    /// times: a change of the mechanism (a further type, another way of handing over a credential) has to apply to
+    /// every one of them, and a mechanism which existed more than once could apply to one of them and not to another.
     /// </summary>
     public abstract class CallableDefinition
     {
         /// <summary>
-        /// What this declaration is, in the wording of a message to an administrator ("tool" or "resource"). A message
+        /// What this declaration is, in the wording of a message to an administrator ("tool", "resource" or "prompt"). A message
         /// about a mistake in a declaration states what was declared, because an administrator looks for it in the
         /// file under exactly that word.
         /// </summary>
@@ -73,7 +73,8 @@ namespace GenericMCPServerBackend.Core.Model
         /// name here has to be the name of an option the script accepts.
         ///
         /// A tool of the type <see cref="ToolType.WebRequest"/> and a resource declare no parameters: each of them
-        /// takes exactly the one parameter which its mechanism defines.
+        /// takes exactly the one parameter which its mechanism defines. A prompt declares the arguments which are
+        /// filled into its text.
         /// </summary>
         [JsonPropertyName("parameters")]
         public IList<string> Parameters { get; set; } = new List<string>();

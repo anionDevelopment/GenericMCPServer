@@ -85,16 +85,7 @@ namespace GenericMCPServerBackend.Core.Misc
         {
             try
             {
-                Dictionary<string, string> arguments = new Dictionary<string, string>();
-                if (request.Params?.Arguments != null)
-                {
-                    foreach (KeyValuePair<string, JsonElement> argument in request.Params.Arguments)
-                    {
-                        // A value which is not a json-string is passed on in its json-form, so that a client which
-                        // sends a number does not get an error about a missing argument.
-                        arguments[argument.Key] = argument.Value.ValueKind == JsonValueKind.String ? argument.Value.GetString() : argument.Value.GetRawText();
-                    }
-                }
+                Dictionary<string, string> arguments = CallArguments.Read(request.Params?.Arguments);
                 string output = this._BusinessLogicService.RunTool(this._UrlNamespace, this._Definition.ToolName, arguments);
                 return new ValueTask<CallToolResult>(CreateResult(output, false));
             }
