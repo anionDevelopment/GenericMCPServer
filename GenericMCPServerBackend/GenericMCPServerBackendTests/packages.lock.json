@@ -16,7 +16,7 @@
       },
       "Microsoft.IdentityModel.Tokens": {
         "type": "Direct",
-        "requested": "[8.16.0, )",
+        "requested": "[8.16.0, 8.16.0]",
         "resolved": "8.16.0",
         "contentHash": "rtViGJcGsN7WcfUNErwNeQgjuU5cJNl6FDQsfi9TncwO+Epzn0FTfBsg3YuFW1Q0Ch/KPxaVdjLw3/+5Z5ceFQ==",
         "dependencies": {
@@ -74,7 +74,7 @@
       },
       "Swashbuckle.AspNetCore.SwaggerGen": {
         "type": "Direct",
-        "requested": "[10.2.3, )",
+        "requested": "[10.2.3, 10.2.3]",
         "resolved": "10.2.3",
         "contentHash": "y7t4coDRAeFYChmvlMRiH2OjbiRrm9AVIDgt17fQfs3x9PVAI5PiwWYOhg+4F13R4Q36WDc9lqfoOnNa3tNbGg==",
         "dependencies": {
@@ -83,7 +83,7 @@
       },
       "Swashbuckle.AspNetCore.SwaggerUI": {
         "type": "Direct",
-        "requested": "[10.2.3, )",
+        "requested": "[10.2.3, 10.2.3]",
         "resolved": "10.2.3",
         "contentHash": "nthWONRs/FJ4yyG206g1cC52WEG8EqrjuMWjGdR+5XG7lbjFto6NqcI9EMICgVFom/UivIjUVwI76ZHbHwTPfQ=="
       },
@@ -586,15 +586,15 @@
           "GRYLibrary": "[2.1.1, 2.1.1]",
           "Microsoft.AspNetCore.Http": "[2.3.9, 2.3.9]",
           "Microsoft.EntityFrameworkCore.Abstractions": "[10.0.3, 10.0.3]",
-          "Microsoft.IdentityModel.Tokens": "[8.16.0, )",
+          "Microsoft.IdentityModel.Tokens": "[8.16.0, 8.16.0]",
           "ModelContextProtocol": "[2.2.0, 2.2.0]",
           "ModelContextProtocol.AspNetCore": "[2.2.0, 2.2.0]",
           "ModelContextProtocol.Core": "[2.2.0, 2.2.0]",
           "NJsonSchema": "[11.5.2, 11.5.2]",
           "NSwag.AspNetCore": "[14.6.3, 14.6.3]",
           "Swashbuckle.AspNetCore": "[10.2.1, 10.2.1]",
-          "Swashbuckle.AspNetCore.SwaggerGen": "[10.2.3, )",
-          "Swashbuckle.AspNetCore.SwaggerUI": "[10.2.3, )",
+          "Swashbuckle.AspNetCore.SwaggerGen": "[10.2.3, 10.2.3]",
+          "Swashbuckle.AspNetCore.SwaggerUI": "[10.2.3, 10.2.3]",
           "System.Reactive": "[6.1.0, 6.1.0]",
           "prometheus-net.AspNetCore": "[8.2.1, 8.2.1]"
         }
