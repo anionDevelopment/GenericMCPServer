@@ -71,6 +71,72 @@ That access-token is sent to an mcp-server as `Authorization: Bearer <token>`.
 How a tool is declared is described in the
 [reference of the backend](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
 
+## Where Tools.json has to be
+
+Which file declares the mcp-servers and their tools is itself part of the persisted configuration of the server
+(`ToolDefinitionsFile`) and defaults to `./Tools.json`, resolved against the **configuration-folder** of the server -
+not the working directory the server happens to be started from:
+
+| Environment | Configuration-folder | Default location of `Tools.json` |
+| ----------- | --------------------- | --------------------------------- |
+| Local run (`dotnet run ...`) | `GenericMCPServerBackend/Other/Workspace/Configuration` | `GenericMCPServerBackend/Other/Workspace/Configuration/Tools.json` |
+| Container | `/Workspace/Configuration` | `/Workspace/Configuration/Tools.json` |
+
+Every script a tool `calls` has to lie in that same folder (the folder of `Tools.json`), because it is resolved
+relative to it - a declaration whose scripts lie somewhere else fails when the tool is called.
+
+An administrator edits `Tools.json` like any other text-file - locally on disk, or, for a container, through
+whatever volume the configuration-folder is mounted with (see the example `docker-compose.yml` under
+`GenericMCPServer/Other/Examples/MinimalDockerComposeFile`). Two things matter while doing so:
+
+- **The server reads it only once, at startup.** Unlike the csv-files of the clients, roles and access-tokens (which
+  are read for every request), a changed `Tools.json` needs a restart of the server to take effect.
+- **A file which is configured but does not exist is an error**, and so is a mistake in it (an mcp-server without a
+  url-namespace, a tool without a type, invalid json, ...) - both make the server fail while starting. Only *no*
+  configured file at all means "nothing is offered".
+
+## Protocol
+
+GenericMCPServerBackend implements the tools-primitive of the MCP-protocol - the `initialize`-handshake, `tools/list`
+and `tools/call` - through the official C#-SDK (`ModelContextProtocol`, pinned to version `2.2.0`); this product
+contributes no protocol-code of its own, only the tools.
+
+The transport is the current **Streamable HTTP** transport, run in its stateless mode: every request is answered on
+its own, no session-id has to be kept by the client, and no separate long-lived connection is opened first - unlike
+the older, meanwhile deprecated HTTP+SSE-transport of the protocol-revision `2024-11-05`. Which protocol-revision a
+client uses is negotiated with it during `initialize`; the pinned SDK-version understands the revisions `2024-11-05`,
+`2025-03-26`, `2025-06-18`, `2025-11-25` and `2026-07-28`.
+
+There is no `stdio`-transport: the server is reachable only over HTTP, never by starting it as a local process.
+
+## Not available yet
+
+GenericMCPServerBackend implements the tools-primitive of the MCP-protocol and nothing else. What a "usual"
+MCP-server can additionally offer, and which this product does not have (yet):
+
+| Primitive / mechanism | What is missing |
+| ---------------------- | ---------------- |
+| **Resources** | No `resources/list`, `resources/read` or subscriptions - the server offers tools only. |
+| **Prompts** | No `prompts/list` or `prompts/get`. |
+| **Sampling** | The server can not ask the client for a completion of its own. |
+| **Elicitation** | The server can not ask the client to collect structured input from its user. |
+| **Completions** | No autocompletion for the argument of a prompt or a resource. |
+| **Logging-notifications** | No `notifications/message` is sent to the client. |
+| **Roots** | A root the client offers is not used. |
+| **Structured tool-output** | Every tool answers with plain text; no `outputSchema` and no `structuredContent` of a `tools/call`-result is used. |
+| **Progress of a tool-call** | A `progressToken` a client sends with `tools/call` is not used; no `notifications/progress` is sent while a tool runs. |
+| **Cancellation of a tool-call** | A `notifications/cancelled` of the client does not stop the script or the web-request behind a running tool-call. |
+| **stdio-transport** | Only HTTP is offered; a client which needs a local process (for example a classic desktop-integration) can not use it. |
+| **OAuth 2.1** | The current MCP-specification recommends it for a remote HTTP-server; this product uses its own client/role/access-token-mechanism instead (see [Several clients, each with several access-tokens](#features)). |
+
+This list follows the capabilities the pinned SDK-version defines (`ServerCapabilities` and `ClientCapabilities` of
+`ModelContextProtocol.Core` 2.2.0: `Logging`, `Prompts`, `Resources`, `Tools`, `Completions` on the server-side,
+`Roots`, `Sampling`, `Elicitation` on the client-side) plus the mechanisms of the `Tools`-capability itself
+(structured output, progress, cancellation) and the transport- and auth-related points above. It does **not** cover
+the `Experimental`/`Extensions` dictionary of either side: the protocol deliberately leaves that open for
+custom, non-standardized capabilities a client could declare, so no finite list can state everything a client could
+possibly send there.
+
 ## Reference
 
 The reference of the repository as a whole can be found [here](./Other/Reference/ReadMe.md).
