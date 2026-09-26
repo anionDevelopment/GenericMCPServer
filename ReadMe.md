@@ -128,9 +128,11 @@ There is no `stdio`-transport: the server is reachable only over HTTP, never by 
 ## Not available yet
 
 GenericMCPServerBackend implements the tools-, the resources-, the prompts- and the completions-primitive of the
-MCP-protocol and nothing else. What a "usual" MCP-server can additionally offer, and which this product does not have (yet); an entry
-which is struck through is one which is not open anymore - either because it is implemented by now or because it is
-deliberately out of scope, which the entry itself states:
+MCP-protocol and nothing else. What a "usual" MCP-server can additionally offer, and which this product does not have
+(yet); an entry which is struck through is one which is not open as a next step anymore - either because it is
+implemented by now, or because it would need something which a declared script deliberately does not do (send something
+back to the server while it is still running), or because it is deliberately out of scope. Which of the three it is, the
+entry itself states, and an entry which states "**Implemented**" is the only kind which the product has:
 
 | Primitive / mechanism | What is missing | Notes / What is missing | Simple to add on top of today's tool-scripts?<br>(no new requirements on the script, no send-back to the backend, no mandatory extra parameter) |
 | ---------------------- | ---------------- | ---------------------------------------- | ---------------------------------------- |

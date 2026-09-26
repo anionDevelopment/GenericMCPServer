@@ -4,7 +4,7 @@
   <version>2.0.0</version>
   <codeunitownername>Marius Göcke</codeunitownername>
   <codeunitowneremailaddress>marius.goecke@gmail.com</codeunitowneremailaddress>
-  <properties codeunithastestablesourcecode="false" codeunithasupdatabledependencies="true" throwexceptionifcodeunitfilecannotbevalidated="false" developmentstate="Active development" description="GenericMCPServer is a simple MCP-server which is reachable over HTTP.">
+  <properties codeunithastestablesourcecode="false" codeunithasupdatabledependencies="true" throwexceptionifcodeunitfilecannotbevalidated="false" developmentstate="Active development" description="GenericMCPServer is the container-image which packages the backend which hosts the declared MCP-servers.">
     <pipelinedemands />
     <updatesettings>
       <ignoreddependencies />

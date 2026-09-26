@@ -1,7 +1,8 @@
 # Hints
 
-Hints for whoever works on this codeunit. What the product does, how an mcp-server with its tools is declared and who
-may use it is documented in the [reference](./index.md).
+Hints for whoever works on this codeunit. What the product does, how an mcp-server with its tools, its resources, its
+prompts and the values which their arguments can have is declared and who may use it is documented in the
+[reference](./index.md).
 
 ## Requirements
 
@@ -40,6 +41,6 @@ none of it.
 If a start was aborted, delete the folder `Other/Workspace`: it contains the configuration the server wrote, and an
 incomplete one makes every following start fail with an error which does not point at the actual cause.
 
-## Add an mcp-server or a tool
+## Add an mcp-server, a tool, a resource, a prompt or the values of one of its arguments
 
 See the [reference](./index.md).

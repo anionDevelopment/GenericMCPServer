@@ -264,6 +264,56 @@ content of the result next to the text of the answer. A tool which states no suc
   prompt and a completion writes one value per line, so none of them answers with something whose shape a client reads
   as data
 
+### Requirement: A tool-call which its client cancelled is stopped
+
+A client SHALL be able to stop a tool-call which is still running by cancelling the request it sent that call with. The
+server SHALL stop the program behind that call and SHALL NOT require anything of the declaration or of the script for
+it. Such a cancellation SHALL only be able to stop a call of the same mcp-server and of the same client.
+
+#### Scenario: A client cancels a call which is running
+
+- **WHEN** a client cancels the request of a tool-call which is still running
+- **THEN** the program behind that call is stopped - the script together with everything it started, respectively the
+  request which is waiting for a foreign service - and the call is answered with that reason
+
+#### Scenario: A declared tool is cancellable without stating anything for it
+
+- **WHEN** a tool is declared
+- **THEN** a call of it is cancellable without the declaration stating anything for it: the tool takes no additional
+  parameter, it sends nothing back and it does not even learn that it is cancellable
+
+#### Scenario: A cancellation names a call of another client or of another mcp-server
+
+- **WHEN** a cancellation states the id of a request which another client sent, or reaches another mcp-server than the
+  call it names
+- **THEN** nothing is stopped, because the id of a request is only unambiguous within the client which chose it, so
+  which mcp-server and which client are meant is taken from the request the cancellation arrived with and not from the
+  cancellation itself
+
+#### Scenario: A cancellation names a call which is not running
+
+- **WHEN** a cancellation names a call which is not running
+- **THEN** nothing is stopped and nothing fails, because a client cancels a call it has no answer for yet, so a
+  cancellation which arrives after the call ended is the normal case of one which arrives too late
+
+#### Scenario: A cancelled call is no failed call
+
+- **WHEN** a call was stopped because its client cancelled it
+- **THEN** it is answered with that reason and with the status-code of a normal answer and not with the 502 of a failed
+  tool-call, because the 502 states that the program behind this server failed and nothing failed here
+
+#### Scenario: A cancellation names something which is no tool-call
+
+- **WHEN** a cancellation names a request which was a read of a resource, a prompt or a completion
+- **THEN** nothing is stopped, because such a request is answered in one go and a cancellation names the id of a
+  request and not what that request was about
+
+#### Scenario: A call was stopped
+
+- **WHEN** a call was stopped because its client cancelled it
+- **THEN** that is written to the log of the server, because a cancellation is answered with nothing at all and would
+  otherwise leave no trace for the operator
+
 ### Requirement: The type of a tool is declared and not guessed
 
 Every declaration SHALL state the type of the tool, which is one of "python", "shell" and "web-request". The server

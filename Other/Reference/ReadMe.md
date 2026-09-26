@@ -26,19 +26,21 @@ one entry in a file (and, depending on its type, a script); it means no change o
 | Roles | A client is in none, one or several roles; an mcp-server declares which roles may use it. Who is in a role and what a role may do are two decisions in two files. |
 | Anonymous mcp-servers | An mcp-server can be declared as one which everybody may use; it then needs no token, while the others of the same process stay behind theirs. |
 | Resources and prompts are declared like tools | Next to its tools an mcp-server offers `resources` (content which a client reads by a uri, which takes no parameter and whose script receives that uri) and `prompts` (a text which a client asks for by its name and hands to its model, whose script receives the declared arguments like a tool). Both are declared in the same file and implemented in the same ways as a tool, except that a prompt is never a `web-request`. |
+| The values which an argument of a prompt can have | An argument of a prompt may declare what provides its possible values: a script which is told the argument and the value which was entered so far and writes one value per line. A client offers them while somebody fills in that argument. An mcp-server whose prompts declare none of them does not offer the completions of the protocol at all. |
 | Structured answers of a tool | A tool may declare the shape of its answer as an `output-schema`. That schema is offered to the client with the tool, and what the script wrote is handed over as the structured content of the result next to the text. An answer which is no json-document or does not fit the schema is a failed tool-call. |
 | A running tool-call can be cancelled | A `notifications/cancelled` of the client ends the script behind that call together with everything it started, respectively aborts its web-request. The call and the cancellation are two http-requests, which is why the running calls are kept in one registry of the process; the script needs no capability of its own for it. |
-| Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a read of a resource and a prompt which did not work are answered as an error of the protocol with the message of the failure; a request which may not reach an mcp-server is answered with 401. A call which its client cancelled carries the status-code of a normal answer, because nothing failed. |
+| Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a read of a resource, a prompt and a completion which did not work are answered as an error of the protocol with the message of the failure; a request which may not reach an mcp-server is answered with 401. A call which its client cancelled carries the status-code of a normal answer, because nothing failed. |
 
 ## Parts of the product
 
 | Codeunit | Content |
 | -------- | ------- |
-| [GenericMCPServerBackend](../../GenericMCPServerBackend/ReadMe.md) | The server itself: it reads the declarations, offers them as mcp-servers with their tools, resources and prompts and runs what is behind them. |
+| [GenericMCPServerBackend](../../GenericMCPServerBackend/ReadMe.md) | The server itself: it reads the declarations, offers them as mcp-servers with their tools, resources, prompts and completions and runs what is behind them. |
 | [GenericMCPServer](../../GenericMCPServer/ReadMe.md) | The container-image which packages the backend together with a python-interpreter, because a declared tool is usually a python-script. |
 
 The MCP-protocol itself is not implemented here. It is implemented by the MCP-SDK of Microsoft; the backend provides
-one object per declaration - a tool, a resource respectively a prompt - and one endpoint per mcp-server.
+one object per declaration - a tool, a resource respectively a prompt -, one handler for the possible values of the
+arguments of the prompts, one handler for a cancellation and one endpoint per mcp-server.
 
 ## What has to be provided to run it
 
@@ -117,9 +119,9 @@ three mcp-servers and mounts them into the container; `GeneralTools` is anonymou
 
 | Question | Document |
 | -------- | -------- |
-| How is an mcp-server declared, how is a tool, a resource or a prompt declared, who may use it and how is it tested without a client? | [Reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md) |
+| How is an mcp-server declared, how is a tool, a resource, a prompt or the values of one of its arguments declared, who may use it and how is it tested without a client? | [Reference of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md) |
 | What is needed to work on the backend and to start it during development? | [Hints of the backend](../../GenericMCPServerBackend/Other/Reference/ReferenceContent/Hints.md) |
-| What is the responsibility of an administrator who declares a tool, a resource or a prompt? | [ReadMe of the image](../../GenericMCPServer/ReadMe.md) |
+| What is the responsibility of an administrator who declares a tool, a resource, a prompt or the values of one of its arguments? | [ReadMe of the image](../../GenericMCPServer/ReadMe.md) |
 | Which mcp-servers and tools does the example declare and how is it started? | [Example](../../GenericMCPServer/Other/Examples/MinimalDockerComposeFile) |
 | Which versions of the product are supported? | [InformationAboutSupportedVersions.csv](../Resources/Support/InformationAboutSupportedVersions.csv) |
 | What changed in a version? | [Changelog](../Resources/Changelog) |
