@@ -1,13 +1,12 @@
 ---
 name: product-knowledge
-description: What GenericMCPServer is, how this repository is structured, how an mcp-server with its tools, resources and prompts is declared and which mechanisms exist for building, testing and running it. Use this before fixing a defect or developing a feature in this repository, to know where things belong and how to verify a change.
+description: What GenericMCPServer is, how this repository is structured, how an mcp-server with its tools is declared and which mechanisms exist for building, testing and running it. Use this before fixing a defect or developing a feature in this repository, to know where things belong and how to verify a change.
 ---
 
 # GenericMCPServer
 
-GenericMCPServer hosts MCP-servers which are reachable over HTTP. It offers exactly the tools, resources and prompts
-which an administrator declares; it brings none of them of its own along, which is what the "generic" in its name
-means.
+GenericMCPServer hosts MCP-servers which are reachable over HTTP. It offers exactly the tools which an administrator
+declares; it brings no tool of its own along, which is what the "generic" in its name means.
 
 A declaration names an mcp-server, the tools it offers, what implements each of them and which roles may use it. A model
 which talks to the server therefore sees tools like `get_cve_details` or `get_npm_versions`, although nothing in the
@@ -37,20 +36,6 @@ tool-collection per declared mcp-server and sets the fitting one per request wit
 Everything else of the protocol (the initialize-handshake, `tools/list`, `tools/call`, the delivery of the schemas)
 stays with the SDK.
 
-The resources work exactly the same way: `Misc/ScriptResource.cs` derives from `McpServerResource` and overrides
-`ProtocolResourceTemplate`, `Metadata`, `IsMatch` and `ReadAsync`, and `Program.cs` sets a `ResourceCollection` per
-request. An mcp-server which declares no resource gets no collection at all, so it does not claim the
-resources-capability of the protocol.
-
-The prompts work the same way once more: `Misc/ScriptPrompt.cs` derives from `McpServerPrompt` and overrides
-`ProtocolPrompt`, `Metadata` and `GetAsync`, and `Program.cs` sets a `PromptCollection` per request - again only for an
-mcp-server which declares at least one prompt, so one without prompts does not claim the prompts-capability.
-
-The completions are the one exception to that shape: the protocol has one request (`completion/complete`) for all of
-them, so there is no primitive of the SDK to derive from. `Misc/ScriptCompletionHandler.cs` is a handler which
-`Program.cs` assigns to `serverOptions.Handlers.CompleteHandler` per request - only for an mcp-server which declares at
-least one completion, so one without them does not claim the completions-capability.
-
 The declaration is a json-file whose path (`ToolDefinitionsFile`) is part of the persisted configuration-file of the
 server, defaulting to `./Tools.json` (relative to the configuration-folder) the first time that file is
 generated:
@@ -78,23 +63,7 @@ generated:
 ```
 
 - Every mcp-server is reachable under `<domain>/<url-namespace>`; a client of one of them can neither see nor
-  reach the tools and resources of another one, so the same tool-name may exist in two of them.
-- Next to `tools` an mcp-server may declare `resources`: content which a client reads by a uri. Such a declaration
-  states `uri`, `resource-name`, `type`, `mime-type` and (for a script) `calls`, it declares no `parameters` (the uri
-  is the whole request and is handed to the script as `--uri=<uri>`), and a resource of the type `web-request`
-  declares no `allowed-urls` because its own uri is the address which is requested.
-- Next to those it may declare `prompts`: a text which a client asks for by its name and hands to its model. Such a
-  declaration states `prompt-name`, `type`, `description`, `calls` and its `parameters`, which reach the script exactly
-  like the parameters of a tool; what the script writes is the text of the prompt, handed over as one message of the
-  role `user`. A prompt is never of the type `web-request`, because such a declaration takes the address it requests
-  from the client (a tool) or from its own uri (a resource) and a prompt has neither.
-- A prompt may declare `completions`: which values its arguments can have, keyed by the name of the argument (so an
-  argument has one provider or none, and the key has to be one of its `parameters`). Such a declaration states `type`,
-  `calls`, `requirements` and `credentials` and neither `parameters` nor a `description`; the script is told which
-  argument it is asked about (`--argument=<name>`) and which value was entered so far (`--value=<value>`) and writes
-  one value per line. A completion is never of the type `web-request`, for the same reason a prompt is not. At most 100
-  values reach the client, and how many there are in total is handed over with them. The shared part of all four
-  declarations lives in `Model/CallableDefinition.cs`.
+  reach the tools of another one, so the same tool-name may exist in two of them.
 - `authorized-roles` states which roles may use the mcp-server; `"anonymous": true` makes it usable by everybody and
   then no role is needed. An mcp-server which is neither anonymous nor names a role is a mistake and fails the start.
 - `type` is `python`, `shell` or `web-request` and has to be declared. It is never derived from the extension of a
@@ -102,18 +71,12 @@ generated:
 - `calls` is resolved against the folder of the declaration and has to stay inside it.
 - Every entry of `parameters` is passed to the script as `--<name>=<value>`, so it has to be the name of an option the
   script accepts. Every parameter is offered to the client as a required string.
-- A tool may declare an `output-schema`: the shape of its answer as a json-schema. It is offered to the client as the
-  `outputSchema` of that tool, and what the script wrote is handed over as the `structuredContent` of the result next
-  to the text of the answer. `Model/StructuredOutput.cs` is built once per such declaration while the declarations are
-  read and checks every answer against the schema; an answer which is no json-document or does not fit is a failed
-  tool-call. A tool which declares none answers with text alone, and a resource, a prompt or a completion which
-  declares one fails the start: none of them answers with something whose shape a client reads as data.
 - A field which does not belong to the declared type (`requirements` for a shell-tool, `calls` for a
   web-request-tool, `headers` for a python-tool, …) is an error and not something which is ignored.
 
 What the three types mean:
 
-- `python`: the script runs in a virtual environment which belongs to that declaration alone
+- `python`: the script runs in a virtual environment which belongs to that tool alone
   (`Services/VirtualEnvironmentService.cs`). It is built when the tool is called for the first time and built again as
   soon as the declared `requirements` differ from the ones it was built with — otherwise a changed declaration would be
   without effect. The environments live below the data-folder of the server, not next to the scripts: that folder is
@@ -127,12 +90,12 @@ What the three types mean:
   `{"status-code":…,"body":…}`.
 
 A mistake in the file (an mcp-server without a url-namespace, a url-namespace which is used twice, a tool without a
-name or without a type, an unknown type, a tool-name or a prompt-name which is used twice within one mcp-server, a
-prompt of the type `web-request`, invalid json) makes the server fail on startup. A missing file is not such a mistake: neither no file being configured nor the configured
+name or without a type, an unknown type, a tool-name which is used twice within one mcp-server, invalid json) makes
+the server fail on startup. A missing file is not such a mistake: neither no file being configured nor the configured
 file not existing at its resolved location stops the server - both mean "nothing is offered", because a freshly set
 up server which nobody pointed at a declaration yet is an expected state.
 
-**When adding a tool, a resource, a prompt or a completion, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
+**When adding a tool, nothing in the backend changes.** If you find yourself writing a tool-name into a c#-file, the
 change is wrong: run `grep -rniE "cve|maven|nuget|npm" GenericMCPServerBackend --include=*.cs` — it has to stay empty.
 
 ## Who may use an mcp-server
@@ -205,14 +168,9 @@ break by "improving" them:
   expression which is anchored at both ends. It lives there and not in the backend, so it also applies when the script
   is called directly and so that the format is defined once, next to the code which depends on it.
 
-A failure is answered as a `CallToolResult` with `IsError` and the message of the script (an answer which does not fit
-a declared `output-schema` is such a failure as well), and additionally with the
+A failure is answered as a `CallToolResult` with `IsError` and the message of the script, and additionally with the
 http-status-code 502 for the whole answer (`Misc/ToolCallFailureStatusCodeMiddleware.cs`), because the failure comes
-from the program behind this server. A failed read of a resource, a prompt which could not be built and a completion
-which did not work are answered as an error of the protocol (`McpException`, whose message is the one which reaches the
-client) with the status-code of a normal answer: a result which carries an error-flag does not exist for any of them,
-and a client which asked for a document, for a text or for the possible values of an argument must not receive the
-reason of a failure as if it were that document, that text respectively one of those values.
+from the program behind this server.
 
 **When testing this, use a canary and not a destructive payload.** A payload like `; rm -rf /` tests a protection with
 a failure-mode which destroys the machine if the protection does not hold. Use a value which would create a file in a
