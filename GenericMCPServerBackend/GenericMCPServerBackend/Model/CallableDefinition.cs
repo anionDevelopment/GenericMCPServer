@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace GenericMCPServerBackend.Core.Model
@@ -98,6 +99,19 @@ namespace GenericMCPServerBackend.Core.Model
         /// </summary>
         [JsonPropertyName("headers")]
         public IDictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// The shape of the answer, as a json-schema. A tool which states one answers with a json-document which fits
+        /// it, and that document reaches the client as the structured content of the result next to the text of the
+        /// answer.
+        ///
+        /// Only a tool has one: a resource states the <see cref="ResourceDefinition.MimeType"/> of its content, a
+        /// prompt writes the text of the prompt and a completion writes one value per line, so none of them answers
+        /// with something whose shape a client reads as data. A tool which states none answers with text, exactly as
+        /// it did before.
+        /// </summary>
+        [JsonPropertyName("output-schema")]
+        public JsonElement? OutputSchema { get; set; }
 
         /// <summary>
         /// The addresses a tool of the type <see cref="ToolType.WebRequest"/> may request, as regular expressions.

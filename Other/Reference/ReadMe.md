@@ -26,6 +26,7 @@ one entry in a file (and, depending on its type, a script); it means no change o
 | Roles | A client is in none, one or several roles; an mcp-server declares which roles may use it. Who is in a role and what a role may do are two decisions in two files. |
 | Anonymous mcp-servers | An mcp-server can be declared as one which everybody may use; it then needs no token, while the others of the same process stay behind theirs. |
 | Resources and prompts are declared like tools | Next to its tools an mcp-server offers `resources` (content which a client reads by a uri, which takes no parameter and whose script receives that uri) and `prompts` (a text which a client asks for by its name and hands to its model, whose script receives the declared arguments like a tool). Both are declared in the same file and implemented in the same ways as a tool, except that a prompt is never a `web-request`. |
+| Structured answers of a tool | A tool may declare the shape of its answer as an `output-schema`. That schema is offered to the client with the tool, and what the script wrote is handed over as the structured content of the result next to the text. An answer which is no json-document or does not fit the schema is a failed tool-call. |
 | Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a read of a resource and a prompt which did not work are answered as an error of the protocol with the message of the failure; a request which may not reach an mcp-server is answered with 401. |
 
 ## Parts of the product

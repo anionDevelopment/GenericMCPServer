@@ -228,6 +228,42 @@ and SHALL offer what that script wrote as the possible values of that argument.
 - **THEN** it is answered as an error of the protocol whose message states the reason, and not as a value, because a
   client which asked which values are possible must not receive the reason of a failure as if it were one of them
 
+### Requirement: A tool may declare the shape of its answer
+
+A declaration of a tool MAY state the shape of its answer as a json-schema. The server SHALL offer that schema to the
+clients of that tool, SHALL check the answer of the tool against it and SHALL hand the answer over as the structured
+content of the result next to the text of the answer. A tool which states no such schema SHALL answer with text alone.
+
+#### Scenario: A client asks which tools exist
+
+- **WHEN** a client asks an mcp-server which tools it offers
+- **THEN** it receives the declared schema with every tool which declared one, and no schema with a tool which
+  declared none
+
+#### Scenario: A tool which declared a schema answers
+
+- **WHEN** a client calls such a tool and what the tool wrote fits the declared schema
+- **THEN** the result carries that document as its structured content and, next to it, what the tool wrote as text, so
+  that a client which reads no structured content receives what it received before
+
+#### Scenario: An answer does not fit the declared schema
+
+- **WHEN** what the tool wrote is no json-document or does not fit the declared schema
+- **THEN** the call fails with a message which states what did not fit, because a client which was promised data of a
+  known shape must not receive something else under that promise
+
+#### Scenario: A declared schema is not usable
+
+- **WHEN** a declaration states a schema which is no json-object or which is no usable json-schema
+- **THEN** the server fails while starting, because a schema which checks nothing would let every answer pass
+
+#### Scenario: Something which is no tool declares such a schema
+
+- **WHEN** a resource, a prompt or a completion states such a schema
+- **THEN** the server fails while starting: a resource states the type of its content, a prompt writes the text of the
+  prompt and a completion writes one value per line, so none of them answers with something whose shape a client reads
+  as data
+
 ### Requirement: The type of a tool is declared and not guessed
 
 Every declaration SHALL state the type of the tool, which is one of "python", "shell" and "web-request". The server

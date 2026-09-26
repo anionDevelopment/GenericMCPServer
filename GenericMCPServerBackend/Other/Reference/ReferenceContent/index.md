@@ -46,6 +46,10 @@ resources-capability of the protocol, one which declares no prompt does not clai
 declares no completion gets no handler and therefore does not claim the completions-capability, so a client of it
 never asks for a list which is empty by definition.
 
+A tool which declares an `output-schema` additionally carries what checks its answers against that schema. It is
+built once, while the declarations are read, and not for every call: a schema which is not usable is a mistake of the
+configuration and has to be visible when the server starts.
+
 The transport runs in the stateless mode, so no session-id has to be kept by the client.
 
 ## Endpoints
@@ -111,6 +115,7 @@ These fields belong to every tool:
 | `tool-name` | The name under which the tool is offered. This is what the client and the model behind it see. It may consist of letters, digits, underscores and hyphens. |
 | `type` | What implements the tool: `python`, `shell` or `web-request`. It has to be declared, it is not guessed from the extension of a file. |
 | `description` | What the tool does. The model reads this to decide whether the tool fits a task, so it should describe the answer and not the implementation. |
+| `output-schema` | Optional. The shape of the answer as a json-schema, see [The answer of a tool](#the-answer-of-a-tool). A tool which states none answers with text. |
 
 The remaining fields depend on the type. A field which does not belong to the declared type is an error and not
 something which is ignored, because ignoring it would let an administrator believe in an effect which does not exist.
@@ -234,6 +239,50 @@ The answer of the tool is a json-document with the status-code and the body of t
 ```json
 {"status-code":200,"body":"..."}
 ```
+
+### The answer of a tool
+
+What a tool answers is text, because that is what a script writes. A tool which answers with a json-document can
+declare its shape as an `output-schema`, and the answer then reaches the client twice: as that text and as the
+**structured content** of the result, which is the same document as data.
+
+```json
+{
+    "tool-name": "get_package_versions",
+    "type": "python",
+    "calls": "GetPackageVersions.py",
+    "description": "Returns the versions of a package which are available.",
+    "parameters": [ "package" ],
+    "output-schema": {
+        "type": "object",
+        "properties": {
+            "package": { "type": "string" },
+            "versions": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": [ "package", "versions" ]
+    }
+}
+```
+
+- **The schema is offered to the client** as the `outputSchema` of that tool, so a client knows the shape of the
+  answer before it calls the tool, exactly as it knows the parameters before it states them.
+- **The answer is checked against the schema.** An answer which is no json-document, and one which does not fit the
+  schema, is a failed tool-call whose message states what did not fit - not an answer which is handed over as if it
+  were the promised data. A client which reads the structured content must be able to rely on its shape; a script
+  whose answer changed would otherwise deliver something else under the same promise.
+- **The text stays part of the answer.** A client which reads no structured content receives exactly what it received
+  before, namely what the script wrote.
+- **A tool which declares no schema is unaffected.** It answers with text, and its result carries no structured
+  content at all.
+- The schema is a json-object (a json-schema which is a boolean allows everything respectively nothing and describes
+  no answer), it is checked when the server starts, and a schema which is not usable makes the server fail while
+  starting. What the schema allows is what the answer may be, so it decides itself whether the answer has to be a
+  json-object, a list or something else.
+- Only a tool has one. A resource states the `mime-type` of its content, a prompt writes the text of the prompt and a
+  completion writes one value per line, so an `output-schema` in one of those declarations is an error.
+
+A tool of the type `web-request` can declare one as well; its answer is the json-document with the status-code and
+the body of the request, which such a schema describes like any other answer.
 
 ## How a resource is declared
 
@@ -641,8 +690,8 @@ located inside the folder of the tool-definitions-file, so that a mistake there 
 ## What a failed tool-call, a failed read, a failed prompt and a failed completion look like
 
 A tool-call which did not work - a script which ended with an exit-code which is not 0, a script which ran into the
-timeout of 60 seconds, an address which no rule allows, a virtual environment which could not be built - is answered in
-two ways at once:
+timeout of 60 seconds, an address which no rule allows, a virtual environment which could not be built, an answer
+which does not fit the declared `output-schema` - is answered in two ways at once:
 
 - as a result of the protocol with `isError` and the message of the failure, so that the model learns what was wrong
   and can correct itself,
@@ -797,7 +846,8 @@ python ListComponents.py --argument=component --value=b
 
 Put the tool into the `tools` of the mcp-server it belongs to. For a tool with a script: put the script into the folder
 of the tool-definitions-file, let it check every argument against the format it must have, and state its type and its
-parameters. For a tool of the type `web-request`: state the addresses it may request. Nothing in this codeunit has to
+parameters. For a tool of the type `web-request`: state the addresses it may request. For a tool which answers with a
+json-document: state the shape of that document as its `output-schema`. Nothing in this codeunit has to
 be changed and nothing has to be recompiled - the server picks the tool up when it is restarted.
 
 Put a resource into the `resources` of that mcp-server, with the uri it is read by, its name, its type and the

@@ -17,6 +17,17 @@ namespace GenericMCPServerBackend.Core.Model
         [JsonPropertyName("tool-name")]
         public string ToolName { get; set; }
 
+        /// <summary>
+        /// What checks the answers of this tool against the declared <see cref="CallableDefinition.OutputSchema"/>,
+        /// or null when this tool declared none and therefore answers with text alone.
+        ///
+        /// It is not declared but built from the declared schema while the declarations are read (see
+        /// <see cref="Services.ToolDefinitionsReader"/>), exactly like the parameters which a mechanism defines: a
+        /// schema which is not usable is a mistake of the configuration and has to be visible when the server starts.
+        /// </summary>
+        [JsonIgnore]
+        public StructuredOutput StructuredOutput { get; set; }
+
         /// <inheritdoc/>
         [JsonIgnore]
         public override string Kind => "tool";

@@ -102,6 +102,12 @@ generated:
 - `calls` is resolved against the folder of the declaration and has to stay inside it.
 - Every entry of `parameters` is passed to the script as `--<name>=<value>`, so it has to be the name of an option the
   script accepts. Every parameter is offered to the client as a required string.
+- A tool may declare an `output-schema`: the shape of its answer as a json-schema. It is offered to the client as the
+  `outputSchema` of that tool, and what the script wrote is handed over as the `structuredContent` of the result next
+  to the text of the answer. `Model/StructuredOutput.cs` is built once per such declaration while the declarations are
+  read and checks every answer against the schema; an answer which is no json-document or does not fit is a failed
+  tool-call. A tool which declares none answers with text alone, and a resource, a prompt or a completion which
+  declares one fails the start: none of them answers with something whose shape a client reads as data.
 - A field which does not belong to the declared type (`requirements` for a shell-tool, `calls` for a
   web-request-tool, `headers` for a python-tool, …) is an error and not something which is ignored.
 
@@ -199,7 +205,8 @@ break by "improving" them:
   expression which is anchored at both ends. It lives there and not in the backend, so it also applies when the script
   is called directly and so that the format is defined once, next to the code which depends on it.
 
-A failure is answered as a `CallToolResult` with `IsError` and the message of the script, and additionally with the
+A failure is answered as a `CallToolResult` with `IsError` and the message of the script (an answer which does not fit
+a declared `output-schema` is such a failure as well), and additionally with the
 http-status-code 502 for the whole answer (`Misc/ToolCallFailureStatusCodeMiddleware.cs`), because the failure comes
 from the program behind this server. A failed read of a resource, a prompt which could not be built and a completion
 which did not work are answered as an error of the protocol (`McpException`, whose message is the one which reaches the

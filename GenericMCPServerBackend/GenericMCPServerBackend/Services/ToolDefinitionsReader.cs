@@ -180,6 +180,53 @@ namespace GenericMCPServerBackend.Core.Services
                     ValidateWebRequestTool(definition, file);
                     break;
             }
+            // The output-schema belongs to the answer of the tool and not to the way that answer is produced, so it is
+            // checked for every type and not per type.
+            ValidateOutputSchema(definition, file);
+        }
+
+        /// <summary>
+        /// Checks the output-schema of a tool, which states that the tool answers with a json-document of a known
+        /// shape, and builds what checks the answers against it.
+        ///
+        /// A tool which states none answers with text alone, which is what every tool did before this existed: the
+        /// schema is the one thing here which is optional, because declaring it is what a tool opts into.
+        /// </summary>
+        private static void ValidateOutputSchema(ToolDefinition definition, string file)
+        {
+            if (!definition.OutputSchema.HasValue)
+            {
+                return;
+            }
+            if (definition.OutputSchema.Value.ValueKind != JsonValueKind.Object)
+            {
+                // A json-schema which is a boolean allows everything respectively nothing, and neither describes an
+                // answer. Anything else is no schema at all.
+                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" states an \"output-schema\" which is no json-object. Such a schema describes the answer of the tool, for example {{ \"type\": \"object\", \"properties\": {{ \"amount\": {{ \"type\": \"integer\" }} }} }}.");
+            }
+            try
+            {
+                definition.StructuredOutput = StructuredOutput.Create(definition.OutputSchema.Value, definition.ToolName);
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" states an \"output-schema\" which is not usable. {exception.Message}", exception);
+            }
+        }
+
+        /// <summary>
+        /// Rejects an output-schema which was declared for something which is no tool.
+        ///
+        /// Only a tool answers with a result whose shape a client reads as data: a resource states the type of its
+        /// content, a prompt writes the text of the prompt and a completion writes one value per line. Ignoring such a
+        /// declaration would let an administrator believe in an effect which does not exist.
+        /// </summary>
+        private static void RejectDeclaredOutputSchema(CallableDefinition definition, string file)
+        {
+            if (definition.OutputSchema.HasValue)
+            {
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" states an \"output-schema\", which does not belong to it: only a tool answers with a result whose shape a client reads as data.");
+            }
         }
 
         /// <summary>
@@ -208,6 +255,7 @@ namespace GenericMCPServerBackend.Core.Services
             }
             ToolType type = ReadType(definition, file);
             RejectDeclaredValues(definition.Parameters.Count, "parameters", definition, file, "a resource is read by its uri, so there is no value which a client could choose");
+            RejectDeclaredOutputSchema(definition, file);
             switch (type)
             {
                 case ToolType.Python:
@@ -247,6 +295,7 @@ namespace GenericMCPServerBackend.Core.Services
                 throw new InvalidOperationException($"The name \"{definition.PromptName}\" in \"{file}\" is not a usable prompt-name. A prompt-name may consist of letters, digits, underscores and hyphens.");
             }
             ToolType type = ReadType(definition, file);
+            RejectDeclaredOutputSchema(definition, file);
             switch (type)
             {
                 case ToolType.Python:
@@ -312,6 +361,7 @@ namespace GenericMCPServerBackend.Core.Services
         {
             ToolType type = ReadType(definition, file);
             RejectDeclaredValues(definition.Parameters.Count, "parameters", definition, file, "a completion receives the argument it is asked about and the value which was entered so far, so there is no parameter which could be declared");
+            RejectDeclaredOutputSchema(definition, file);
             if (!string.IsNullOrWhiteSpace(definition.Description))
             {
                 // A client never chooses a completion; it asks for the possible values of an argument it already

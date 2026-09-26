@@ -94,10 +94,86 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
 
             // assert
             JsonElement tools = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("tools");
-            Assert.AreEqual(1, tools.GetArrayLength(), "The mcp-server has to offer exactly the tools which the example-data declares for it.");
+            Assert.AreEqual(2, tools.GetArrayLength(), "The mcp-server has to offer exactly the tools which the example-data declares for it.");
             JsonElement tool = tools.EnumerateArray().Single(entry => entry.GetProperty("name").GetString() == ExampleDataCreator.ExampleToolName);
             Assert.AreEqual("Answers with the value it got.", tool.GetProperty("description").GetString());
             Assert.IsTrue(tool.GetProperty("inputSchema").GetProperty("properties").TryGetProperty(ExampleDataCreator.ExampleToolParameterName, out JsonElement _), "The declared parameter has to be part of the schema which the client gets.");
+        }
+
+        /// <remarks>
+        /// The declared output-schema is what tells a client that the answer of that tool is data of a known shape,
+        /// so it has to reach the client with the tool. A tool which declares none offers none, which is what keeps a
+        /// client from expecting data where there is text.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void TheDeclaredOutputSchemaIsOfferedWithTheToolOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            string answer = framework.SendMCPMessage(@"{""jsonrpc"":""2.0"",""id"":1,""method"":""tools/list""}");
+
+            // assert
+            JsonElement tools = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("tools");
+            JsonElement toolWithASchema = tools.EnumerateArray().Single(entry => entry.GetProperty("name").GetString() == ExampleDataCreator.StructuredExampleToolName);
+            JsonElement outputSchema = toolWithASchema.GetProperty("outputSchema");
+            Assert.AreEqual("object", outputSchema.GetProperty("type").GetString());
+            Assert.AreEqual("string", outputSchema.GetProperty("properties").GetProperty("answer").GetProperty("type").GetString());
+            Assert.AreEqual("integer", outputSchema.GetProperty("properties").GetProperty("length").GetProperty("type").GetString());
+            JsonElement toolWithoutASchema = tools.EnumerateArray().Single(entry => entry.GetProperty("name").GetString() == ExampleDataCreator.ExampleToolName);
+            Assert.IsFalse(toolWithoutASchema.TryGetProperty("outputSchema", out JsonElement _), "A tool which declares no output-schema must not offer one.");
+        }
+
+        /// <remarks>
+        /// A tool which declared the shape of its answer hands that answer over as data as well, so that a client
+        /// does not have to parse the text to get it. The text stays part of the answer, because a client which reads
+        /// no structured content receives what it received before.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void CallingAToolWithAnOutputSchemaAnswersWithStructuredContentOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":2,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.StructuredExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""hello-world""}}}");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.OK, statusCode, "A call which worked is a normal answer of the server.");
+            JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
+            Assert.IsFalse(result.GetProperty("isError").GetBoolean());
+            JsonElement structuredContent = result.GetProperty("structuredContent");
+            Assert.AreEqual("the answer is hello-world", structuredContent.GetProperty("answer").GetString());
+            Assert.AreEqual("hello-world".Length, structuredContent.GetProperty("length").GetInt32());
+            string? whatTheScriptWrote = result.GetProperty("content")[0].GetProperty("text").GetString();
+            Assert.IsNotNull(whatTheScriptWrote, "What the script wrote stays part of the answer as text.");
+            Assert.AreEqual("the answer is hello-world", JsonDocument.Parse(whatTheScriptWrote).RootElement.GetProperty("answer").GetString());
+        }
+
+        /// <remarks>
+        /// A tool which declared a schema promised a json-document of that shape. An answer which is none is a failed
+        /// call and not something which is handed over as if it were the promised data - a client which reads the
+        /// structured content would otherwise find nothing where it expected the answer.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void AnAnswerWhichDoesNotFitTheOutputSchemaFailsTheCallOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act: for this value the script answers with something which is no json-document
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(@"{""jsonrpc"":""2.0"",""id"":3,""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.StructuredExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":""" + ExampleDataCreator.ValueWhichBreaksTheStructuredAnswer + @"""}}}");
+
+            // assert
+            Assert.AreEqual(HttpStatusCode.BadGateway, statusCode, "The failure comes from the program behind this server, exactly like a script which ended with an exit-code which is not 0.");
+            JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
+            Assert.IsTrue(result.GetProperty("isError").GetBoolean());
+            Assert.IsFalse(result.TryGetProperty("structuredContent", out JsonElement _), "A failed call carries no structured content.");
+            StringAssert.Contains(result.GetProperty("content")[0].GetProperty("text").GetString(), "json-document", "The message has to state what was wrong with the answer.");
         }
 
         [TestMethod]

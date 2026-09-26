@@ -40,6 +40,9 @@ namespace GenericMCPServerBackend.Core.Misc
                 Name = definition.ToolName,
                 Description = definition.Description,
                 InputSchema = GetInputSchema(definition),
+                // A tool which declared the shape of its answer offers that shape to the client, which is what lets
+                // the client read the answer as data instead of as text. A tool which declared none offers none.
+                OutputSchema = definition.OutputSchema,
             };
         }
 
@@ -87,22 +90,39 @@ namespace GenericMCPServerBackend.Core.Misc
             {
                 Dictionary<string, string> arguments = CallArguments.Read(request.Params?.Arguments);
                 string output = this._BusinessLogicService.RunTool(this._UrlNamespace, this._Definition.ToolName, arguments);
-                return new ValueTask<CallToolResult>(CreateResult(output, false));
+                // An answer which does not fit the declared schema fails the call like every other failure of the
+                // tool: the client was promised a document of that shape, and an answer which is not one is nothing it
+                // could use.
+                JsonElement? structuredContent = null;
+                if (this._Definition.StructuredOutput != null)
+                {
+                    structuredContent = this._Definition.StructuredOutput.Read(output);
+                }
+                return new ValueTask<CallToolResult>(CreateResult(output, structuredContent, false));
             }
             catch (Exception exception)
             {
                 ToolCallFailure.Report(request.Services);
                 // The message goes to the client, so the values of the credentials are removed from it first: a script
                 // which wrote its credential into a stacktrace would hand it over otherwise.
-                return new ValueTask<CallToolResult>(CreateResult(this._BusinessLogicService.RemoveCredentialValuesFrom(exception.Message), true));
+                return new ValueTask<CallToolResult>(CreateResult(this._BusinessLogicService.RemoveCredentialValuesFrom(exception.Message), null, true));
             }
         }
 
-        private static CallToolResult CreateResult(string text, bool isError)
+        /// <summary>
+        /// Builds the result of a call.
+        ///
+        /// What the tool wrote is always part of it as text, also when it is a json-document which fits a declared
+        /// output-schema: a client which reads the structured content receives the data, and a client which does not
+        /// receives what it received before. A failure carries no structured content at all - the schema describes
+        /// the answer of the tool and not the reason why there is none.
+        /// </summary>
+        private static CallToolResult CreateResult(string text, JsonElement? structuredContent, bool isError)
         {
             return new CallToolResult()
             {
                 Content = new List<ContentBlock>() { new TextContentBlock() { Text = text } },
+                StructuredContent = structuredContent,
                 IsError = isError,
             };
         }

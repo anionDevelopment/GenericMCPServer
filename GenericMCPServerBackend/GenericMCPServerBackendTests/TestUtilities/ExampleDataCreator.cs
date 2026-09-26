@@ -32,6 +32,23 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// </summary>
         public const string AnonymousExampleToolName = "anonymous_example_tool";
 
+        /// <summary>
+        /// The name of the tool which this creator declares with an output-schema. It exists next to the one which
+        /// declares none, because the interesting question is what a client sees and receives while both kinds are
+        /// declared.
+        /// </summary>
+        public const string StructuredExampleToolName = "structured_example_tool";
+
+        /// <summary>
+        /// The script which implements that tool. It answers with a json-document which fits the declared schema,
+        /// except for the one value below, which is what lets a testcase see what happens with an answer which does
+        /// not fit.
+        /// </summary>
+        public const string StructuredExampleToolScriptFileName = "StructuredExampleTool.py";
+
+        /// <summary>The value for which that script answers with something which is no json-document.</summary>
+        public const string ValueWhichBreaksTheStructuredAnswer = "no-json";
+
         /// <summary>The uri of the resource which this creator declares. A resource is read by exactly this uri.</summary>
         public const string ExampleResourceUri = "example://documents/handbook";
 
@@ -95,6 +112,24 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--value', type=value, required=True)
 arguments = parser.parse_args()
 sys.stdout.write('the answer is ' + arguments.value)
+";
+
+        /// <summary>
+        /// A script which answers with a json-document which fits the declared output-schema, and with plain text for
+        /// the one value which is meant to break that promise. Both directions of a declared schema are visible with
+        /// it.
+        /// </summary>
+        private const string StructuredScriptContent = @"import argparse
+import json
+import sys
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--value', required=True)
+arguments = parser.parse_args()
+if arguments.value == '" + ValueWhichBreaksTheStructuredAnswer + @"':
+    sys.stdout.write('this is no json-document')
+else:
+    sys.stdout.write(json.dumps({'answer': 'the answer is ' + arguments.value, 'length': len(arguments.value)}))
 ";
 
         /// <summary>
@@ -170,6 +205,7 @@ for value in ['cryptography', 'compilers', 'networking']:
             this.Folder = this._Root;
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
+            File.WriteAllText(Path.Combine(this.Folder, StructuredExampleToolScriptFileName), StructuredScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExampleResourceScriptFileName), ResourceScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExamplePromptScriptFileName), PromptScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExampleCompletionScriptFileName), CompletionScriptContent);
@@ -186,6 +222,21 @@ for value in ['cryptography', 'compilers', 'networking']:
                     ""calls"": ""ExampleTool.py"",
                     ""description"": ""Answers with the value it got."",
                     ""parameters"": [ """ + ExampleToolParameterName + @""" ]
+                },
+                {
+                    ""tool-name"": """ + StructuredExampleToolName + @""",
+                    ""type"": ""python"",
+                    ""calls"": """ + StructuredExampleToolScriptFileName + @""",
+                    ""description"": ""Answers with the value it got as a json-document."",
+                    ""parameters"": [ """ + ExampleToolParameterName + @""" ],
+                    ""output-schema"": {
+                        ""type"": ""object"",
+                        ""properties"": {
+                            ""answer"": { ""type"": ""string"" },
+                            ""length"": { ""type"": ""integer"" }
+                        },
+                        ""required"": [ ""answer"", ""length"" ]
+                    }
                 }
             ],
             ""resources"": [
@@ -245,6 +296,7 @@ for value in ['cryptography', 'compilers', 'networking']:
                 // A root this instance does not own may hold other content (for example the rest of a server's configuration-folder) which must survive
                 // this instance being disposed, so only the files this instance actually wrote are removed, never the whole root.
                 File.Delete(Path.Combine(this.Folder, "ExampleTool.py"));
+                File.Delete(Path.Combine(this.Folder, StructuredExampleToolScriptFileName));
                 File.Delete(Path.Combine(this.Folder, ExampleResourceScriptFileName));
                 File.Delete(Path.Combine(this.Folder, ExamplePromptScriptFileName));
                 File.Delete(Path.Combine(this.Folder, ExampleCompletionScriptFileName));
