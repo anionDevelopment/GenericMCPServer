@@ -27,7 +27,8 @@ one entry in a file (and, depending on its type, a script); it means no change o
 | Anonymous mcp-servers | An mcp-server can be declared as one which everybody may use; it then needs no token, while the others of the same process stay behind theirs. |
 | Resources and prompts are declared like tools | Next to its tools an mcp-server offers `resources` (content which a client reads by a uri, which takes no parameter and whose script receives that uri) and `prompts` (a text which a client asks for by its name and hands to its model, whose script receives the declared arguments like a tool). Both are declared in the same file and implemented in the same ways as a tool, except that a prompt is never a `web-request`. |
 | Structured answers of a tool | A tool may declare the shape of its answer as an `output-schema`. That schema is offered to the client with the tool, and what the script wrote is handed over as the structured content of the result next to the text. An answer which is no json-document or does not fit the schema is a failed tool-call. |
-| Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a read of a resource and a prompt which did not work are answered as an error of the protocol with the message of the failure; a request which may not reach an mcp-server is answered with 401. |
+| A running tool-call can be cancelled | A `notifications/cancelled` of the client ends the script behind that call together with everything it started, respectively aborts its web-request. The call and the cancellation are two http-requests, which is why the running calls are kept in one registry of the process; the script needs no capability of its own for it. |
+| Failures are visible | A tool-call which did not work is answered with its message and with the http-status-code 502; a read of a resource and a prompt which did not work are answered as an error of the protocol with the message of the failure; a request which may not reach an mcp-server is answered with 401. A call which its client cancelled carries the status-code of a normal answer, because nothing failed. |
 
 ## Parts of the product
 
@@ -80,6 +81,9 @@ because the failure comes from the program behind the server and the server is t
 A read of a resource and a prompt which did not work are answered as an error of the protocol instead, with the
 status-code of a normal answer: a client which asked for a document or for a text must not receive the reason of a
 failure as if it were that document respectively that text.
+
+A call which the client itself cancelled is neither of those two. It is answered with exactly that reason and with the
+status-code of a normal answer, because nothing failed: the client stated that it does not want the result anymore.
 
 ## Why a declared tool can be trusted with untrusted values
 

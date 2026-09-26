@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Tests.Testcases.Services
 {
@@ -234,7 +235,7 @@ sys.stdout.write(sys.executable)
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, sameName);
 
                 // act
-                string interpreterOfTheTool = businessLogicService.RunTool(UrlNamespace, "interpreter", new Dictionary<string, string>());
+                string interpreterOfTheTool = businessLogicService.RunTool(UrlNamespace, "interpreter", new Dictionary<string, string>(), CancellationToken.None);
                 string interpreterOfThePrompt = businessLogicService.GetPrompt(UrlNamespace, "interpreter", new Dictionary<string, string>());
 
                 // assert

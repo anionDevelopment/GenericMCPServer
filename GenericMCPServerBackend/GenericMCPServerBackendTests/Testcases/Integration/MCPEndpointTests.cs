@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace GenericMCPServerBackend.Tests.Testcases.Integration
 {
@@ -94,7 +95,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
 
             // assert
             JsonElement tools = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result").GetProperty("tools");
-            Assert.AreEqual(2, tools.GetArrayLength(), "The mcp-server has to offer exactly the tools which the example-data declares for it.");
+            Assert.AreEqual(3, tools.GetArrayLength(), "The mcp-server has to offer exactly the tools which the example-data declares for it.");
             JsonElement tool = tools.EnumerateArray().Single(entry => entry.GetProperty("name").GetString() == ExampleDataCreator.ExampleToolName);
             Assert.AreEqual("Answers with the value it got.", tool.GetProperty("description").GetString());
             Assert.IsTrue(tool.GetProperty("inputSchema").GetProperty("properties").TryGetProperty(ExampleDataCreator.ExampleToolParameterName, out JsonElement _), "The declared parameter has to be part of the schema which the client gets.");
@@ -567,6 +568,98 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             string message = root.GetProperty("error").GetProperty("message").ToString();
             StringAssert.Contains(message, ExampleDataCreator.ExamplePromptName);
             StringAssert.Contains(message, "does not exist");
+        }
+
+        /// <summary>
+        /// The message which calls the tool that waits, with the folder it reports into as its value.
+        /// </summary>
+        private static string CreateCallOfTheWaitingTool(int requestId, WaitingScript script)
+        {
+            return @"{""jsonrpc"":""2.0"",""id"":" + requestId + @",""method"":""tools/call"",""params"":{""name"":""" + ExampleDataCreator.WaitingExampleToolName + @""",""arguments"":{""" + ExampleDataCreator.ExampleToolParameterName + @""":" + JsonSerializer.Serialize(script.ReportFolder) + @"}}}";
+        }
+
+        /// <summary>
+        /// The message with which a client cancels the request of the given id.
+        /// </summary>
+        private static string CreateCancellationOf(int requestId)
+        {
+            return @"{""jsonrpc"":""2.0"",""method"":""notifications/cancelled"",""params"":{""requestId"":" + requestId + @",""reason"":""the client does not need the answer anymore""}}";
+        }
+
+        /// <remarks>
+        /// The call and its cancellation are two http-requests which know nothing of each other, because the transport
+        /// runs in the stateless mode. That the second one reaches the program which the first one started is the whole
+        /// point of this, and the canary of the script is what states it: the answer of the call would only state that
+        /// nobody waits for it anymore.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void ACancelledToolCallIsStoppedOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+            using WaitingScript script = new WaitingScript();
+            Task<(HttpStatusCode StatusCode, string Answer)> call = Task.Run(() => framework.SendMCPMessageAndGetStatusCode(CreateCallOfTheWaitingTool(1, script)));
+            script.WaitUntilItRuns();
+
+            // act
+            (HttpStatusCode statusCodeOfTheCancellation, string _) = framework.SendMCPMessageAndGetStatusCode(CreateCancellationOf(1));
+
+            // assert
+            Assert.IsTrue(Enumerable.Range(200, 100).Contains((int)statusCodeOfTheCancellation), $"A notification is answered with nothing but a success; it was answered with {(int)statusCodeOfTheCancellation}.");
+            (HttpStatusCode statusCodeOfTheCall, string answer) = call.GetAwaiter().GetResult();
+            Assert.AreEqual(HttpStatusCode.OK, statusCodeOfTheCall, "A call which the client itself cancelled is no failure of the program behind this server, so it does not carry the status-code of one.");
+            JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
+            Assert.IsTrue(result.GetProperty("isError").GetBoolean(), "The client asked for a result and gets none, which it learns from the answer.");
+            StringAssert.Contains(result.GetProperty("content")[0].GetProperty("text").GetString(), "cancelled");
+            Assert.IsFalse(script.ItStillRunsToItsEndAfterItWasReleased(), "The script has to be gone: a script which is still running writes its canary as soon as it is released.");
+        }
+
+        /// <remarks>
+        /// A request-id is only unambiguous within the client which chose it and says nothing about the mcp-server it
+        /// was sent to, so a cancellation may only stop a call of the same mcp-server and of the same client. Which
+        /// those are follows from the request the notification arrived with and not from the notification itself.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void ACancellationAtAnotherMCPServerDoesNotStopTheCallOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+            using WaitingScript script = new WaitingScript();
+            Task<(HttpStatusCode StatusCode, string Answer)> call = Task.Run(() => framework.SendMCPMessageAndGetStatusCode(CreateCallOfTheWaitingTool(1, script)));
+            script.WaitUntilItRuns();
+
+            // act: the same request-id, but sent to the mcp-server which everybody may use and therefore by another caller
+            framework.SendMCPMessageAndGetStatusCode(CreateCancellationOf(1), ExampleDataCreator.AnonymousUrlNamespace, null);
+
+            // assert
+            Assert.IsTrue(script.ItStillRunsToItsEndAfterItWasReleased(), "The call has to be untouched, so the script runs to its end as soon as it is released.");
+            (HttpStatusCode statusCodeOfTheCall, string answer) = call.GetAwaiter().GetResult();
+            Assert.AreEqual(HttpStatusCode.OK, statusCodeOfTheCall);
+            JsonElement result = JsonDocument.Parse(IntegrationTestFramework.GetPayloadOfAnswer(answer)).RootElement.GetProperty("result");
+            Assert.IsFalse(result.GetProperty("isError").GetBoolean());
+            Assert.AreEqual(WaitingScript.AnswerOfTheScript, result.GetProperty("content")[0].GetProperty("text").GetString());
+        }
+
+        /// <remarks>
+        /// A client cancels a call it does not have an answer for yet, so a cancellation which names a call that already
+        /// ended is the normal case of one which arrives too late. It is answered like every other notification: with
+        /// nothing at all and above all not with an error.
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
+        public void ACancellationWhichNamesNoRunningCallIsNoFailureOverHTTP()
+        {
+            // arrange
+            using IntegrationTestFramework framework = new IntegrationTestFramework();
+
+            // act
+            (HttpStatusCode statusCode, string answer) = framework.SendMCPMessageAndGetStatusCode(CreateCancellationOf(42));
+
+            // assert
+            Assert.IsTrue(Enumerable.Range(200, 100).Contains((int)statusCode), $"The notification was answered with {(int)statusCode}.");
+            Assert.IsFalse(answer.Contains("error", System.StringComparison.OrdinalIgnoreCase), $"A cancellation which arrives too late must not be answered with an error. The answer is: {answer}");
         }
     }
 }

@@ -49,6 +49,13 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
         /// <summary>The value for which that script answers with something which is no json-document.</summary>
         public const string ValueWhichBreaksTheStructuredAnswer = "no-json";
 
+        /// <summary>
+        /// The name of the tool which this creator declares as one which runs until it is released. A call of it is
+        /// what a cancellation can arrive for at all: every other tool here is answered before a client could send
+        /// anything else.
+        /// </summary>
+        public const string WaitingExampleToolName = "waiting_example_tool";
+
         /// <summary>The uri of the resource which this creator declares. A resource is read by exactly this uri.</summary>
         public const string ExampleResourceUri = "example://documents/handbook";
 
@@ -206,6 +213,7 @@ for value in ['cryptography', 'compilers', 'networking']:
             Directory.CreateDirectory(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, "ExampleTool.py"), ScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, StructuredExampleToolScriptFileName), StructuredScriptContent);
+            WaitingScript.WriteInto(this.Folder);
             File.WriteAllText(Path.Combine(this.Folder, ExampleResourceScriptFileName), ResourceScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExamplePromptScriptFileName), PromptScriptContent);
             File.WriteAllText(Path.Combine(this.Folder, ExampleCompletionScriptFileName), CompletionScriptContent);
@@ -237,6 +245,13 @@ for value in ['cryptography', 'compilers', 'networking']:
                         },
                         ""required"": [ ""answer"", ""length"" ]
                     }
+                },
+                {
+                    ""tool-name"": """ + WaitingExampleToolName + @""",
+                    ""type"": ""python"",
+                    ""calls"": """ + WaitingScript.FileName + @""",
+                    ""description"": ""Waits until it is released."",
+                    ""parameters"": [ """ + ExampleToolParameterName + @""" ]
                 }
             ],
             ""resources"": [
@@ -297,6 +312,7 @@ for value in ['cryptography', 'compilers', 'networking']:
                 // this instance being disposed, so only the files this instance actually wrote are removed, never the whole root.
                 File.Delete(Path.Combine(this.Folder, "ExampleTool.py"));
                 File.Delete(Path.Combine(this.Folder, StructuredExampleToolScriptFileName));
+                File.Delete(Path.Combine(this.Folder, WaitingScript.FileName));
                 File.Delete(Path.Combine(this.Folder, ExampleResourceScriptFileName));
                 File.Delete(Path.Combine(this.Folder, ExamplePromptScriptFileName));
                 File.Delete(Path.Combine(this.Folder, ExampleCompletionScriptFileName));

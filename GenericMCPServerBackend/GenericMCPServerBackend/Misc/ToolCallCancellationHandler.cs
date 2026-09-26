@@ -1,4 +1,6 @@
+using GRYLibrary.Core.Logging.GRYLogger;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using System;
@@ -27,6 +29,12 @@ namespace GenericMCPServerBackend.Core.Misc
         private readonly RunningToolCalls _RunningToolCalls;
 
         /// <summary>
+        /// Where it is written that a call was stopped. A notification is answered with nothing, so the log is the only
+        /// place at which the operator of the server can see that a client cancelled a call and what that did.
+        /// </summary>
+        private readonly IGRYLog _Log;
+
+        /// <summary>
         /// The mcp-server the request belongs to. A request-id is unambiguous within the client which chose it and
         /// says nothing about the mcp-server, so the namespace is part of what identifies the call which is meant.
         /// </summary>
@@ -35,9 +43,10 @@ namespace GenericMCPServerBackend.Core.Misc
         /// <summary>The client which is cancelling, or null when the mcp-server is one which everybody may use.</summary>
         private readonly string _Client;
 
-        public ToolCallCancellationHandler(RunningToolCalls runningToolCalls, string urlNamespace, string client)
+        public ToolCallCancellationHandler(RunningToolCalls runningToolCalls, IGRYLog log, string urlNamespace, string client)
         {
             this._RunningToolCalls = runningToolCalls;
+            this._Log = log;
             this._UrlNamespace = urlNamespace;
             this._Client = client;
         }
@@ -50,9 +59,9 @@ namespace GenericMCPServerBackend.Core.Misc
         /// two http-requests share.
         /// </summary>
         /// <param name="httpContext">The request the notification arrived with.</param>
-        public static IEnumerable<KeyValuePair<string, Func<JsonRpcNotification, CancellationToken, ValueTask>>> CreateHandlersFor(RunningToolCalls runningToolCalls, string urlNamespace, HttpContext httpContext)
+        public static IEnumerable<KeyValuePair<string, Func<JsonRpcNotification, CancellationToken, ValueTask>>> CreateHandlersFor(RunningToolCalls runningToolCalls, IGRYLog log, string urlNamespace, HttpContext httpContext)
         {
-            ToolCallCancellationHandler handler = new ToolCallCancellationHandler(runningToolCalls, urlNamespace, AccessTokenValidatorMiddleware.GetClientOf(httpContext));
+            ToolCallCancellationHandler handler = new ToolCallCancellationHandler(runningToolCalls, log, urlNamespace, AccessTokenValidatorMiddleware.GetClientOf(httpContext));
             return new List<KeyValuePair<string, Func<JsonRpcNotification, CancellationToken, ValueTask>>>()
             {
                 new KeyValuePair<string, Func<JsonRpcNotification, CancellationToken, ValueTask>>(NotificationMethods.CancelledNotification, handler.HandleAsync),
@@ -68,13 +77,21 @@ namespace GenericMCPServerBackend.Core.Misc
         /// </summary>
         public ValueTask HandleAsync(JsonRpcNotification notification, CancellationToken cancellationToken)
         {
-            if (notification.Params == null)
+            CancelledNotificationParams parameters = notification.Params?.Deserialize<CancelledNotificationParams>(McpJsonUtilities.DefaultOptions);
+            if (parameters == null)
             {
                 // A notification which carries nothing names no call, so there is nothing to stop.
                 return default;
             }
-            CancelledNotificationParams parameters = notification.Params.Deserialize<CancelledNotificationParams>(McpJsonUtilities.DefaultOptions);
-            this._RunningToolCalls.Cancel(new ToolCallIdentity(this._UrlNamespace, this._Client, parameters.RequestId));
+            ToolCallIdentity identity = new ToolCallIdentity(this._UrlNamespace, this._Client, parameters.RequestId);
+            if (this._RunningToolCalls.Cancel(identity))
+            {
+                this._Log.Log($"Stopped the tool-call of {identity}, because the client cancelled it.", LogLevel.Information);
+            }
+            else
+            {
+                this._Log.Log($"A cancellation arrived for {identity}, which is not running. Nothing was stopped.", LogLevel.Debug);
+            }
             return default;
         }
     }

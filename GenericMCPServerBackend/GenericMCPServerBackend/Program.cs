@@ -283,7 +283,7 @@ namespace GenericMCPServerBackend.Core
                                 // built per request and not once, because the request is what states who is cancelling:
                                 // a cancellation may only stop a call of the same mcp-server and of the same client, and
                                 // the notification itself states nothing but a request-id.
-                                serverOptions.Handlers.NotificationHandlers = mcpServer == null ? null : ToolCallCancellationHandler.CreateHandlersFor(runningToolCalls, mcpServer.UrlNamespace, httpContext);
+                                serverOptions.Handlers.NotificationHandlers = mcpServer == null ? null : ToolCallCancellationHandler.CreateHandlersFor(runningToolCalls, this._Log, mcpServer.UrlNamespace, httpContext);
                                 return Task.CompletedTask;
                             };
                         });

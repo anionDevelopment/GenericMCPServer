@@ -31,6 +31,7 @@ services.AddMcpServer()
             serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
             serverOptions.PromptCollection = mcpServer != null && promptsOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerPrimitiveCollection<McpServerPrompt> prompts) ? prompts : null;
             serverOptions.Handlers.CompleteHandler = mcpServer != null && completionHandlersOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out ScriptCompletionHandler completionHandler) ? completionHandler.HandleAsync : null;
+            serverOptions.Handlers.NotificationHandlers = mcpServer == null ? null : ToolCallCancellationHandler.CreateHandlersFor(runningToolCalls, this._Log, mcpServer.UrlNamespace, httpContext);
             return Task.CompletedTask;
         };
     });
@@ -51,6 +52,10 @@ built once, while the declarations are read, and not for every call: a schema wh
 configuration and has to be visible when the server starts.
 
 The transport runs in the stateless mode, so no session-id has to be kept by the client.
+
+The one thing which is not built per request is `RunningToolCalls`: the registry of the tool-calls which are running
+right now. There is exactly one of it for the whole process, and that is the point of it - see
+[how a running tool-call is cancelled](#how-a-running-tool-call-is-cancelled).
 
 ## Endpoints
 
@@ -687,6 +692,46 @@ located inside the folder of the tool-definitions-file, so that a mistake there 
 **What a declared tool does is the responsibility of the administrator who declared it** - see the
 [ReadMe of the image](../../../../GenericMCPServer/ReadMe.md).
 
+## How a running tool-call is cancelled
+
+A client which does not need the answer of a tool-call anymore sends `notifications/cancelled` with the id of the
+request it sent that call with:
+
+```json
+{ "jsonrpc": "2.0", "method": "notifications/cancelled", "params": { "requestId": 4, "reason": "the user cancelled it" } }
+```
+
+The program behind that call is then really stopped: a script is ended together with everything it started (a script of
+a tool is exactly the kind of program which starts another one, and that one would otherwise be left behind), and a
+web-request which is waiting for a foreign service is aborted. **A declared tool needs nothing for this**: it takes no
+additional parameter, it sends nothing back, and it does not even learn that it is cancellable.
+
+Two things carry it, and both of them follow from the transport running in the stateless mode - the call and its
+cancellation arrive as two http-requests which know nothing of each other, so the cancellation-mechanism of the SDK
+(which matches a cancellation to a request within one session) never sees the two together:
+
+- **`Misc/RunningToolCalls.cs` is where they meet.** There is one registry of it for the whole process. It maps what a
+  message of the protocol names to the token the program behind that call is run with, and a call is taken out of it as
+  soon as it ended. It decides nothing about a tool: what happens when that token is cancelled is decided where that
+  program is run (`Misc/ProcessExecutor.cs` respectively `Services/WebRequestService.cs`).
+- **`Misc/ToolCallIdentity.cs` is what a notification names.** A request-id is only unambiguous within the client which
+  chose it - two clients may both call their first request "1" - and it says nothing about the mcp-server. The
+  mcp-server and the calling client are therefore part of the identity of a call, and both of them are taken from the
+  http-request the notification arrived with and not from the notification itself. A client can consequently not even
+  name the call of another client, and a cancellation which was sent to one mcp-server does not stop a call at another
+  one. An mcp-server which is declared as anonymous has no calling client here, because it has no clients at all:
+  everybody who reaches it is the same caller.
+
+`Misc/ToolCallCancellationHandler.cs` is the handler which reads the notification; it is built per request, for exactly
+that reason. A notification which names a call that is not running stops nothing and is no failure: a client cancels a
+call it has no answer for yet, so a cancellation which arrives after the call ended is the normal case of one which
+arrives too late. A notification is answered with nothing at all, so the log of the server is the only place at which
+it becomes visible which call was stopped.
+
+Only a tool-call is stopped. A read of a resource, a prompt and a completion are answered in one go, and the
+notification names a request-id and not what that request was about, so a cancellation which names one of them stops
+nothing.
+
 ## What a failed tool-call, a failed read, a failed prompt and a failed completion look like
 
 A tool-call which did not work - a script which ended with an exit-code which is not 0, a script which ran into the
@@ -707,6 +752,11 @@ client which asked for a document, for a text or for the possible values of an a
 a failure as if it were the content of that document, that text respectively one of those values, and an error of the
 protocol is unmistakable on its own, while a failed tool-call is a successful answer of the protocol and needs the
 status-code to be visible as a failure. The values of the credentials are removed from those messages as well.
+
+A call which the **client itself cancelled** is neither of those two. It is answered with a result which carries
+`isError` and that reason, and with the status-code of a normal answer: the 502 states that the program behind this
+server failed, and nothing failed here. The client is told about it all the same - it asked for a result and gets no
+result - and a client which has already stopped listening ignores it.
 
 ## Example
 
@@ -831,6 +881,20 @@ data: {"result":{"completion":{"values":["backend"],"total":1,"hasMore":false}},
 
 An argument which declares no completion is answered with no value at all and not with an error, because "which values
 are possible" is a question a client may ask about every argument.
+
+**Cancelling** a tool-call which is still running - sent while the call above is still waiting for its answer, with the
+id of that call:
+
+```
+curl -X POST http://127.0.0.1:8080/DeveloperTools -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "Authorization: Bearer <access-token>" -d "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":4,\"reason\":\"the user cancelled it\"}}"
+```
+
+A notification is answered with nothing, so only the call itself answers - with the reason and with the status-code of
+a normal answer, because nothing failed:
+
+```
+data: {"result":{"content":[{"type":"text","text":"The call of the tool \"research\" was cancelled by the client."}],"isError":true},"id":4,"jsonrpc":"2.0"}
+```
 
 Every script can also be called on its own, which is the fastest way to check what a tool, a resource, a prompt or a
 completion answers:
