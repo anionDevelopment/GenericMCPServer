@@ -17,6 +17,8 @@ Every value is passed as an environment-variable.
 | -------------------- | ------- |
 | `InitialDomain` | The domain the server uses in the links it generates. |
 | `InitialEnableEndpointHealthCheckValue` | Whether the maintenance-health-check-route is available (default: `true`). |
+| `InitialEnableEndpointAvailabilityCheckValue` | Whether the availability-check-route is available (default: `true`). |
+| `InitialEnableEndpointInitializationStateValue` | Whether the route which states the initialization-state is available. |
 | `InitialEnableEndpointCurrentVersionValue` | Whether the version-route is available. |
 | `InitialEnableEndpointShowAllEndpointsValue` | Whether the route which lists all endpoints is available. |
 | `InitialEnableEndpointMetricsValue` | Whether the metrics-route is available. |

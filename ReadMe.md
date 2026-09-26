@@ -1,12 +1,11 @@
 # GenericMCPServer
 
 GenericMCPServer hosts MCP-servers which are reachable over HTTP.
-
-It offers exactly the tools, resources and prompts which an administrator declares: a declaration names what
-implements a tool, what the tool does and which parameters it takes, respectively under which uri a resource is read
-and what implements it, respectively which name a prompt has, which arguments it takes, what writes its text and
-which values those arguments can have. The product itself brings neither a tool nor a resource nor a prompt along,
-which is what makes it generic.
+It offers exactly the tools, the resources and the prompts which an administrator declares - each of them implemented
+by a python-script, by a shell-script or by a web-request - and brings none of them of its own along, which is what
+makes it generic.
+It also offers an authorization-system which hosts several mcp-servers in one process and lets certain clients reach
+certain mcp-servers, depending on the roles of the client.
 
 ## Features
 
@@ -29,26 +28,35 @@ which is what makes it generic.
 | A running tool-call can be cancelled | A client which does not need the answer of a tool-call anymore sends `notifications/cancelled`; the **program behind that call is really stopped** - the script together with everything it started, respectively the web-request which is waiting for a foreign service. It works although the call and its cancellation are two independent requests, and it needs nothing of the script: a declared tool is cancellable without knowing that it is. |
 | Failures are visible | A tool-call which did not work is answered with the message of the failure and with the http-status-code 502, because the failure comes from the program behind this server. A read of a resource, a prompt and a completion which did not work are answered as an error of the protocol with the message of the failure, because a client which asked for a document, for a text or for the possible values of an argument must not receive the reason of a failure as if it were that document, that text respectively one of those values. A call which the client itself cancelled is none of those two: it is answered with that reason and with the status-code of a normal answer, because nothing failed. |
 
-## Codeunits
-
-| Codeunit | Description |
-| -------- | ----------- |
-| [GenericMCPServerBackend](./GenericMCPServerBackend/ReadMe.md) | The backend which implements the MCP-protocol and runs the declared tools and resources. |
-| [GenericMCPServer](./GenericMCPServer/ReadMe.md) | The container-image which packages the backend. |
-
 ## Getting started
 
-The image is available on docker hub as
-[aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver), so it can be used without building
-this repository. Building it yourself and starting the example works like this:
+### Install server
 
-```
-task bb
-cd GenericMCPServer\Other\Examples\MinimalDockerComposeFile
-python RunExample.py
+The image is available on docker-hub as
+[aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver).
+
+An example docker-compose file can look like this:
+
+```yml
+services:
+  genericmcpserver:
+    image: aniondev/genericmcpserver:2.0.0
+    container_name: 'genericmcpserver'
+    environment:
+      EnforceVerbose: 'true'
+    volumes:
+      # This folder is mounted as the configuration-folder of the server, because the declaration has to lie there
+      # ("Tools.json" is resolved against that folder) and every script it names is resolved relative to the
+      # declaration. It is not mounted read-only, because the server writes its configuration-file and the files of
+      # its clients, roles and tokens into that folder.
+      - ./Tools:/Workspace/Configuration
+    ports:
+      - "8080:80"
 ```
 
-The example declares three mcp-servers and mounts them into the container:
+The repository contains such an example ready to run under
+`GenericMCPServer/Other/Examples/MinimalDockerComposeFile` (it uses the image which `task bb` built locally instead of
+the one from docker-hub). It declares three mcp-servers and mounts them into the container:
 
 | mcp-server | Address | Who may use it | Tools |
 | ---------- | ------- | -------------- | ----- |
@@ -100,9 +108,13 @@ whatever volume the configuration-folder is mounted with (see the example `docke
 
 - **The server reads it only once, at startup.** Unlike the csv-files of the clients, roles and access-tokens (which
   are read for every request), a changed `Tools.json` needs a restart of the server to take effect.
-- **A file which is configured but does not exist is an error**, and so is a mistake in it (an mcp-server without a
-  url-namespace, a tool without a type, a prompt which is declared as a web-request, invalid json, ...) - both make
-  the server fail while starting. Only *no* configured file at all means "nothing is offered".
+- **A file which does not exist yet is no error.** The server creates it as an empty declaration (`{}`) at its
+  resolved location and starts while offering nothing, because a freshly set up server which nobody pointed at a
+  declaration yet is an expected state. The configuration-folder therefore has to be writable.
+- **A mistake in the file is an error** (an mcp-server without a url-namespace, an mcp-server which neither is
+  anonymous nor names a role, a tool without a type, a prompt which is declared as a web-request, a name which is used
+  twice, invalid json, ...) and makes the server fail while starting, instead of when somebody happens to call the
+  affected tool.
 
 ## Protocol
 

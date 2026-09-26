@@ -79,8 +79,9 @@ What the three types mean:
 - `python`: the script runs in a virtual environment which belongs to that tool alone
   (`Services/VirtualEnvironmentService.cs`). It is built when the tool is called for the first time and built again as
   soon as the declared `requirements` differ from the ones it was built with — otherwise a changed declaration would be
-  without effect. The environments live below the data-folder of the server, not next to the scripts: that folder is
-  usually mounted read-only. `--InitialVirtualEnvironmentsFolder` moves them.
+  without effect. The environments live below the data-folder of the server and not next to the scripts,
+  because an environment is data which the server builds and not something an administrator edits. There is no
+  commandline-parameter which moves them.
 - `shell`: the script is run with `/bin/sh`, which requires a linux-system; on another system the tool answers with
   exactly that reason. Running it with the shell also means the file needs no execute-permission.
 - `web-request`: no script at all (`Services/WebRequestService.cs`). The client states the address as the parameter

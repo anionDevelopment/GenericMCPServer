@@ -160,9 +160,9 @@ folder which nobody looks at. An environment whose creation failed is removed, s
 for a working one.
 
 The environments are located below the data-folder of the server (in the image `/Workspace/Data/VirtualEnvironments`).
-The commandline-parameter `--InitialVirtualEnvironmentsFolder` puts them somewhere else, for example on a volume which
-survives a restart of the container. They can not lie next to the scripts, because that folder is usually mounted
-read-only.
+They do not lie next to the scripts, because an environment is data which the server builds and not something an
+administrator edits. An operator who wants them to survive a recreation of the container mounts a volume at the
+data-folder; the server offers no commandline-parameter to move them somewhere else.
 
 ### Type `shell`
 

@@ -2,12 +2,15 @@ version: '3.2'
 
 services:
   genericmcpserver:
-    image: genericmcpserver:1.0.1
+    image: genericmcpserver:2.0.0
     container_name: 'genericmcpserver'
     environment:
       EnforceVerbose: 'true'
     volumes:
-      - ./Configuration:/Workspace/Configuration
-      - ./Tools:/Workspace/Tools
+      # This folder is mounted as the configuration-folder of the server, because the declaration has to lie there
+      # (the configuration-value "ToolDefinitionsFile" defaults to "./Tools.json", resolved against that folder) and
+      # every script it names is resolved relative to the declaration. It is not mounted read-only, because the server
+      # writes its configuration-file and the files of its clients, roles and tokens into that folder.
+      - ./Tools:/Workspace/Configuration
     ports:
       - "8080:80"

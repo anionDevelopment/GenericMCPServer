@@ -74,7 +74,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// uses the constructor below, because it needs both.
         /// </summary>
         /// <param name="toolDefinitionsFile">The file which declares the tools, or null/empty if none was configured. In that case the server offers no tool at all, which is deliberate: a tool exists because an administrator declared it and not because this codeunit brings it along.</param>
-        /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It has to be writable, which is why it is not the folder of the declarations: that one is usually mounted read-only.</param>
+        /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It is not the folder of the declarations, because an environment is data of the server and not something an administrator edits.</param>
         /// <exception cref="FileNotFoundException">Thrown when a file was configured but does not exist.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the file does not declare valid tools or when a declared credential is not available.</exception>
         public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder)
@@ -87,7 +87,7 @@ namespace GenericMCPServerBackend.Core.Services
         /// which is backed by the given services.
         /// </summary>
         /// <param name="toolDefinitionsFile">The file which declares the tools, or null/empty if none was configured. In that case the server offers no tool at all, which is deliberate: a tool exists because an administrator declared it and not because this codeunit brings it along.</param>
-        /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It has to be writable, which is why it is not the folder of the declarations: that one is usually mounted read-only.</param>
+        /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It is not the folder of the declarations, because an environment is data of the server and not something an administrator edits.</param>
         /// <param name="clientService">Where the clients and their administration-tokens are kept.</param>
         /// <param name="rolesService">Where the roles and their assignments are kept.</param>
         /// <param name="accessTokenService">Where the access-tokens of the clients are kept.</param>
