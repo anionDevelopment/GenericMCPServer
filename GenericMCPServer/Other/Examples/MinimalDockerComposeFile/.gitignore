@@ -1,6 +1,4 @@
-Tools/Configuration.xml
-Tools/AdminToken.csv
-Tools/AccessTokens.csv
-Tools/ClientAdministrationTokens.csv
-Tools/Roles.csv
-Tools/RoleAssignments.csv
+# The folders which the compose-file mounts for the running server: its configuration-file together with the files of
+# its clients, roles and access-tokens, and its logs. They belong to the running example and not to the repository.
+Configuration/
+Logs/

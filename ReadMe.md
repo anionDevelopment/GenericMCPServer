@@ -45,24 +45,28 @@ services:
     environment:
       EnforceVerbose: 'true'
     volumes:
-      # This folder is mounted as the configuration-folder of the server, because the declaration has to lie there
+      # This folder is mounted as the tools-folder of the server, because the declaration has to lie there
       # ("Tools.json" is resolved against that folder) and every script it names is resolved relative to the
-      # declaration. It is not mounted read-only, because the server writes its configuration-file and the files of
-      # its clients, roles and tokens into that folder.
-      - ./Tools:/Workspace/Configuration
+      # declaration. It is not mounted read-only, because the server writes an empty declaration into it when there is
+      # none yet.
+      - ./Tools:/Workspace/Tools
+      # The configuration-folder is where the server writes its own files: its configuration-file and the files of its
+      # clients, roles and access-tokens. It is a folder of its own so that handing the declaration over does not hand
+      # the state of the server over with it, and it is mounted so that this state survives a new container.
+      - ./Configuration:/Workspace/Configuration
     ports:
       - "8080:80"
 ```
 
-The repository contains such an example ready to run under
-`GenericMCPServer/Other/Examples/MinimalDockerComposeFile` (it uses the image which `task bb` built locally instead of
-the one from docker-hub). It declares three mcp-servers and mounts them into the container:
+The repository contains two such examples ready to run (both use the image which `task bb` built locally instead of
+the one from docker-hub). `GenericMCPServer/Other/Examples/MinimalDockerComposeFile` declares the first of the
+following mcp-servers, `GenericMCPServer/Other/Examples/AdvancedDockerComposeFile` declares all three:
 
 | mcp-server | Address | Who may use it | Tools |
 | ---------- | ------- | -------------- | ----- |
-| `GeneralTools` | `http://127.0.0.1:8080/GeneralTools` | everybody (anonymous) | the current point in time |
+| `GeneralTools` | `http://127.0.0.1:8080/GeneralTools` | everybody (anonymous) | the current point in time and the content of a web-page which its declaration allows |
 | `Security` | `http://127.0.0.1:8080/Security` | the role `security` | the details of a CVE |
-| `DeveloperTools` | `http://127.0.0.1:8080/DeveloperTools` | the roles `developer` and `security` | the available versions of a maven-, NuGet-, PyPI- and npm-package, the metadata of a PyPI-package and a research-tool for the usual sources of a developer |
+| `DeveloperTools` | `http://127.0.0.1:8080/DeveloperTools` | the roles `developer` and `security` | the available versions of a maven-, NuGet-, PyPI- and npm-package, the release-notes of a NuGet-package, where the changelog of a PyPI-package stands and the metadata of a PyPI-package |
 
 `GeneralTools` works right away. For the other two, a client needs an access-token. The server generates a token for
 its administrator at the first start and writes it to the console; only its hash is stored, so it can not be looked
@@ -90,27 +94,38 @@ in the [reference of the backend](./GenericMCPServerBackend/Other/Reference/Refe
 ## Where Tools.json has to be
 
 Which file declares the mcp-servers and their tools is itself part of the persisted configuration of the server
-(`ToolDefinitionsFile`) and defaults to `./Tools.json`, resolved against the **configuration-folder** of the server -
-not the working directory the server happens to be started from:
+(`ToolDefinitionsFile`) and defaults to `./Tools.json`, resolved against the **tools-folder** of the server - not the
+working directory the server happens to be started from:
 
-| Environment | Configuration-folder | Default location of `Tools.json` |
-| ----------- | --------------------- | --------------------------------- |
-| Local run (`dotnet run ...`) | `GenericMCPServerBackend/Other/Workspace/Configuration` | `GenericMCPServerBackend/Other/Workspace/Configuration/Tools.json` |
-| Container | `/Workspace/Configuration` | `/Workspace/Configuration/Tools.json` |
+| Environment | Tools-folder | Default location of `Tools.json` |
+| ----------- | ------------ | --------------------------------- |
+| Local run (`dotnet run ...`) | `GenericMCPServerBackend/Other/Workspace/Tools` | `GenericMCPServerBackend/Other/Workspace/Tools/Tools.json` |
+| Container | `/Workspace/Tools` | `/Workspace/Tools/Tools.json` |
 
-Every script which a tool, a resource or a prompt `calls` has to lie in that same folder (the folder of
-`Tools.json`), because it is resolved relative to it - a declaration whose scripts lie somewhere else fails when the
-tool is called, when the resource is read respectively when the prompt is asked for.
+Where that default is written to the configuration-file for the first time can be stated from outside with the
+environment-variable `InitialToolsDefinitionFilePath`. It decides the value that file is generated with and nothing
+else: from the second start on the configuration-file is what the server reads, so the variable changes nothing on a
+server which is already running somewhere.
+
+The tools-folder holds what an administrator writes and the configuration-folder (`/Workspace/Configuration`
+respectively `GenericMCPServerBackend/Other/Workspace/Configuration`) holds what the server writes: its
+configuration-file and the files of its clients, roles and access-tokens. They are two folders next to each other for
+exactly that reason - a declaration is handed over without the state of the server being handed over with it.
+
+Every script which a tool, a resource or a prompt `calls` has to lie inside that same folder (the folder of
+`Tools.json`) or below it, because it is resolved relative to it and has to stay inside it - a declaration whose
+scripts lie somewhere else fails when the tool is called, when the resource is read respectively when the prompt is
+asked for.
 
 An administrator edits `Tools.json` like any other text-file - locally on disk, or, for a container, through
-whatever volume the configuration-folder is mounted with (see the example `docker-compose.yml` under
+whatever volume the tools-folder is mounted with (see the example `docker-compose.yml` under
 `GenericMCPServer/Other/Examples/MinimalDockerComposeFile`). Two things matter while doing so:
 
 - **The server reads it only once, at startup.** Unlike the csv-files of the clients, roles and access-tokens (which
   are read for every request), a changed `Tools.json` needs a restart of the server to take effect.
 - **A file which does not exist yet is no error.** The server creates it as an empty declaration (`{}`) at its
   resolved location and starts while offering nothing, because a freshly set up server which nobody pointed at a
-  declaration yet is an expected state. The configuration-folder therefore has to be writable.
+  declaration yet is an expected state. The tools-folder therefore has to be writable.
 - **A mistake in the file is an error** (an mcp-server without a url-namespace, an mcp-server which neither is
   anonymous nor names a role, a tool without a type, a prompt which is declared as a web-request, a name which is used
   twice, invalid json, ...) and makes the server fail while starting, instead of when somebody happens to call the

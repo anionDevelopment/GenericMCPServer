@@ -21,8 +21,8 @@ namespace GenericMCPServerBackend.Core.Configuration
         public IExceptionManagerConfiguration ConfigurationForExceptionManagerMiddleware { get; set; }
 
         /// <summary>
-        /// The file which declares the tools this server offers (see <see cref="Services.ToolDefinitionsReader"/>), relative to the configuration-folder of
-        /// the server unless given as an absolute path. Its default ("./Tools.json", see Program.cs) is only written into the configuration-file the
+        /// The file which declares the tools this server offers (see <see cref="Services.ToolDefinitionsReader"/>), relative to the tools-folder of the
+        /// server unless given as an absolute path. Its default ("./Tools.json", see Program.cs) is only written into the configuration-file the
         /// first time it is generated; an administrator who wants the tools declared somewhere else changes this value there afterwards. Without a file at
         /// the resolved location the server offers no tool at all, which is deliberate: a tool exists because an administrator declared it and not because
         /// this codeunit brings it along.

@@ -52,8 +52,16 @@ them, so there is no primitive of the SDK to derive from. `Misc/ScriptCompletion
 least one completion, so one without them does not claim the completions-capability.
 
 The declaration is a json-file whose path (`ToolDefinitionsFile`) is part of the persisted configuration-file of the
-server, defaulting to `./Tools.json` (relative to the configuration-folder) the first time that file is
-generated:
+server, defaulting to `./Tools.json` (relative to the **tools-folder**, which is `<base-folder>/Tools` - so
+`/Workspace/Tools` in the container and `GenericMCPServerBackend/Other/Workspace/Tools` for a local run) the first time
+that file is generated. That folder deliberately is not the configuration-folder: it holds the declaration and the
+scripts it names, which belong to the administrator, while the configuration-folder holds the configuration-file of the
+server and the files of its clients, roles and access-tokens, which belong to the server. `Program.cs` creates the
+tools-folder itself, because GRYLibrary only knows the configuration-, the data- and the log-folder. Which value that
+configuration-file is generated with can be stated from outside with the commandline-parameter
+`--InitialToolsDefinitionFilePath` (the entry-point of the image passes the environment-variable of the same name on to
+it); it decides that one value and nothing else, because the configuration-file stays the single place the server reads
+this from:
 
 ```json
 {
@@ -150,8 +158,9 @@ Three things decide it, and they are deliberately kept apart:
 
 A client reaches an mcp-server when its access-token is valid and it is in at least one of the roles which the
 declaration of that mcp-server states. All files live in the configuration-folder of the server (which is not
-stated from outside), are created when they do not exist yet and are read for every request, so a change works
-immediately without a restart. A line which can not be read is an error and is not skipped.
+stated from outside and is not the tools-folder the declaration lies in), are created when they do not exist yet and
+are read for every request, so a change works immediately without a restart. A line which can not be read is an error
+and is not skipped.
 
 Everything is administrated over the api and not on the commandline:
 
@@ -236,6 +245,14 @@ The cancellation-mechanism of the SDK can not carry this, and that is the reason
 transport runs in the stateless mode, so the call and its cancellation arrive as two http-requests which are answered
 by two instances of the server of the SDK, and the SDK matches a cancellation to a request only within one session.
 
+- `Misc/ProcessTree.cs` is what a started program is ended with. `Process.Kill(true)` of the runtime is not enough on
+  its own: it ends the program first and walks its children afterwards, so a child which already ended is one whose own
+  children it does not look for anymore. On windows that is the normal case, because the interpreter of a virtual
+  environment is a launcher which starts the real interpreter and takes it down together with itself - what the script
+  had started then survived the cancellation. The started program is therefore assigned to a job-object which is ended
+  as a whole; on linux the tree of the runtime is used, because there the interpreter of a virtual environment is the
+  interpreter itself. **Do not replace this by `Kill(true)` again** - the testcase
+  `AProgramWhichTheScriptOfACancelledCallStartedIsStoppedAsWell` is what states the difference.
 - `Misc/RunningToolCalls.cs` is the registry of the running calls, one for the whole process - that is what the two
   http-requests have in common. It maps what a message of the protocol names to the token the program behind that call
   runs with and decides nothing about a tool: what happens when that token is cancelled is decided where the program is

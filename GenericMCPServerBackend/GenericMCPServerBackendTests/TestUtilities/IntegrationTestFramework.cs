@@ -24,7 +24,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
     public sealed class IntegrationTestFramework : IDisposable
     {
         private readonly Program _Program;
-        // Not readonly: it is only created once the started server tells this instance where its configuration-folder is (see the constructor below), which
+        // Not readonly: it is only created once the started server tells this instance where its tools-folder is (see the constructor below), which
         // happens on the server's own thread while this constructor is still waiting for the server to become ready.
         private ExampleDataCreator _ExampleDataCreator;
 
@@ -71,10 +71,16 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // The server has to listen on every ip: with the domain-only binding the testcases would have to
                 // resolve the configured domain, while they address the server under 127.0.0.1.
                 ListenOnEveryIP = true,
-                // ToolDefinitionsFile defaults to "./Tools.json" relative to the configuration-folder, so the example-data is written directly into
+                // ToolDefinitionsFile defaults to "./Tools.json" relative to the tools-folder, so the example-data is written directly into
                 // that folder as soon as the server (on its own thread) reports where it is - before it gets to read that default -
                 // instead of pointing the server at some independent location, which is no longer configurable from outside at all.
-                OnConfigurationFolderResolved = configurationFolder => this._ExampleDataCreator = new ExampleDataCreator(configurationFolder),
+                // Unlike the configuration-folder, the tools-folder is not wiped between two test-runs, so whatever an earlier run left there is
+                // removed here: a test-run which found the declaration of an older one would test that one instead of its own.
+                OnToolsFolderResolved = toolsFolder =>
+                {
+                    GRYLibrary.Core.Misc.Utilities.EnsureDirectoryDoesNotExist(toolsFolder);
+                    this._ExampleDataCreator = new ExampleDataCreator(toolsFolder);
+                },
             };
             Thread thread = new Thread(() => this._Program.MainImplementation(new string[]
             {

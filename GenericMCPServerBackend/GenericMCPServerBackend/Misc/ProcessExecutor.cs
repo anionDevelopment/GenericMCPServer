@@ -66,6 +66,7 @@ namespace GenericMCPServerBackend.Core.Misc
                 throw new InvalidOperationException($"{description} could not be started.");
             }
             using (process)
+            using (ProcessTree tree = PutIntoATreeOrEndIt(process, description))
             {
                 // Both streams are read while the process is still running: reading them one after the other would
                 // block forever as soon as the program writes more into the other one than its buffer can hold.
@@ -83,7 +84,10 @@ namespace GenericMCPServerBackend.Core.Misc
                     }
                     catch (OperationCanceledException)
                     {
-                        KillIfItIsStillRunning(process);
+                        // The whole tree is ended, because a program which started another one would otherwise leave
+                        // that one behind, and a script of a tool is exactly the kind of program which starts another
+                        // one.
+                        tree.Terminate();
                         // Which of the two ended the wait is what the caller learns: a cancellation is a decision of
                         // the client and no failure of the program, so it is not reported as one.
                         cancellationToken.ThrowIfCancellationRequested();
@@ -95,16 +99,22 @@ namespace GenericMCPServerBackend.Core.Misc
         }
 
         /// <summary>
-        /// Ends the program together with everything it started itself, unless it ended on its own in the meantime.
-        ///
-        /// The whole tree is ended, because a program which started another one would otherwise leave that one behind,
-        /// and a script of a tool is exactly the kind of program which starts another one.
+        /// Puts the started program into a tree which can be ended as one, and ends the program itself when that is not
+        /// possible: a program which nothing would be able to stop later must not be left running now.
         /// </summary>
-        private static void KillIfItIsStillRunning(Process process)
+        private static ProcessTree PutIntoATreeOrEndIt(Process process, string description)
         {
-            if (!process.HasExited)
+            try
             {
-                process.Kill(true);
+                return ProcessTree.Of(process, description);
+            }
+            catch (Exception)
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(true);
+                }
+                throw;
             }
         }
     }

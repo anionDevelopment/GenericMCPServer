@@ -1,0 +1,14 @@
+name: 'genericmcpserver_advanced_example'
+
+services:
+  genericmcpserver:
+    image: genericmcpserver:2.0.0
+    container_name: 'genericmcpserver'
+    environment:
+      EnforceVerbose: 'true'
+    volumes:
+      - ./Tools:/Workspace/Tools
+      - ./Configuration:/Workspace/Configuration
+      - ./Logs:/Workspace/Logs
+    ports:
+      - "8080:80"

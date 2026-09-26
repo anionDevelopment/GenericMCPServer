@@ -65,15 +65,12 @@ namespace GenericMCPServerBackend.Core
         internal APIServerConfiguration<CodeUnitSpecificConstants, CodeUnitSpecificConfiguration, CommandlineParameter>? _Constants;
 
         /// <summary>
-        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the configuration-folder of this run is known and - for a test-run -
-        /// after GRYLibrary has wiped and recreated it, but before the configuration-file (and therefore the default of
-        /// <see cref="Configuration.CodeUnitSpecificConfiguration.ToolDefinitionsFile"/>) is read. Firing it any earlier (for example right where the
-        /// folder becomes known, during initialization) would have it write into a folder GRYLibrary deletes and recreates for every test-run right
-        /// afterwards, which silently discards whatever was written and is exactly the bug this timing avoids. A test which wants the server to find a
-        /// declaration without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder
-        /// in time; production code has no need for it and leaves it null.
+        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the tools-folder of this run exists, but before the declaration in it
+        /// (see <see cref="Configuration.CodeUnitSpecificConfiguration.ToolDefinitionsFile"/>) is read. A test which wants the server to find a declaration
+        /// without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder in time;
+        /// production code has no need for it and leaves it null.
         /// </summary>
-        internal Action<string>? OnConfigurationFolderResolved { get; set; }
+        internal Action<string>? OnToolsFolderResolved { get; set; }
 
         public Program()
         {
@@ -97,14 +94,24 @@ namespace GenericMCPServerBackend.Core
             // registered.
             string virtualEnvironmentsFolder = null;
             string administrationFolder = null;
+            string toolsFolder = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
                 apiServerConfiguration.SetInitializationInformationAction = (initializationInformation) =>
                 {
-                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString("./Tools.json");
+                    // This decides what is written into the configuration-file the first time it is generated and
+                    // nothing else: from the second start on that file is what the server reads, so an operator who
+                    // states the parameter afterwards changes nothing.
+                    string initialToolDefinitionsFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath) ? GeneralConstants.DefaultToolDefinitionsFile : initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath;
+                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString(initialToolDefinitionsFile);
                     virtualEnvironmentsFolder = Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments");
                     administrationFolder = initializationInformation.ApplicationConstants.GetConfigurationFolder();
+                    // The declaration and the scripts it names belong to the administrator, while the configuration-folder holds what the server itself
+                    // writes (its configuration-file and the files of its clients, roles and tokens). They are therefore two folders next to each other
+                    // below the base-folder, exactly like the data- and the log-folder are: an operator hands the tools-folder over (for a container: as a
+                    // volume) without handing over the state of the server with it.
+                    toolsFolder = Path.Combine(initializationInformation.ApplicationConstants.BaseFolder, GeneralConstants.ToolsFolderName);
                     initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
                     initializationInformation.ApplicationConstants.CustomMiddlewares2.Add(typeof(ToolCallFailureStatusCodeMiddleware));
                     string domain = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialDomain) ? Tools.GetDefaultDomainValue(GeneralConstants.CodeUnitName) : initializationInformation.CommandlineParameter.InitialDomain;
@@ -149,9 +156,10 @@ namespace GenericMCPServerBackend.Core
                 };
                 apiServerConfiguration.SetFunctionalInformationAction = (functionalInformation) => //technical initialization for every run
                 {
-                    // For a test-run GRYLibrary wipes and recreates the configuration-folder between the initialization- and the functional-phase (so
-                    // every test-run starts clean), so this has to fire here and not during initialization - see the doc-comment of OnConfigurationFolderResolved.
-                    this.OnConfigurationFolderResolved?.Invoke(administrationFolder);
+                    // The tools-folder is created by this codeunit and not by GRYLibrary (which only knows the configuration-, the data- and the
+                    // log-folder), so it has to exist before anything is written into it or read from it.
+                    GRYLibrary.Core.Misc.Utilities.EnsureDirectoryExists(toolsFolder);
+                    this.OnToolsFolderResolved?.Invoke(toolsFolder);
                     this._Log = functionalInformation.Logger;//this is now server.log
                     this._Log.Log("Run initialization...");
 
@@ -182,12 +190,11 @@ namespace GenericMCPServerBackend.Core
                     // written to the log while doing so - that is the one moment it is readable.
                     this._AdminTokenService = new AdminTokenService(AdminTokenService.GetDefaultFile(administrationFolder), this._Log);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration);
-                    // Resolved against the configuration-folder (the same base every other configurable path of this server, e.g. CertificateFolder, uses),
-                    // so a relative value in the configuration-file (like the default "./Tools.json") is not accidentally resolved against the
-                    // process' working-directory instead. If the resolved file does not exist (for example because nobody declared any tool yet), the
-                    // server still starts and simply offers no tool, exactly like it did before this was configurable at all - it does not abort with
-                    // FileNotFoundException, because "no tools declared yet" is an expected, valid state of a freshly set up server.
-                    string toolDefinitionsFile = functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile.GetPath(administrationFolder);
+                    // Resolved against the tools-folder and not against the working-directory the process happens to be started from, so a relative value
+                    // in the configuration-file (like the default "./Tools.json") names a file next to the scripts it declares. If the resolved file does
+                    // not exist (for example because nobody declared any tool yet), it is created as an empty declaration and the server starts while
+                    // offering no tool, because a freshly set up server which nobody pointed at a declaration yet is an expected, valid state.
+                    string toolDefinitionsFile = functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile.GetPath(toolsFolder);
                     if (!File.Exists(toolDefinitionsFile))
                     {
                         GRYLibrary.Core.Misc.Utilities.EnsureFileExists(toolDefinitionsFile);

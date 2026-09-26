@@ -46,12 +46,16 @@ arguments of the prompts, one handler for a cancellation and one endpoint per mc
 
 Two things belong together and have to be reachable by the server:
 
-- The tool-definitions-file, whose path (`ToolDefinitionsFile`, relative to the configuration-folder unless given as
+- The tool-definitions-file, whose path (`ToolDefinitionsFile`, relative to the tools-folder unless given as
   an absolute path) is part of the persisted configuration-file of the server. It defaults to `./Tools.json` the
   first time that configuration-file is generated; an administrator who wants the tools declared somewhere else
   changes the value there afterwards.
 - The scripts which the declarations name. A script is resolved relative to the folder of the declaration and has to
   stay inside it, so mounting only the declaration into the container leaves every tool broken.
+
+Both belong to the administrator and therefore lie in the tools-folder of the server (`/Workspace/Tools` in the
+container), which is a different folder than the configuration-folder: the latter holds what the server itself writes
+- its configuration-file and the files of its clients, roles and access-tokens.
 
 A mistake in the declaration itself (an mcp-server without a url-namespace, an mcp-server which neither is anonymous
 nor names a role, a tool without a type, a name which is used twice, invalid json) makes the server fail on startup

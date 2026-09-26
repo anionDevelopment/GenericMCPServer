@@ -38,10 +38,37 @@ prompts which is offered SHALL be determined exclusively by the tool-definitions
 #### Scenario: The resolved tool-definitions-file does not exist
 
 - **WHEN** the server is started and the file its configuration points at (its persisted configuration-value
-  `ToolDefinitionsFile`, which defaults to `./Tools.json` the first time that file is generated) does not exist at its
-  resolved location
+  `ToolDefinitionsFile`, which defaults to `./Tools.json`, relative to the tools-folder, the first time that file is
+  generated) does not exist at its resolved location
 - **THEN** it starts and offers nothing, exactly as if no tool-definitions-file was configured at all, because a
   freshly set up server which nobody pointed at a declaration yet is an expected state and not a mistake
+
+#### Scenario: The first configuration-file is generated
+
+- **WHEN** the server starts for the first time and generates its configuration-file, and the initial path of the
+  tool-definitions-file was stated from outside
+- **THEN** that path is what the generated file states instead of the default, while every later start reads the path
+  from that file alone - so stating it again afterwards changes nothing and the configuration-file stays the single
+  place this is read from
+
+### Requirement: What an administrator declares and what the server writes lie in two folders
+
+The tool-definitions-file and the scripts it names SHALL lie in a tools-folder of the server, and the configuration-file
+of the server together with the files of its clients, its roles and its access-tokens SHALL lie in a configuration-folder
+which is a different folder. Handing the declaration over SHALL therefore not hand the state of the server over with it.
+
+#### Scenario: An operator hands the declaration over
+
+- **WHEN** an operator gives somebody access to the folder which holds the declaration and its scripts (for a container:
+  mounts it as a volume)
+- **THEN** that access covers no file the server wrote about itself, because the configuration-file and the files of the
+  clients, the roles and the access-tokens lie in another folder
+
+#### Scenario: The declaration is replaced
+
+- **WHEN** the content of the tools-folder is replaced
+- **THEN** the clients, the roles and the access-tokens of the server stay as they were, because none of them lies in
+  that folder
 
 ### Requirement: One process hosts several mcp-servers which are separated from each other
 
@@ -275,6 +302,14 @@ it. Such a cancellation SHALL only be able to stop a call of the same mcp-server
 - **WHEN** a client cancels the request of a tool-call which is still running
 - **THEN** the program behind that call is stopped - the script together with everything it started, respectively the
   request which is waiting for a foreign service - and the call is answered with that reason
+
+#### Scenario: The script started a program which started another one
+
+- **WHEN** the script of a cancelled call had started a program which itself had started another one, and one of them
+  has already ended by the time the call is cancelled
+- **THEN** every program of that call is stopped nevertheless, because what is ended is the whole tree and not a chain
+  which is walked from one living program to the next - a program which ended on its own must not be able to hide the
+  programs below it
 
 #### Scenario: A declared tool is cancellable without stating anything for it
 
