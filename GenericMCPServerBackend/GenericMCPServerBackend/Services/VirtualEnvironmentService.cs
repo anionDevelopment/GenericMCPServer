@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Core.Services
 {
@@ -152,7 +153,10 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 startInfo.ArgumentList.Add(argument);
             }
-            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, CreationTimeoutInSeconds, description);
+            // The building of an environment is not cancellable, although a tool-call which needs it can be cancelled:
+            // the environment belongs to the declaration and not to the call, so throwing the half-finished work away
+            // would make every other caller of that declaration wait for it to be built again.
+            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, CreationTimeoutInSeconds, description, CancellationToken.None);
             if (result.ExitCode != 0)
             {
                 throw new InvalidOperationException($"{description} could not be created (exit-code {result.ExitCode}): {(string.IsNullOrWhiteSpace(result.ErrorOutput) ? result.Output : result.ErrorOutput).Trim()}");

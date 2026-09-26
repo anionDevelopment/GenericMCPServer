@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Core.Services
 {
@@ -257,11 +258,13 @@ namespace GenericMCPServerBackend.Core.Services
         /// <summary>
         /// Runs the given tool: what that means is decided by its type.
         /// </summary>
+        /// <param name="cancellationToken">Stops the tool while it runs. This is what a client which cancelled its call reaches the running script respectively the running web-request with.</param>
         /// <exception cref="KeyNotFoundException">Thrown when no tool with that name is declared.</exception>
         /// <exception cref="FileNotFoundException">Thrown when the script of the tool does not exist.</exception>
         /// <exception cref="PlatformNotSupportedException">Thrown when the tool can not run on this system.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the tool failed. The message contains what it reported.</exception>
-        public string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments)
+        /// <exception cref="OperationCanceledException">Thrown when the given token was cancelled. What the tool was running is stopped before that happens.</exception>
+        public string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments, CancellationToken cancellationToken)
         {
             MCPServerDefinition mcpServer = this.GetMCPServer(urlNamespace);
             ToolDefinition definition = mcpServer.Tools.FirstOrDefault(tool => tool.ToolName == toolName);
@@ -274,9 +277,9 @@ namespace GenericMCPServerBackend.Core.Services
             ToolTypes.TryParse(definition.Type, out ToolType type);
             if (type == ToolType.WebRequest)
             {
-                return this._WebRequestService.Run(definition, arguments);
+                return this._WebRequestService.Run(definition, arguments, cancellationToken);
             }
-            return this.RunScript(definition, type, arguments);
+            return this.RunScript(definition, type, arguments, cancellationToken);
         }
 
         /// <summary>
@@ -303,7 +306,10 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 return this._WebRequestService.ReadResource(definition);
             }
-            return this.RunScript(definition, type, new Dictionary<string, string>() { { ResourceDefinition.UriParameterName, definition.Uri } });
+            // A read of a resource is not cancellable: the protocol lets a client cancel a request it sent, and this
+            // server stops what a cancelled tool-call runs - a resource, a prompt and a completion are answered by a
+            // program which is asked once and which no client can name in a cancellation here.
+            return this.RunScript(definition, type, new Dictionary<string, string>() { { ResourceDefinition.UriParameterName, definition.Uri } }, CancellationToken.None);
         }
 
         /// <summary>
@@ -326,7 +332,7 @@ namespace GenericMCPServerBackend.Core.Services
             }
             // A prompt is never of the type "web-request" (see ToolDefinitionsReader), so it always runs a script.
             ToolTypes.TryParse(definition.Type, out ToolType type);
-            return this.RunScript(definition, type, arguments);
+            return this.RunScript(definition, type, arguments, CancellationToken.None);
         }
 
         /// <summary>
@@ -358,7 +364,7 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 { CompletionDefinition.ArgumentParameterName, argumentName },
                 { CompletionDefinition.ValueParameterName, argumentValue },
-            });
+            }, CancellationToken.None);
             return ReadValues(output);
         }
 
@@ -408,7 +414,10 @@ namespace GenericMCPServerBackend.Core.Services
         /// A shell-script is run by the shell itself and not by starting the file: the file comes from a folder which
         /// is usually mounted into the container, where it would not necessarily carry the permission to be executed.
         /// </summary>
-        private string RunScript(CallableDefinition definition, ToolType type, IReadOnlyDictionary<string, string> arguments)
+        /// <param name="cancellationToken">Ends the script while it runs. Only a tool-call passes one which can be
+        /// cancelled; a resource, a prompt and a completion pass none, because a client cancels a tool-call and nothing
+        /// else here.</param>
+        private string RunScript(CallableDefinition definition, ToolType type, IReadOnlyDictionary<string, string> arguments, CancellationToken cancellationToken)
         {
             string scriptFile = Path.GetFullPath(Path.Combine(this._ScriptFolder, definition.Calls));
             // The script has to stay inside the folder of the tool-definitions-file. The declaration itself comes from
@@ -437,7 +446,7 @@ namespace GenericMCPServerBackend.Core.Services
                 }
             }
             string description = $"The script of the {definition.Kind} \"{definition.Name}\"";
-            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, ToolScriptTimeoutInSeconds, description);
+            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, ToolScriptTimeoutInSeconds, description, cancellationToken);
             if (result.ExitCode != 0)
             {
                 throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" failed (exit-code {result.ExitCode}): {result.ErrorOutput.Trim()}");

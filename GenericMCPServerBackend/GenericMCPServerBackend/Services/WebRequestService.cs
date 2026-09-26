@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GenericMCPServerBackend.Core.Services
@@ -70,8 +71,10 @@ namespace GenericMCPServerBackend.Core.Services
         /// Checks whether the tool allows the requested address and, if it does, requests it and returns the answer as
         /// a json-document with the status-code and the body.
         /// </summary>
+        /// <param name="cancellationToken">Aborts the request while it is running. This is what makes a tool-call which a client cancelled stop waiting for a foreign service.</param>
         /// <exception cref="InvalidOperationException">Thrown when no address was given, the address is not usable, no rule of the tool allows it or the request failed.</exception>
-        public string Run(ToolDefinition definition, IReadOnlyDictionary<string, string> arguments)
+        /// <exception cref="OperationCanceledException">Thrown when the given token was cancelled.</exception>
+        public string Run(ToolDefinition definition, IReadOnlyDictionary<string, string> arguments, CancellationToken cancellationToken)
         {
             if (!arguments.TryGetValue(UrlParameterName, out string requestedAddress) || string.IsNullOrWhiteSpace(requestedAddress))
             {
@@ -82,7 +85,7 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 throw new InvalidOperationException($"The tool \"{definition.ToolName}\" does not allow a request to \"{address}\". A tool allows exactly the addresses which the rules of its declaration match.");
             }
-            (int statusCode, string body) = this.Request(definition, address);
+            (int statusCode, string body) = this.Request(definition, address, cancellationToken);
             return JsonSerializer.Serialize(new Dictionary<string, object>()
             {
                 { "status-code", statusCode },
@@ -102,7 +105,9 @@ namespace GenericMCPServerBackend.Core.Services
         public string ReadResource(ResourceDefinition definition)
         {
             string address = GetAddress(definition, definition.Uri);
-            (int statusCode, string body) = this.Request(definition, address);
+            // A read of a resource is not cancellable, for the same reason the script of a resource is not: a client
+            // cancels a tool-call here and nothing else.
+            (int statusCode, string body) = this.Request(definition, address, CancellationToken.None);
             if (statusCode < 200 || 299 < statusCode)
             {
                 throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" is not available: \"{address}\" answered with the status-code {statusCode}.");
@@ -190,12 +195,12 @@ namespace GenericMCPServerBackend.Core.Services
         /// caller, because a tool hands over the status-code together with the body while a resource is the body.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the request failed or the answer is too large.</exception>
-        private (int StatusCode, string Body) Request(CallableDefinition definition, string address)
+        private (int StatusCode, string Body) Request(CallableDefinition definition, string address, CancellationToken cancellationToken)
         {
             try
             {
                 using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{Protocol}://{address}"))
-                using (HttpResponseMessage response = this.Send(definition, request))
+                using (HttpResponseMessage response = this.Send(definition, request, cancellationToken))
                 {
                     return ((int)response.StatusCode, ReadBody(definition, response));
                 }
@@ -206,6 +211,10 @@ namespace GenericMCPServerBackend.Core.Services
             }
             catch (TaskCanceledException exception)
             {
+                // The timeout of the request and a cancellation of the call end the request in the same way, so which
+                // of the two it was is asked here: a cancellation is a decision of the client and is not reported as a
+                // service which did not answer in time.
+                cancellationToken.ThrowIfCancellationRequested();
                 throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" did not get an answer from \"{address}\" within {TimeoutInSeconds} seconds.", exception);
             }
         }
@@ -214,14 +223,14 @@ namespace GenericMCPServerBackend.Core.Services
         /// Sends the request with the headers the declaration states. They are added without validation, because a
         /// header which a foreign service expects is not necessarily one which this codeunit knows.
         /// </summary>
-        private HttpResponseMessage Send(CallableDefinition definition, HttpRequestMessage request)
+        private HttpResponseMessage Send(CallableDefinition definition, HttpRequestMessage request, CancellationToken cancellationToken)
         {
             IReadOnlyDictionary<string, string> credentialValues = definition.Credentials.ToDictionary(credential => credential.Key, credential => this._CredentialsService.GetValue(credential.Value), StringComparer.Ordinal);
             foreach (KeyValuePair<string, string> header in BuildHeaders(definition, credentialValues))
             {
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
-            return Client.Send(request);
+            return Client.Send(request, cancellationToken);
         }
 
         /// <exception cref="InvalidOperationException">Thrown when the answer is larger than <see cref="MaximalLengthOfBodyInCharacters"/>.</exception>

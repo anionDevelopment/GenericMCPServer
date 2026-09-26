@@ -1,5 +1,6 @@
 using GenericMCPServerBackend.Core.Model;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Core.Services
 {
@@ -29,8 +30,9 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="urlNamespace">The namespace of the mcp-server the tool belongs to.</param>
         /// <param name="toolName">The name of the tool, which has to be one of the tools of that mcp-server.</param>
         /// <param name="arguments">The values of the parameters of the tool, keyed by the name of the parameter.</param>
+        /// <param name="cancellationToken">Stops the tool while it runs, which is how a client that cancelled its call reaches the running script respectively the running web-request.</param>
         /// <returns>What the tool answered.</returns>
-        string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments);
+        string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments, CancellationToken cancellationToken);
 
         /// <summary>
         /// Reads the resource of the given mcp-server which is declared under the given uri.

@@ -213,12 +213,17 @@ namespace GenericMCPServerBackend.Core
                     // which declares at least one completion appears here, for the same reason as above: a server
                     // without an entry does not claim the completions-capability of the protocol.
                     Dictionary<string, ScriptCompletionHandler> completionHandlersOfTheMCPServers = new Dictionary<string, ScriptCompletionHandler>(StringComparer.OrdinalIgnoreCase);
+                    // The tool-calls which are running right now. There is exactly one of these for the whole process,
+                    // because the transport is stateless: a tool-call and the "notifications/cancelled" which cancels
+                    // it arrive as two http-requests which are answered by two instances of the server of the SDK, so
+                    // this registry is the only thing both of them reach.
+                    RunningToolCalls runningToolCalls = new RunningToolCalls();
                     foreach (MCPServerDefinition mcpServer in mcpServers)
                     {
                         McpServerPrimitiveCollection<McpServerTool> tools = new McpServerPrimitiveCollection<McpServerTool>();
                         foreach (ToolDefinition definition in mcpServer.Tools)
                         {
-                            tools.Add(new ScriptTool(businessLogicService, mcpServer.UrlNamespace, definition));
+                            tools.Add(new ScriptTool(businessLogicService, runningToolCalls, mcpServer.UrlNamespace, definition));
                         }
                         toolsOfTheMCPServers[mcpServer.UrlNamespace] = tools;
                         if (0 < mcpServer.Resources.Count)
@@ -274,6 +279,11 @@ namespace GenericMCPServerBackend.Core
                                 // mcp-server which declares no completion never inherits the handler of one which
                                 // does, no matter how the transport reuses the options of a request.
                                 serverOptions.Handlers.CompleteHandler = mcpServer != null && completionHandlersOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out ScriptCompletionHandler completionHandler) ? completionHandler.HandleAsync : null;
+                                // A "notifications/cancelled" of the client stops the tool-call it names. The handler is
+                                // built per request and not once, because the request is what states who is cancelling:
+                                // a cancellation may only stop a call of the same mcp-server and of the same client, and
+                                // the notification itself states nothing but a request-id.
+                                serverOptions.Handlers.NotificationHandlers = mcpServer == null ? null : ToolCallCancellationHandler.CreateHandlersFor(runningToolCalls, mcpServer.UrlNamespace, httpContext);
                                 return Task.CompletedTask;
                             };
                         });
