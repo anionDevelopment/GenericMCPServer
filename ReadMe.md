@@ -65,42 +65,8 @@ in the [reference of the backend](./GenericMCPServerBackend/Other/Reference/Refe
 
 ### Configure MCP-server
 
-#### Create Client
+#### Create and administrate Clients
 
-TODO
-
-#### Create Access-token
-
-TODO
-
-#### Configure Access-token on client
-
-##### Configure Access-token for GitHub Copilot
-
-TODO
-
-##### Configure Access-token for Claude
-
-TODO
-
-## Reference
-
-The reference of the repository can be found [here](./Other/Reference/ReadMe.md).
-
-## Changelog
-
-See the [Changelog-folder](./Other/Resources/Changelog).
-
-## License
-
-See [License.txt](./License.txt).
-
----
-
-````
-# MCPServer
-
-## Administration
 
 Set the server URL and administrator token once per terminal session:
 
@@ -110,11 +76,10 @@ export MCP_ADMIN_TOKEN="gmcpadmin_xxx"
 export CLIENT_NAME="myclient"
 export CLIENT_ADMIN_TOKEN="gmcpclientadmin_xxx"
 export CLIENT_TOKEN="gmcp_xxx"
-````
+```
 
 All administration routes require `X-Admin-Token`.
 
-### Clients
 
 ```bash
 # List clients, their roles, and the number of access tokens.
@@ -130,8 +95,6 @@ curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_
 curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME"
 ```
 
-### Roles
-
 ```bash
 # List all roles.
 curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Roles"
@@ -141,8 +104,6 @@ curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_
 
 curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Roles/developer"
 ```
-
-### Role Assignments
 
 ```bash
 # List the roles of a client.
@@ -154,31 +115,34 @@ curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_
 curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME/Roles/developer"
 ```
 
-## Client Administration
+#### Create Access-token
 
-### List access tokens
+
+##### List access tokens
 
 ```sh
 curl -X GET http://127.0.0.1:1222/API/v1/ClientAdministration/AccessTokens -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
-### Create access token
+##### Create access token
 
 ```sh
 curl -X POST "http://127.0.0.1:1222/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
-### Delete access token
+##### Delete access token
 
 ```sh
 curl -X DELETE "http://127.0.0.1:1222/API/v1/ClientAdministration/AccessTokens/<hash>" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
-## Configure for usage
 
-### Configure GitHub Copilot
+#### Configure Access-token on client
 
-#### GitHub Copilot on MacOS for VSCode
+##### Configure Access-token for GitHub Copilot
+
+
+###### GitHub Copilot on MacOS for VSCode
 
 In VS Code, run `MCP: Open User Configuration` and add the following to the opened `~/Library/Application Support/Code/User/mcp.json` file:
 
@@ -215,7 +179,7 @@ Available namespaces:
 - `Security`: 1 tool, role `security`
 - `DeveloperTools`: 8 tools, roles `developer` or `security`
 
-#### GitHub Copilot on MacOS for CLI
+###### GitHub Copilot on MacOS for CLI
 
 Create `~/.copilot/mcp-config.json` and add the MCP servers under `mcpServers`:
 
@@ -243,3 +207,19 @@ Create `~/.copilot/mcp-config.json` and add the MCP servers under `mcpServers`:
 	}
 }
 ```
+
+##### Configure Access-token for Claude
+
+TODO
+
+## Reference
+
+The reference of the repository can be found [here](./Other/Reference/ReadMe.md).
+
+## Changelog
+
+See the [Changelog-folder](./Other/Resources/Changelog).
+
+## License
+
+See [License.txt](./License.txt).
