@@ -12,4 +12,4 @@ services:
       - ./Configuration:/Workspace/Configuration
       - ./Logs:/Workspace/Logs
     ports:
-      - "8080:80"
+      - "1222:80"

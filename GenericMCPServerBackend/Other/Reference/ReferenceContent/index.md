@@ -564,18 +564,18 @@ Every one of these routes needs the header `X-Admin-Token` with that token.
 
 | Route | What it does |
 | ----- | ------------ |
-| `GET /API/v1/Admin/Clients` | The clients with their roles and the amount of their access-tokens. |
-| `POST /API/v1/Admin/Clients/<client>` | Creates a client and answers with its client-administration-token. |
-| `POST /API/v1/Admin/Clients/<client>/AdministrationToken` | Creates a new client-administration-token for that client and answers with it. The previous one stops working at once; the access-tokens of the client stay as they are. |
-| `DELETE /API/v1/Admin/Clients/<client>` | Removes the client together with its access-tokens and its roles. |
-| `GET /API/v1/Admin/Roles` | The roles which exist. |
-| `POST /API/v1/Admin/Roles/<role>` | Creates a role. |
-| `DELETE /API/v1/Admin/Roles/<role>` | Removes the role and every assignment of it. |
-| `POST /API/v1/Admin/Clients/<client>/Roles/<role>` | Puts the client into the role. |
-| `DELETE /API/v1/Admin/Clients/<client>/Roles/<role>` | Removes the client from the role. |
+| `GET /API/v2/Admin/Clients` | The clients with their roles and the amount of their access-tokens. |
+| `POST /API/v2/Admin/Clients/<client>` | Creates a client and answers with its client-administration-token. |
+| `POST /API/v2/Admin/Clients/<client>/AdministrationToken` | Creates a new client-administration-token for that client and answers with it. The previous one stops working at once; the access-tokens of the client stay as they are. |
+| `DELETE /API/v2/Admin/Clients/<client>` | Removes the client together with its access-tokens and its roles. |
+| `GET /API/v2/Admin/Roles` | The roles which exist. |
+| `POST /API/v2/Admin/Roles/<role>` | Creates a role. |
+| `DELETE /API/v2/Admin/Roles/<role>` | Removes the role and every assignment of it. |
+| `POST /API/v2/Admin/Clients/<client>/Roles/<role>` | Puts the client into the role. |
+| `DELETE /API/v2/Admin/Clients/<client>/Roles/<role>` | Removes the client from the role. |
 
 ```
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Clients/team-a -H "X-Admin-Token: <admin-token>"
+curl -X POST http://127.0.0.1:8080/API/v2/Admin/Clients/team-a -H "X-Admin-Token: <admin-token>"
 ```
 
 The answer contains the **client-administration-token**, and only this answer does: only its hash is stored. It is
@@ -588,12 +588,12 @@ token, so a client can only ever see and change its own access-tokens - it can n
 
 | Route | What it does |
 | ----- | ------------ |
-| `GET /API/v1/ClientAdministration/AccessTokens` | The own access-tokens, with their hash and their end. |
-| `POST /API/v1/ClientAdministration/AccessTokens?validForDays=90` | Creates an access-token and answers with it. |
-| `DELETE /API/v1/ClientAdministration/AccessTokens/<hash>` | Removes one of the own access-tokens. |
+| `GET /API/v2/ClientAdministration/AccessTokens` | The own access-tokens, with their hash and their end. |
+| `POST /API/v2/ClientAdministration/AccessTokens?validForDays=90` | Creates an access-token and answers with it. |
+| `DELETE /API/v2/ClientAdministration/AccessTokens/<hash>` | Removes one of the own access-tokens. |
 
 ```
-curl -X POST "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: <client-administration-token>"
+curl -X POST "http://127.0.0.1:8080/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: <client-administration-token>"
 ```
 
 - **Only the hash of a token is stored.** Every token exists in a readable form exactly once, namely in the answer

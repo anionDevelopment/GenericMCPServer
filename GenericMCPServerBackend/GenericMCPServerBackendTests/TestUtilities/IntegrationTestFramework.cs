@@ -106,11 +106,11 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
             this.AdminToken = SetTheTokenOfTheAdministrator(this._Program._AdminTokenService);
             // The role, the client and the access-token are created the way an administrator and the operator of a
             // client create them: over the api of the running server.
-            this.SendToTheAdministration(HttpMethod.Post, $"/API/v1/Admin/Roles/{ExampleDataCreator.RoleName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
-            string answerOfTheClient = this.SendToTheAdministration(HttpMethod.Post, $"/API/v1/Admin/Clients/{ClientName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
+            this.SendToTheAdministration(HttpMethod.Post, $"/API/v2/Admin/Roles/{ExampleDataCreator.RoleName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
+            string answerOfTheClient = this.SendToTheAdministration(HttpMethod.Post, $"/API/v2/Admin/Clients/{ClientName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
             this.ClientAdministrationToken = JsonDocument.Parse(answerOfTheClient).RootElement.GetProperty("clientAdministrationToken").GetString();
-            this.SendToTheAdministration(HttpMethod.Post, $"/API/v1/Admin/Clients/{ClientName}/Roles/{ExampleDataCreator.RoleName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
-            string answerOfTheAccessToken = this.SendToTheAdministration(HttpMethod.Post, "/API/v1/ClientAdministration/AccessTokens?validForDays=1", AccessTokenValidatorMiddleware.ClientAdministrationTokenHeaderName, this.ClientAdministrationToken);
+            this.SendToTheAdministration(HttpMethod.Post, $"/API/v2/Admin/Clients/{ClientName}/Roles/{ExampleDataCreator.RoleName}", AccessTokenValidatorMiddleware.AdminTokenHeaderName, this.AdminToken);
+            string answerOfTheAccessToken = this.SendToTheAdministration(HttpMethod.Post, "/API/v2/ClientAdministration/AccessTokens?validForDays=1", AccessTokenValidatorMiddleware.ClientAdministrationTokenHeaderName, this.ClientAdministrationToken);
             this.AccessToken = JsonDocument.Parse(answerOfTheAccessToken).RootElement.GetProperty("accessToken").GetString();
         }
 

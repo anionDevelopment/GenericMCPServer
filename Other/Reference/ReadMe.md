@@ -209,9 +209,9 @@ exist, `Roles.csv` and `RoleAssignments.csv` state which roles exist and who is 
 mcp-server states which roles may use it. All of these files live in the configuration-folder of the server, are
 created when they do not exist yet and are read for every request, so a new token or a changed role works immediately.
 
-An administrator manages clients and roles over the routes below `/API/v1/Admin`, which the token in the
+An administrator manages clients and roles over the routes below `/API/v2/Admin`, which the token in the
 server opens (it is shown on the console at the first start; only its hash is stored). Creating a client answers with a client-administration-token, and whoever runs
-that client creates its access-tokens with it over the routes below `/API/v1/ClientAdministration`. Every token is
+that client creates its access-tokens with it over the routes below `/API/v2/ClientAdministration`. Every token is
 shown exactly once, because only its hash is stored, and every access-token ends at a stated point in time.
 
 ## What a failed tool-call looks like
@@ -253,7 +253,7 @@ python RunExample.py
 
 `task bb` builds both codeunits including their testcases, the linting and the container-image. The example declares
 three mcp-servers and mounts them into the container; `GeneralTools` is anonymous and is reachable right away under
-`http://127.0.0.1:8080/GeneralTools`.
+`http://127.0.0.1:1222/GeneralTools`.
 
 ## Where the details are documented
 

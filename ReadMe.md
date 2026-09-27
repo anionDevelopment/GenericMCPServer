@@ -17,45 +17,43 @@ The image is available on docker-hub as
 An example docker-compose file can look like this:
 
 ```yml
+name: 'genericmcpserver'
 services:
   genericmcpserver:
-    image: aniondev/genericmcpserver:latest
+    image: genericmcpserver:latest
     container_name: 'genericmcpserver'
     environment:
       EnforceVerbose: 'true'
+      InitialToolsDefinitionFilePath: '/Workspace/Tools/Tools.json'
     volumes:
       - ./Tools:/Workspace/Tools
       - ./Configuration:/Workspace/Configuration
+      - ./Logs:/Workspace/Logs
     ports:
-      - "8080:80"
+      - "1222:80"
 ```
 
-The repository contains two such examples ready to run (both use the image which `task bb` built locally instead of
-the one from docker-hub). `GenericMCPServer/Other/Examples/MinimalDockerComposeFile` declares the first of the
-following MCP-servers, `GenericMCPServer/Other/Examples/AdvancedDockerComposeFile` declares all three:
+On first run the admin-token is printed in the container-output (not in the logs) on the first run.
+You can recognize this token by the token-prefix `gmcpadmin_`.
 
-| MCP-server | Address | Who may use it | Tools |
-| ---------- | ------- | -------------- | ----- |
-| `GeneralTools` | `http://127.0.0.1:8080/GeneralTools` | everybody (anonymous) | the current point in time and the content of a web-page which its declaration allows |
-| `Security` | `http://127.0.0.1:8080/Security` | the role `security` | the details of a CVE |
-| `DeveloperTools` | `http://127.0.0.1:8080/DeveloperTools` | the roles `developer` and `security` | the available versions of a maven-, NuGet-, PyPI- and npm-package, the release-notes of a NuGet-package, where the changelog of a PyPI-package stands and the metadata of a PyPI-package |
+For the next configuration steps, let us first save the most important variables in env-variables:
 
-`GeneralTools` works right away. For the other two, a client needs an access-token. The server generates a token for
-its administrator at the first start and writes it to the console; only its hash is stored, so it can not be looked
-up later.
-With it, an administrator creates a role, a client and the assignment:
-
+```bash
+export MCP_SERVER_URL="http://127.0.0.1:1222"
+export MCP_ADMIN_TOKEN="gmcpadmin_xxx"
 ```
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Roles/developer -H "X-Admin-Token: <admin-token>"
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Clients/my-client -H "X-Admin-Token: <admin-token>"
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Clients/my-client/Roles/developer -H "X-Admin-Token: <admin-token>"
+
+```bash
+curl -X POST http://127.0.0.1:1222/API/v2/Admin/Roles/developer -H "X-Admin-Token: $MCP_ADMIN_TOKEN"
+curl -X POST http://127.0.0.1:1222/API/v2/Admin/Clients/$CLIENT_NAME -H "X-Admin-Token: $MCP_ADMIN_TOKEN"
+curl -X POST http://127.0.0.1:1222/API/v2/Admin/Clients/$CLIENT_NAME/Roles/developer -H "X-Admin-Token: $MCP_ADMIN_TOKEN"
 ```
 
 The second call answers with the **client-administration-token** of that client, and only that answer contains it. It
 is handed to whoever runs the client, who creates access-tokens with it:
 
-```
-curl -X POST "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: <client-administration-token>"
+```bash
+curl -X POST "http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
 That access-token is sent to an MCP-server as `Authorization: Bearer <token>`.
@@ -67,12 +65,9 @@ in the [reference of the backend](./GenericMCPServerBackend/Other/Reference/Refe
 
 #### Create and administrate Clients
 
-
 Set the server URL and administrator token once per terminal session:
 
 ```bash
-export MCP_SERVER_URL="http://127.0.0.1:1222"
-export MCP_ADMIN_TOKEN="gmcpadmin_xxx"
 export CLIENT_NAME="myclient"
 export CLIENT_ADMIN_TOKEN="gmcpclientadmin_xxx"
 export CLIENT_TOKEN="gmcp_xxx"
@@ -80,67 +75,67 @@ export CLIENT_TOKEN="gmcp_xxx"
 
 All administration routes require `X-Admin-Token`.
 
+##### Manage Clients
 
 ```bash
 # List clients, their roles, and the number of access tokens.
-curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients"
+curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients"
 
 # Create a client. Store the returned clientAdministrationToken immediately.
-curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME"
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME"
 
 # Replace a leaked or expired client-administration token.
-curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME/AdministrationToken"
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/AdministrationToken"
 
 # Delete a client, including its access tokens and role assignments.
-curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME"
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME"
 ```
+
+##### Manage roles
 
 ```bash
 # List all roles.
-curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Roles"
+curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles"
 
 # Create or delete a role.
-curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Roles/developer"
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/developer"
 
-curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Roles/developer"
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/developer"
 ```
 
 ```bash
 # List the roles of a client.
-curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME/Roles"
+curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles"
 
 # Assign or remove a role for a client.
-curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME/Roles/developer"
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/developer"
 
-curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v1/Admin/Clients/$CLIENT_NAME/Roles/developer"
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/developer"
 ```
 
-#### Create Access-token
-
+#### Manage Access-token
 
 ##### List access tokens
 
 ```sh
-curl -X GET http://127.0.0.1:1222/API/v1/ClientAdministration/AccessTokens -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+curl -X GET http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
 ##### Create access token
 
 ```sh
-curl -X POST "http://127.0.0.1:1222/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+curl -X POST "http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
 ##### Delete access token
 
 ```sh
-curl -X DELETE "http://127.0.0.1:1222/API/v1/ClientAdministration/AccessTokens/<hash>" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+curl -X DELETE "http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens/<hash>" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
-
 
 #### Configure Access-token on client
 
 ##### Configure Access-token for GitHub Copilot
-
 
 ###### GitHub Copilot on MacOS for VSCode
 

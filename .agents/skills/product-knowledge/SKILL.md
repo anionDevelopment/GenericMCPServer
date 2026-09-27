@@ -172,12 +172,12 @@ and is not skipped.
 
 Everything is administrated over the api and not on the commandline:
 
-- `Controller/AdminController.cs` (`/API/v1/Admin`) manages clients, roles and assignments. It needs the header
+- `Controller/AdminController.cs` (`/API/v2/Admin`) manages clients, roles and assignments. It needs the header
   `X-Admin-Token` with the token of the administrator. That token is created by `Services/AdminTokenService.cs` at the
   first start which finds no `AdminToken.csv` and is written to the log while the file-targets of the log are switched
   off, so it appears on the console and in no file; only its hash is stored. Creating a client answers with the
   client-administration-token of that client - the only moment at which it is readable.
-- `Controller/ClientAdministrationController.cs` (`/API/v1/ClientAdministration`) lets a client create and remove its
+- `Controller/ClientAdministrationController.cs` (`/API/v2/ClientAdministration`) lets a client create and remove its
   own access-tokens. It needs the header `X-Client-Administration-Token`; which client is calling follows from that
   token, so a client can not even name another one.
 

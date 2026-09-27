@@ -15,7 +15,7 @@
     "version": "v1.0.0"
   },
   "paths": {
-    "/API/v1/Admin/Clients": {
+    "/API/v2/Admin/Clients": {
       "get": {
         "tags": [
           "Admin"
@@ -28,7 +28,7 @@
         }
       }
     },
-    "/API/v1/Admin/Clients/{client}": {
+    "/API/v2/Admin/Clients/{client}": {
       "post": {
         "tags": [
           "Admin"
@@ -73,7 +73,7 @@
         }
       }
     },
-    "/API/v1/Admin/Clients/{client}/AdministrationToken": {
+    "/API/v2/Admin/Clients/{client}/AdministrationToken": {
       "post": {
         "tags": [
           "Admin"
@@ -97,7 +97,7 @@
         }
       }
     },
-    "/API/v1/Admin/Roles": {
+    "/API/v2/Admin/Roles": {
       "get": {
         "tags": [
           "Admin"
@@ -110,7 +110,7 @@
         }
       }
     },
-    "/API/v1/Admin/Roles/{role}": {
+    "/API/v2/Admin/Roles/{role}": {
       "post": {
         "tags": [
           "Admin"
@@ -154,7 +154,7 @@
         }
       }
     },
-    "/API/v1/Admin/Clients/{client}/Roles": {
+    "/API/v2/Admin/Clients/{client}/Roles": {
       "get": {
         "tags": [
           "Admin"
@@ -177,7 +177,7 @@
         }
       }
     },
-    "/API/v1/Admin/Clients/{client}/Roles/{role}": {
+    "/API/v2/Admin/Clients/{client}/Roles/{role}": {
       "post": {
         "tags": [
           "Admin"
@@ -237,7 +237,7 @@
         }
       }
     },
-    "/API/v1/ClientAdministration/AccessTokens": {
+    "/API/v2/ClientAdministration/AccessTokens": {
       "get": {
         "tags": [
           "ClientAdministration"
@@ -274,7 +274,7 @@
         }
       }
     },
-    "/API/v1/ClientAdministration/AccessTokens/{hash}": {
+    "/API/v2/ClientAdministration/AccessTokens/{hash}": {
       "delete": {
         "tags": [
           "ClientAdministration"
