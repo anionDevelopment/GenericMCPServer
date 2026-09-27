@@ -35,24 +35,27 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
         }
 
         /// <remarks>
-        /// The path of the declaration is read from the configuration-file of the server and from nowhere else. What
-        /// can be stated from outside is which value that file is generated with, which is what this exercises: the
-        /// server has to resolve the stated name against its tools-folder instead of the default "Tools.json".
+        /// This is what makes a declaration mountable as a single file: the stated value is the whole path of that
+        /// file, so the declaration does not have to lie in the tools-folder - and the folder it does lie in does not
+        /// have to be handed to the server along with it.
         /// </remarks>
         [TestMethod]
         [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.IntegrationTest))]
-        public void TheInitialPathOfTheDeclarationCanBeStatedWhileStarting()
+        public void TheWholePathOfTheDeclarationCanBeStatedWhileStarting()
         {
-            // arrange
-            string toolsFolder = null;
+            // arrange: a folder which is none of the folders of the server, which is the case this is about
+            string folderOfItsOwn = Path.Combine(Path.GetTempPath(), "GenericMCPServerBackendTests", Guid.NewGuid().ToString());
+            Directory.CreateDirectory(folderOfItsOwn);
+            string declaration = Path.Combine(folderOfItsOwn, "Declaration.json");
+            string toolsFolder = string.Empty;
             Program program = new Program()
             {
                 RunAsync = false,
                 ListenOnEveryIP = true,
-                // The tools-folder is not wiped between two test-runs, so what an earlier one left there is removed:
-                // a "Tools.json" of an earlier run would make the assertion below fail for a reason which is not the
-                // one it asks about. The folder itself is recreated right away, because the server expects the folder
-                // of this run to exist and only creates the declaration in it.
+                // The tools-folder is not wiped between two test-runs, so what an earlier one left there is removed: a
+                // "Tools.json" of an earlier run would make the assertion below fail for a reason which is not the one
+                // it asks about. The folder itself is recreated right away, because the server expects the folder of
+                // this run to exist.
                 OnToolsFolderResolved = folder =>
                 {
                     GRYLibrary.Core.Misc.Utilities.EnsureDirectoryDoesNotExist(folder);
@@ -64,7 +67,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
             // act
             Thread thread = new Thread(() => program.MainImplementation(new string[]
             {
-                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialToolsDefinitionFilePath)}", "./Declaration.json",
+                $"--{nameof(GenericMCPServerBackend.Core.Configuration.CommandlineParameter.InitialToolsDefinitionFilePath)}", declaration,
             }));
             thread.Start();
             try
@@ -84,8 +87,9 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
 
                 // assert: the server creates the declaration it resolved when there is none yet, so which file exists
                 // is what states which file the server actually looked at.
-                Assert.IsTrue(File.Exists(Path.Combine(toolsFolder, "Declaration.json")), "The server has to resolve the stated name against its tools-folder.");
+                Assert.IsTrue(File.Exists(declaration), "The server has to use the stated path as it is.");
                 Assert.IsFalse(File.Exists(Path.Combine(toolsFolder, "Tools.json")), "The default has to be replaced by the stated value and not to be used next to it.");
+                Assert.IsTrue(TheConfigurationFileStates(toolsFolder, declaration), "The configuration-file has to state the whole path of the declaration, so that an administrator reads there where it is looked for.");
             }
             finally
             {
@@ -93,7 +97,25 @@ namespace GenericMCPServerBackend.Tests.Testcases.Integration
                 {
                     program.Stop();
                 }
+                Directory.Delete(folderOfItsOwn, true);
             }
+        }
+
+        /// <summary>
+        /// States whether the generated configuration-file of the server contains the given path.
+        /// </summary>
+        /// <remarks>
+        /// The file is read as text and not as a document, because what this asks about is the path itself and not
+        /// the shape the serializer gives it: an element which is named or nested differently is no reason for this
+        /// testcase to fail, while a path which is not in there at all is.
+        /// </remarks>
+        /// <param name="toolsFolder">The tools-folder of the started server, which lies next to its configuration-folder.</param>
+        /// <param name="path">The path which has to stand in that file.</param>
+        private static bool TheConfigurationFileStates(string toolsFolder, string path)
+        {
+            string configurationFile = Path.Combine(toolsFolder, "..", "Configuration", "Configuration.xml");
+            Assert.IsTrue(File.Exists(configurationFile), $"The server did not generate the configuration-file \"{configurationFile}\".");
+            return File.ReadAllText(configurationFile).Contains(path, StringComparison.Ordinal);
         }
 
         /// <summary>

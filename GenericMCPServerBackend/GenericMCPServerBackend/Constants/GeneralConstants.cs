@@ -28,9 +28,9 @@ namespace GenericMCPServerBackend.Core.Constants
         internal const string ToolsFolderName = "Tools";
 
         /// <summary>
-        /// The value which the tool-definitions-file has in the configuration-file when nothing else was stated while that file was generated. It is
-        /// relative, so it names a file in the tools-folder.
+        /// The name which the tool-definitions-file has in the tools-folder when nothing else was stated while the configuration-file was generated. What
+        /// is written into that file is the whole path of it and not this name, so an administrator reads there where the declaration is looked for.
         /// </summary>
-        internal const string DefaultToolDefinitionsFile = "./Tools.json";
+        internal const string DefaultToolDefinitionsFileName = "Tools.json";
     }
 }

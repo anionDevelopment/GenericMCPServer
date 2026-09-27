@@ -6,6 +6,7 @@ services:
     container_name: 'genericmcpserver'
     environment:
       EnforceVerbose: 'true'
+      InitialToolsDefinitionFilePath: '/Workspace/Tools/Tools.json'
     volumes:
       - ./Tools:/Workspace/Tools
       - ./Configuration:/Workspace/Configuration

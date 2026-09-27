@@ -71,7 +71,7 @@ namespace GenericMCPServerBackend.Tests.TestUtilities
                 // The server has to listen on every ip: with the domain-only binding the testcases would have to
                 // resolve the configured domain, while they address the server under 127.0.0.1.
                 ListenOnEveryIP = true,
-                // ToolDefinitionsFile defaults to "./Tools.json" relative to the tools-folder, so the example-data is written directly into
+                // ToolDefinitionsFile is generated as the path of "Tools.json" in the tools-folder, so the example-data is written directly into
                 // that folder as soon as the server (on its own thread) reports where it is - before it gets to read that default -
                 // instead of pointing the server at some independent location, which is no longer configurable from outside at all.
                 // Unlike the configuration-folder, the tools-folder is not wiped between two test-runs, so whatever an earlier run left there is

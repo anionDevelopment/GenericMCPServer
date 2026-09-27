@@ -23,18 +23,17 @@ dotnet run --project GenericMCPServerBackend -- Run --RealRun true
 ```
 
 The first start creates `Other/Workspace/Configuration/Configuration.xml`, which - among the rest of the persisted
-configuration - defaults `ToolDefinitionsFile` to `./Tools.json` (relative to the tools-folder). Put your
-`Tools.json` (and whatever it declares) at `Other/Workspace/Tools/Tools.json`, or change the value in
-`Configuration.xml` to point somewhere else; either way the server has to be restarted afterwards, because it only
-reads the tool-definitions-file once, at startup. Without a file at the resolved location the server starts as well
-but hosts no mcp-server at all.
+configuration - sets `ToolDefinitionsFile` to the whole path of `Other/Workspace/Tools/Tools.json`. Put your
+`Tools.json` (and whatever it declares) there, or change that value in `Configuration.xml` to the whole path of
+another file; either way the server has to be restarted afterwards, because it only reads the tool-definitions-file
+once, at startup. Without a file at that location the server starts as well but hosts no mcp-server at all.
 
 The tools-folder holds what you write, the configuration-folder holds what the server writes - that is why they are
 two folders next to each other below `Other/Workspace`.
 
-To have the first start write a different value into `Configuration.xml` right away, pass
-`--InitialToolsDefinitionFilePath <path>`. It is read while that file is generated, so it changes nothing on a run
-which already found one.
+To have the first start write a different path into `Configuration.xml` right away, pass
+`--InitialToolsDefinitionFilePath <whole path of the file>`. It is read while that file is generated, so it changes
+nothing on a run which already found one.
 
 Every declared mcp-server is then reachable under `http://127.0.0.1:80/<url-namespace>`.
 

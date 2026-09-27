@@ -14,8 +14,9 @@ namespace GenericMCPServerBackend.Core.Configuration
 
         /// <summary>
         /// The value which <see cref="CodeUnitSpecificConfiguration.ToolDefinitionsFile"/> gets the first time the
-        /// configuration-file is generated, instead of the default "./Tools.json". A relative value is resolved
-        /// against the tools-folder of the server, exactly like the value in the configuration-file is.
+        /// configuration-file is generated, instead of the file "Tools.json" in the tools-folder of the server. It is
+        /// the whole path of that file including its name and not the folder it lies in - which is what lets a container
+        /// receive the declaration as a single file mounted into the tools-folder instead of as a whole mounted folder.
         ///
         /// It decides the initial value and nothing else: from the second start on the configuration-file is what the
         /// server reads, so stating this afterwards changes nothing and an administrator who wants the declaration

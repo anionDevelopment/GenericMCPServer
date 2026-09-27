@@ -38,10 +38,23 @@ prompts which is offered SHALL be determined exclusively by the tool-definitions
 #### Scenario: The resolved tool-definitions-file does not exist
 
 - **WHEN** the server is started and the file its configuration points at (its persisted configuration-value
-  `ToolDefinitionsFile`, which defaults to `./Tools.json`, relative to the tools-folder, the first time that file is
-  generated) does not exist at its resolved location
+  `ToolDefinitionsFile`, which states the whole path of that file and is generated as the path of "Tools.json" in the
+  tools-folder) does not exist there
 - **THEN** it starts and offers nothing, exactly as if no tool-definitions-file was configured at all, because a
   freshly set up server which nobody pointed at a declaration yet is an expected state and not a mistake
+
+#### Scenario: The folder of the configured tool-definitions-file does not exist
+
+- **WHEN** the server is started and the folder which the configured tool-definitions-file lies in does not exist
+- **THEN** the server fails while starting and states that folder, because a declaration which is missing is one
+  nobody wrote yet while a folder which is missing is a path that names a place which is not there
+
+#### Scenario: The declaration is handed over as a single file
+
+- **WHEN** a tool-definitions-file is handed to the server as a single file in the tools-folder instead of as that
+  whole folder (for a container: as a single mounted file)
+- **THEN** the server uses exactly that file, without a folder of the host being handed over with it and without the
+  rest of the tools-folder being covered by that mount
 
 #### Scenario: The first configuration-file is generated
 

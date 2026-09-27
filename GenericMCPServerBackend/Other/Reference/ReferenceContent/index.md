@@ -71,15 +71,20 @@ becoming ambiguous.
 
 ## How an mcp-server is declared
 
-Which file declares the tools is itself part of the persisted configuration-file of the server (`ToolDefinitionsFile`,
-relative to the tools-folder unless given as an absolute path). It defaults to `./Tools.json` the first
-time the configuration-file is generated; an administrator who wants the tools declared somewhere else changes the
-value there afterwards. Without a file at the resolved location the server simply offers no tool.
+Which file declares the tools is itself part of the persisted configuration-file of the server
+(`ToolDefinitionsFile`), as the whole path of that file including its name. That path is written while the
+configuration-file is generated and then names `Tools.json` in the tools-folder; an administrator who wants the tools
+declared somewhere else changes that one value afterwards. Without a file at that location the server simply offers no
+tool - it creates an empty declaration there and starts. The folder of the file has to exist: a path whose folder is
+not there makes the server fail while starting instead of being created, because such a path is a mistake and not a
+place. A value which is relative nevertheless is resolved against the tools-folder.
 
-That first value can be stated from outside with the commandline-parameter `--InitialToolsDefinitionFilePath` (the
-image passes the environment-variable of the same name on to it). It decides what is written into the
-configuration-file while that file is generated and nothing else, so a server which already has one ignores it - which
-is what keeps the file the single place the server reads this from.
+That generated value can be stated from outside with the commandline-parameter `--InitialToolsDefinitionFilePath`,
+again as the whole path of the file (the image passes the environment-variable of the same name on to it). It decides
+what is written into the configuration-file while that file is generated and nothing else, so a server which already
+has one ignores it - which is what keeps the file the single place the server reads this from. Because the value is a
+file and not a folder, a container can receive the declaration as a single file mounted into the tools-folder instead
+of as a whole mounted folder which would cover everything else in it.
 
 The tools-folder (`/Workspace/Tools` in the container, `Other/Workspace/Tools` for a local run) is not the
 configuration-folder: it holds the declaration and the scripts it names, which belong to the administrator, while the

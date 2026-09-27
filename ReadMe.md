@@ -4,33 +4,12 @@ GenericMCPServer hosts MCP-servers which are reachable over HTTP.
 It offers exactly the tools, the resources and the prompts which an administrator declares - each of them implemented
 by a python-script, by a shell-script or by a web-request - and brings none of them of its own along, which is what
 makes it generic.
-It also offers an authorization-system which hosts several mcp-servers in one process and lets certain clients reach
-certain mcp-servers, depending on the roles of the client.
-
-## Features
-
-| Feature | Description |
-| ------- | ----------- |
-| Tools are declared, not built in | Which tools exist is decided by a declaration-file of an administrator. A new tool needs an entry there and no change of this product, no new version and no restart of anything but the server itself. |
-| Three kinds of tools | A tool is implemented by a **python-script**, by a **shell-script** or by a **web-request** whose reachable addresses the declaration restricts. |
-| A virtual environment per python-tool | The packages a python-tool needs are declared as its requirements and installed into an environment which belongs to that tool alone, so two tools can need two versions of the same package. |
-| Web-requests with a whitelist | A tool of the kind web-request reaches exactly the addresses which the rules of its declaration match; everything else is denied. The protocol is always https and redirects are not followed. |
-| Credentials per tool | A tool receives the accesses which its declaration assigns to it (from an environment-variable of the server or from a docker-secret), and no tool receives the accesses of another one. |
-| **Several mcp-servers at the same time** | One process hosts as many mcp-servers as are declared. Each one has its **own tools** and its own address `<domain>/<url-namespace>`, so a client of one of them can neither see nor reach the tools of another one - even the same tool-name may exist in two of them. |
-| **Several clients, each with several access-tokens** | An administrator creates a client and hands over its client-administration-token; whoever runs that client creates its access-tokens with it. **A client can hold several valid tokens at the same time**, which is what makes an exchange possible without an interruption, and every token ends at a stated point in time. Only the hash of a token is stored. |
-| **Administration over the api** | An administrator manages clients, roles and assignments over routes which the admin-token of the server opens; a client manages its own access-tokens and nothing else. |
-| **Roles decide who may use what** | **A client is in none, one or several roles**, and an mcp-server declares **which roles** may use it. Who is in a role and what a role may do are therefore two decisions in two places: a new client needs no change of the declaration, and a changed declaration needs no new client. |
-| **Anonymous mcp-servers** | An mcp-server can be declared as one which everybody may use. It then needs no token at all, while the other mcp-servers of the same process stay behind theirs. |
-| Resources are declared like tools | Next to its tools an mcp-server offers **resources**: content which a client reads by a uri. A resource is declared with that uri, its name and the type of its content and is implemented by a python-script, a shell-script or a web-request, exactly like a tool. It takes no parameter - its uri is the whole request, and a script receives exactly that uri, so one script can implement several resources. |
-| Prompts are declared like tools | Next to its tools and resources an mcp-server offers **prompts**: a text which a client asks for by its name and hands to the model behind it. A prompt is declared with that name, its description and the arguments it takes, and it is implemented by a python-script or a shell-script which writes that text; the values of the arguments reach the script exactly like the values of a tool. A prompt is no web-request: such a declaration takes the address it requests from the client or from its own uri, and a prompt has neither. |
-| Autocompletion for the argument of a prompt | An argument of a prompt can declare **which values it may have**: a python-script or a shell-script which is told the argument and the value which was entered so far and writes the possible values, one per line. A client offers them while somebody fills in that argument (`completion/complete`). An argument without such a declaration is one whose values a client states without being offered any. |
-| Structured answers of a tool | A tool can declare the shape of its answer as an `output-schema`. Its script then writes a json-document instead of free text, and that document reaches the client as the **structured content** of the result next to the text, so the client reads data instead of parsing a text. An answer which is no json-document or does not fit the declared schema is a failed call, and a tool which declares no schema answers with text exactly as before. |
-| A running tool-call can be cancelled | A client which does not need the answer of a tool-call anymore sends `notifications/cancelled`; the **program behind that call is really stopped** - the script together with everything it started, respectively the web-request which is waiting for a foreign service. It works although the call and its cancellation are two independent requests, and it needs nothing of the script: a declared tool is cancellable without knowing that it is. |
-| Failures are visible | A tool-call which did not work is answered with the message of the failure and with the http-status-code 502, because the failure comes from the program behind this server. A read of a resource, a prompt and a completion which did not work are answered as an error of the protocol with the message of the failure, because a client which asked for a document, for a text or for the possible values of an argument must not receive the reason of a failure as if it were that document, that text respectively one of those values. A call which the client itself cancelled is none of those two: it is answered with that reason and with the status-code of a normal answer, because nothing failed. |
+It also offers an authorization-system which hosts several MCP-servers in one process and lets certain clients reach
+certain MCP-servers, depending on the roles of the client.
 
 ## Getting started
 
-### Install server
+### Install MCP-server
 
 The image is available on docker-hub as
 [aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver).
@@ -40,19 +19,12 @@ An example docker-compose file can look like this:
 ```yml
 services:
   genericmcpserver:
-    image: aniondev/genericmcpserver:2.0.0
+    image: aniondev/genericmcpserver:latest
     container_name: 'genericmcpserver'
     environment:
       EnforceVerbose: 'true'
     volumes:
-      # This folder is mounted as the tools-folder of the server, because the declaration has to lie there
-      # ("Tools.json" is resolved against that folder) and every script it names is resolved relative to the
-      # declaration. It is not mounted read-only, because the server writes an empty declaration into it when there is
-      # none yet.
       - ./Tools:/Workspace/Tools
-      # The configuration-folder is where the server writes its own files: its configuration-file and the files of its
-      # clients, roles and access-tokens. It is a folder of its own so that handing the declaration over does not hand
-      # the state of the server over with it, and it is mounted so that this state survives a new container.
       - ./Configuration:/Workspace/Configuration
     ports:
       - "8080:80"
@@ -60,9 +32,9 @@ services:
 
 The repository contains two such examples ready to run (both use the image which `task bb` built locally instead of
 the one from docker-hub). `GenericMCPServer/Other/Examples/MinimalDockerComposeFile` declares the first of the
-following mcp-servers, `GenericMCPServer/Other/Examples/AdvancedDockerComposeFile` declares all three:
+following MCP-servers, `GenericMCPServer/Other/Examples/AdvancedDockerComposeFile` declares all three:
 
-| mcp-server | Address | Who may use it | Tools |
+| MCP-server | Address | Who may use it | Tools |
 | ---------- | ------- | -------------- | ----- |
 | `GeneralTools` | `http://127.0.0.1:8080/GeneralTools` | everybody (anonymous) | the current point in time and the content of a web-page which its declaration allows |
 | `Security` | `http://127.0.0.1:8080/Security` | the role `security` | the details of a CVE |
@@ -86,111 +58,38 @@ is handed to whoever runs the client, who creates access-tokens with it:
 curl -X POST "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: <client-administration-token>"
 ```
 
-That access-token is sent to an mcp-server as `Authorization: Bearer <token>`.
+That access-token is sent to an MCP-server as `Authorization: Bearer <token>`.
 
 How a tool, how a resource, how a prompt and how the completion of an argument of a prompt is declared is described
 in the [reference of the backend](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
 
-## Where Tools.json has to be
+### Configure MCP-server
 
-Which file declares the mcp-servers and their tools is itself part of the persisted configuration of the server
-(`ToolDefinitionsFile`) and defaults to `./Tools.json`, resolved against the **tools-folder** of the server - not the
-working directory the server happens to be started from:
+#### Create Client
 
-| Environment | Tools-folder | Default location of `Tools.json` |
-| ----------- | ------------ | --------------------------------- |
-| Local run (`dotnet run ...`) | `GenericMCPServerBackend/Other/Workspace/Tools` | `GenericMCPServerBackend/Other/Workspace/Tools/Tools.json` |
-| Container | `/Workspace/Tools` | `/Workspace/Tools/Tools.json` |
+TODO
 
-Where that default is written to the configuration-file for the first time can be stated from outside with the
-environment-variable `InitialToolsDefinitionFilePath`. It decides the value that file is generated with and nothing
-else: from the second start on the configuration-file is what the server reads, so the variable changes nothing on a
-server which is already running somewhere.
+#### Create Access-token
 
-The tools-folder holds what an administrator writes and the configuration-folder (`/Workspace/Configuration`
-respectively `GenericMCPServerBackend/Other/Workspace/Configuration`) holds what the server writes: its
-configuration-file and the files of its clients, roles and access-tokens. They are two folders next to each other for
-exactly that reason - a declaration is handed over without the state of the server being handed over with it.
+TODO
 
-Every script which a tool, a resource or a prompt `calls` has to lie inside that same folder (the folder of
-`Tools.json`) or below it, because it is resolved relative to it and has to stay inside it - a declaration whose
-scripts lie somewhere else fails when the tool is called, when the resource is read respectively when the prompt is
-asked for.
+#### Configure Access-token on client
 
-An administrator edits `Tools.json` like any other text-file - locally on disk, or, for a container, through
-whatever volume the tools-folder is mounted with (see the example `docker-compose.yml` under
-`GenericMCPServer/Other/Examples/MinimalDockerComposeFile`). Two things matter while doing so:
+##### Configure Access-token for GitHub Copilot
 
-- **The server reads it only once, at startup.** Unlike the csv-files of the clients, roles and access-tokens (which
-  are read for every request), a changed `Tools.json` needs a restart of the server to take effect.
-- **A file which does not exist yet is no error.** The server creates it as an empty declaration (`{}`) at its
-  resolved location and starts while offering nothing, because a freshly set up server which nobody pointed at a
-  declaration yet is an expected state. The tools-folder therefore has to be writable.
-- **A mistake in the file is an error** (an mcp-server without a url-namespace, an mcp-server which neither is
-  anonymous nor names a role, a tool without a type, a prompt which is declared as a web-request, a name which is used
-  twice, invalid json, ...) and makes the server fail while starting, instead of when somebody happens to call the
-  affected tool.
+TODO
 
-## Protocol
+##### Configure Access-token for Claude
 
-GenericMCPServerBackend implements the tools-, the resources-, the prompts- and the completions-primitive of the
-MCP-protocol - the `initialize`-handshake, `tools/list`, `tools/call`, `resources/list`, `resources/read`,
-`prompts/list`, `prompts/get` and `completion/complete` - through the official C#-SDK (`ModelContextProtocol`, pinned
-to version `2.2.0`); this product contributes no protocol-code of its own, only the tools, the resources, the prompts
-and the possible values of their arguments. A tool which declares an `output-schema` additionally hands its answer
-over as the `structuredContent` of the result of `tools/call`, and a `notifications/cancelled` of the client stops the
-program behind the tool-call it names. An mcp-server which declares no resource does not claim the
-resources-capability at all, one which declares no prompt does not claim the prompts-capability and one which declares
-no completion does not claim the completions-capability, so a client of it never asks for a list which is empty by
-definition.
-
-The transport is the current **Streamable HTTP** transport, run in its stateless mode: every request is answered on
-its own, no session-id has to be kept by the client, and no separate long-lived connection is opened first - unlike
-the older, meanwhile deprecated HTTP+SSE-transport of the protocol-revision `2024-11-05`. Which protocol-revision a
-client uses is negotiated with it during `initialize`; the pinned SDK-version understands the revisions `2024-11-05`,
-`2025-03-26`, `2025-06-18`, `2025-11-25` and `2026-07-28`.
-
-There is no `stdio`-transport: the server is reachable only over HTTP, never by starting it as a local process.
-
-## Not available yet
-
-GenericMCPServerBackend implements the tools-, the resources-, the prompts- and the completions-primitive of the
-MCP-protocol and nothing else. What a "usual" MCP-server can additionally offer, and which this product does not have
-(yet); an entry which is struck through is one which is not open as a next step anymore - either because it is
-implemented by now, or because it would need something which a declared script deliberately does not do (send something
-back to the server while it is still running), or because it is deliberately out of scope. Which of the three it is, the
-entry itself states, and an entry which states "**Implemented**" is the only kind which the product has:
-
-| Primitive / mechanism | What is missing | Notes / What is missing | Simple to add on top of today's tool-scripts?<br>(no new requirements on the script, no send-back to the backend, no mandatory extra parameter) |
-| ---------------------- | ---------------- | ---------------------------------------- | ---------------------------------------- |
-| ~~**1: Resources**~~ | **Implemented**: `resources/list` and `resources/read` exist, a resource is declared in `Tools.json` next to the tools of its mcp-server (see [Resources are declared like tools](#features)). Still missing are subscriptions, which would need an additional polling- or watch-mechanism per resource, and uri-templates, because this server offers the resources which are declared and nothing which is derived from them. | Fits the existing model: declare resources in `Tools.json` like tools, backed by a script or web-request that returns content and mime-type. Subscriptions would need an additional polling or watch-mechanism per resource. | ✅ A resource-read is the same call-once/return-once shape a tool already has; a script only gets the declared parameters (for example a resource-uri) and returns its content in one go. |
-| ~~**2: Prompts**~~ | **Implemented**: `prompts/list` and `prompts/get` exist, a prompt is declared in `Tools.json` next to the tools and the resources of its mcp-server (see [Prompts are declared like tools](#features)). Still missing is a notification when the list of the prompts changed, which would need a watch-mechanism on the declaration - which this server reads once, while it starts. | Fits the existing model: a prompt is declared in `Tools.json` and is implemented by a script which takes the declared arguments and writes the text of the prompt - no callback while running is needed. Autocompletion for the argument of a prompt is entry 5 of this list. | ✅ Same call-once/return-once shape as a tool; no callback and no parameter beyond the ones the prompt itself declares. |
-| ~~**3: Sampling**~~ | The server can not ask the client for a completion of its own. | Needs a new runtime channel: the running script-process would need a callback (a local endpoint, or a line-protocol over stdin/stdout) to ask the server for a completion mid-execution, have the server forward it to the client synchronously, and receive the answer back. This is a new contract between server and script, not just a protocol addition. | ❌ Only works if the script can actively call back into the backend mid-execution and wait for an answer - exactly the "must send back" case, plus a new callback-capability every participating script would need to implement. |
-| ~~**4: Elicitation**~~ | The server can not ask the client to collect structured input from its user. | Same new runtime channel as sampling: the script pauses, asks for structured input over that callback, and resumes once the answer arrives. | ❌ Same reasoning as sampling: needs an active mid-execution callback from the script to the backend, which today's scripts have no way to do. |
-| ~~**5: Completions**~~ | **Implemented**: `completion/complete` exists, the values which an argument of a prompt can have are declared in the `completions` of that prompt, keyed by the name of the argument, and are written by a script exactly like a tool writes its answer (see [Autocompletion for the argument of a prompt](#features)). Still missing is a completion for a resource, which would need uri-templates - this server offers the resources which are declared and nothing which is derived from them - and one for the parameter of a tool, which the protocol does not have at all. | Fits the existing model: a self-contained request (`completion/complete`), not a running tool-call - declared as its own small provider per prompt-argument, which is told the argument and the value entered so far and writes one possible value per line. | ✅ A completion-request is still one call in, one list of suggestions out - the same shape as a tool-call, just invoked for a different protocol method. |
-| ~~**6: Logging-notifications**~~ | No `notifications/message` is sent to the client. | Small extension: define a contract where a script may write structured lines (e.g. JSON-lines with level and text) to stdout; the server reads the process as a stream instead of only its final result and forwards each line as a `notifications/message`. | ❌ Needs the script to actively push several structured messages while it is still running, on top of its final result - that is a new, script-specific output-format requirement and repeated send-back rather than one plain answer. |
-| **7: Roots** | A root the client offers is not used. | Doubtful fit: roots are mainly meaningful for a local/stdio-server that shares a filesystem with the client. For a remote HTTP-server the script runs on a different machine, so a client-reported local path has no counterpart there - unless roots were redefined entirely (for example as a URI-restriction for web-request tools). | ✅ Precisely because roots are not passed on to a script at all today (there is nothing meaningful to hand it), accepting them from the client would not touch scripts, force new parameters or need any send-back - it would just stay functionally unused, as noted above. |
-| ~~**8: Structured tool-output**~~ | **Implemented**: a tool declares the shape of its answer as an `output-schema` in `Tools.json`, that schema is offered to the client as the `outputSchema` of the tool, and what the script wrote is handed over as the `structuredContent` of the result of `tools/call` next to the text (see [Structured answers of a tool](#features)). An answer which is no json-document or does not fit the schema is a failed tool-call. Still missing is a schema for the answer of a resource or of a prompt, which neither answers with something whose shape a client reads as data, and the `resource_link`- and `resource`-content-blocks of a result, which would let a tool answer with a reference to a resource instead of with its own content. | Fits the existing model: a script emits JSON, the server validates and wraps it as `structuredContent` against an `outputSchema` declared in `Tools.json` - a plain extension of the existing call-result. | ✅ Still one call in, one answer out - only the shape of that one answer changes (JSON instead of free text) for tools that opt into it; scripts which don't declare an `outputSchema` are unaffected. |
-| ~~**9: Progress of a tool-call**~~ | A `progressToken` a client sends with `tools/call` is not used; no `notifications/progress` is sent while a tool runs. | Needs a streaming adjustment: the call would have to move from run-to-completion to streaming, with the script writing intermediate markers to stdout that the server reads while the process runs and turns into `notifications/progress`. Less than the full bidirectional channel sampling/elicitation need, but more than a plain wrapper. | ❌ Needs the script to emit intermediate markers while still running, in addition to its final result - a new output-format requirement and a repeated send-back instead of one plain answer. |
-| ~~**10: Cancellation of a tool-call**~~ | **Implemented**: a `notifications/cancelled` of the client stops the program behind the tool-call it names - the script together with everything it started, respectively the web-request which is waiting for a foreign service (see [A running tool-call can be cancelled](#features)). Still missing is the cancellation of a read of a resource, of a prompt and of a completion: the notification names a request-id and not what that request was about, and each of those three is answered in one go, so a cancellation which names one of them stops nothing. | Fits the existing model: the server keeps the process-handle or running web-request per `progressToken`/request-id and terminates or aborts it on `notifications/cancelled` - purely server-side, the script needs no special capability. | ✅ Entirely server-side (kill the process / abort the request); the script itself needs no new capability, sends nothing back and takes no new parameter. |
-| ~~**11: stdio-transport**~~ | Only HTTP is offered; a client which needs a local process (for example a classic desktop-integration) can not use it. | Out of scope here: a transport, not a tool-passthrough question - a fundamental product decision (local process instead of HTTP), not a matter of script capabilities. | ➖ Not applicable - a transport choice, does not concern tool-scripts at all. |
-| ~~**12: OAuth 2.1**~~ | The current MCP-specification recommends it for a remote HTTP-server; this product uses its own client/role/access-token-mechanism instead (see [Several clients, each with several access-tokens](#features)). | Out of scope here: an auth question, not a tool-passthrough question - the existing client/role/token-model is already a deliberate alternative. | ➖ Not applicable - an authentication choice, does not concern tool-scripts at all. |
-
-This list follows the capabilities the pinned SDK-version defines (`ServerCapabilities` and `ClientCapabilities` of
-`ModelContextProtocol.Core` 2.2.0: `Logging`, `Prompts`, `Resources`, `Tools`, `Completions` on the server-side,
-`Roots`, `Sampling`, `Elicitation` on the client-side) plus the mechanisms of the `Tools`-capability itself
-(structured output, progress, cancellation) and the transport- and auth-related points above. It does **not** cover
-the `Experimental`/`Extensions` dictionary of either side: the protocol deliberately leaves that open for
-custom, non-standardized capabilities a client could declare, so no finite list can state everything a client could
-possibly send there.
+TODO
 
 ## Reference
 
-The reference of the repository as a whole can be found [here](./Other/Reference/ReadMe.md).
+The reference of the repository can be found [here](./Other/Reference/ReadMe.md).
 
-## Development-state
+## Changelog
 
-Active development.
+See the [Changelog-folder](./Other/Resources/Changelog).
 
 ## License
 

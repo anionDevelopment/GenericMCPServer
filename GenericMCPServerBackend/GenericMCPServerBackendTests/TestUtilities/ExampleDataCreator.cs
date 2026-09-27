@@ -202,7 +202,7 @@ for value in ['cryptography', 'compilers', 'networking']:
         /// </summary>
         /// <param name="rootFolder">
         /// The folder the example-data is written into. Pass the tools-folder of a server that is being started in the same test, so its
-        /// default <c>ToolDefinitionsFile</c> ("./Tools.json", relative to the tools-folder) resolves to the file this creator writes, without
+        /// default <c>ToolDefinitionsFile</c> (the path of "Tools.json" in the tools-folder) names the file this creator writes, without
         /// having to configure anything explicitly. Left out, a fresh temp-folder is used and owned (and therefore removed as a whole again) by this instance.
         /// </param>
         public ExampleDataCreator(string? rootFolder = null)

@@ -65,10 +65,10 @@ namespace GenericMCPServerBackend.Core
         internal APIServerConfiguration<CodeUnitSpecificConstants, CodeUnitSpecificConfiguration, CommandlineParameter>? _Constants;
 
         /// <summary>
-        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the tools-folder of this run exists, but before the declaration in it
+        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the tools-folder of this run exists, but before the declaration
         /// (see <see cref="Configuration.CodeUnitSpecificConfiguration.ToolDefinitionsFile"/>) is read. A test which wants the server to find a declaration
-        /// without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder in time;
-        /// production code has no need for it and leaves it null.
+        /// without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder in time,
+        /// because that is where the configuration-file is generated to point at; production code has no need for it and leaves it null.
         /// </summary>
         internal Action<string>? OnToolsFolderResolved { get; set; }
 
@@ -100,11 +100,6 @@ namespace GenericMCPServerBackend.Core
             {
                 apiServerConfiguration.SetInitializationInformationAction = (initializationInformation) =>
                 {
-                    // This decides what is written into the configuration-file the first time it is generated and
-                    // nothing else: from the second start on that file is what the server reads, so an operator who
-                    // states the parameter afterwards changes nothing.
-                    string initialToolDefinitionsFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath) ? GeneralConstants.DefaultToolDefinitionsFile : initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath;
-                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString(initialToolDefinitionsFile);
                     virtualEnvironmentsFolder = Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments");
                     administrationFolder = initializationInformation.ApplicationConstants.GetConfigurationFolder();
                     // The declaration and the scripts it names belong to the administrator, while the configuration-folder holds what the server itself
@@ -112,6 +107,15 @@ namespace GenericMCPServerBackend.Core
                     // below the base-folder, exactly like the data- and the log-folder are: an operator hands the tools-folder over (for a container: as a
                     // volume) without handing over the state of the server with it.
                     toolsFolder = Path.Combine(initializationInformation.ApplicationConstants.BaseFolder, GeneralConstants.ToolsFolderName);
+                    // What the configuration-file is generated with, and nothing else: from the second start on that file is what the server reads, so an
+                    // operator who states the parameter afterwards changes nothing. It is the whole path of the file and not a folder the file is looked
+                    // for in - which is what lets a container receive the declaration as a single file mounted into the tools-folder instead of as a whole
+                    // mounted folder which would cover everything else in it. Where it belongs stays the tools-folder: the scripts of a declaration are
+                    // resolved relative to it and have to stay inside its folder, so that folder is what a declaration is able to reach.
+                    string initialToolDefinitionsFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath)
+                        ? Path.Combine(toolsFolder, GeneralConstants.DefaultToolDefinitionsFileName)
+                        : initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath;
+                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString(initialToolDefinitionsFile);
                     initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
                     initializationInformation.ApplicationConstants.CustomMiddlewares2.Add(typeof(ToolCallFailureStatusCodeMiddleware));
                     string domain = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialDomain) ? Tools.GetDefaultDomainValue(GeneralConstants.CodeUnitName) : initializationInformation.CommandlineParameter.InitialDomain;
@@ -190,13 +194,20 @@ namespace GenericMCPServerBackend.Core
                     // written to the log while doing so - that is the one moment it is readable.
                     this._AdminTokenService = new AdminTokenService(AdminTokenService.GetDefaultFile(administrationFolder), this._Log);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration);
-                    // Resolved against the tools-folder and not against the working-directory the process happens to be started from, so a relative value
-                    // in the configuration-file (like the default "./Tools.json") names a file next to the scripts it declares. If the resolved file does
-                    // not exist (for example because nobody declared any tool yet), it is created as an empty declaration and the server starts while
-                    // offering no tool, because a freshly set up server which nobody pointed at a declaration yet is an expected, valid state.
+                    // The configuration-file states the whole path of the declaration, so this usually resolves to exactly that path. A value which is
+                    // relative nevertheless is resolved against the tools-folder and not against the working-directory the process happens to be started
+                    // from, because the working-directory is nothing an administrator who wrote that value had in mind.
                     string toolDefinitionsFile = functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile.GetPath(toolsFolder);
                     if (!File.Exists(toolDefinitionsFile))
                     {
+                        // A declaration which does not exist yet is created as an empty one and the server starts while offering no tool, because a
+                        // freshly set up server which nobody pointed at a declaration yet is an expected, valid state. A folder which does not exist is
+                        // a different matter: it is a path which names a place that is not there, and creating it would hide exactly that mistake.
+                        string folderOfTheDeclaration = Path.GetDirectoryName(toolDefinitionsFile);
+                        if (!Directory.Exists(folderOfTheDeclaration))
+                        {
+                            throw new InvalidOperationException($"The declaration is configured as \"{toolDefinitionsFile}\", but the folder \"{folderOfTheDeclaration}\" does not exist.");
+                        }
                         GRYLibrary.Core.Misc.Utilities.EnsureFileExists(toolDefinitionsFile);
                         File.WriteAllText(toolDefinitionsFile, "{}");
                     }

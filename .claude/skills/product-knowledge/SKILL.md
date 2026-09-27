@@ -52,16 +52,24 @@ them, so there is no primitive of the SDK to derive from. `Misc/ScriptCompletion
 least one completion, so one without them does not claim the completions-capability.
 
 The declaration is a json-file whose path (`ToolDefinitionsFile`) is part of the persisted configuration-file of the
-server, defaulting to `./Tools.json` (relative to the **tools-folder**, which is `<base-folder>/Tools` - so
-`/Workspace/Tools` in the container and `GenericMCPServerBackend/Other/Workspace/Tools` for a local run) the first time
-that file is generated. That folder deliberately is not the configuration-folder: it holds the declaration and the
-scripts it names, which belong to the administrator, while the configuration-folder holds the configuration-file of the
-server and the files of its clients, roles and access-tokens, which belong to the server. `Program.cs` creates the
-tools-folder itself, because GRYLibrary only knows the configuration-, the data- and the log-folder. Which value that
-configuration-file is generated with can be stated from outside with the commandline-parameter
+server, as the **whole path of that file** and not as a name which is resolved against a folder. That file is generated
+with the path of `Tools.json` in the **tools-folder**, which is `<base-folder>/Tools` - so `/Workspace/Tools` in the
+container and `GenericMCPServerBackend/Other/Workspace/Tools` for a local run. That folder deliberately is not the
+configuration-folder: it holds the declaration and the scripts it names, which belong to the administrator, while the
+configuration-folder holds the configuration-file of the server and the files of its clients, roles and access-tokens,
+which belong to the server. `Program.cs` creates the tools-folder itself, because GRYLibrary only knows the
+configuration-, the data- and the log-folder.
+
+Which path that configuration-file is generated with can be stated from outside with the commandline-parameter
 `--InitialToolsDefinitionFilePath` (the entry-point of the image passes the environment-variable of the same name on to
-it); it decides that one value and nothing else, because the configuration-file stays the single place the server reads
-this from:
+it), again as the whole path of the file; it decides that one value and nothing else, because the configuration-file
+stays the single place the server reads this from. **The value names a file and not a folder on purpose**: that is what
+lets a container receive the declaration as a single mounted file (`./Tools.json:/Workspace/Tools/Tools.json`) instead
+of as a mounted folder which would cover everything else in the tools-folder. The declaration and its scripts belong in
+the tools-folder or below it and nowhere else - that folder is what a declaration is able to reach, because a script is
+resolved relative to the file which declares it and has to stay inside its folder. A value which is relative is
+resolved against the tools-folder, and a configured file whose folder does not exist makes the server fail while
+starting - a declaration which is missing is created, a folder which is missing is a mistake:
 
 ```json
 {

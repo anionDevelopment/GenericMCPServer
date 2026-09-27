@@ -16,7 +16,7 @@ Every value is passed as an environment-variable.
 | Environment-variable | Meaning |
 | -------------------- | ------- |
 | `InitialDomain` | The domain the server uses in the links it generates. |
-| `InitialToolsDefinitionFilePath` | Which file declares the mcp-servers, as the value which is written into the configuration-file the first time it is generated (default: `./Tools.json`, relative to the tools-folder). It has no effect on a server which already has a configuration-file. |
+| `InitialToolsDefinitionFilePath` | Which file declares the mcp-servers, as the whole path of that file and as the value which is written into the configuration-file the first time it is generated (default: `/Workspace/Tools/Tools.json`). It has no effect on a server which already has a configuration-file. |
 | `InitialEnableEndpointHealthCheckValue` | Whether the maintenance-health-check-route is available (default: `true`). |
 | `InitialEnableEndpointAvailabilityCheckValue` | Whether the availability-check-route is available (default: `true`). |
 | `InitialEnableEndpointInitializationStateValue` | Whether the route which states the initialization-state is available. |
@@ -26,14 +26,31 @@ Every value is passed as an environment-variable.
 | `EnforceVerbose` | Set it to `true` to get verbose logging. |
 
 Which file declares the mcp-servers with their tools is read from the persisted configuration-file of the server
-itself (`ToolDefinitionsFile`) and never from the environment. `InitialToolsDefinitionFilePath` decides only which
-value that configuration-file gets the first time it is generated, instead of the default `./Tools.json` (relative to
-the tools-folder `/Workspace/Tools`); from the second start on the configuration-file is what counts, so setting the
+itself (`ToolDefinitionsFile`) and never from the environment. That value is the whole path of the file including its
+name, and it defaults to `/Workspace/Tools/Tools.json`. `InitialToolsDefinitionFilePath` decides only which path that
+configuration-file is generated with; from the second start on the configuration-file is what counts, so setting the
 variable afterwards changes nothing and an administrator who wants the declaration somewhere else edits that file.
 
-The declaration and the scripts it points to have to be mounted together at the resolved location, because a script is
-resolved relative to the file which declares it - the example in `Other/Examples/MinimalDockerComposeFile` shows that.
-Without a file there the server hosts no mcp-server at all.
+The declaration and every script it names belong in the tools-folder `/Workspace/Tools` or in a folder below it, and
+nowhere else: a script is resolved relative to the file which declares it and has to stay inside its folder, so that
+folder decides what a declaration is able to reach.
+
+Because the configured value names a file and not a folder, the declaration can be handed into that folder as a
+**single mounted file** instead of as a whole folder:
+
+```yml
+    volumes:
+      - ./Tools.json:/Workspace/Tools/Tools.json
+```
+
+Nothing else of the host-folder around that file reaches the container then, and nothing the image keeps in
+`/Workspace/Tools` is covered by the mount. This fits a declaration whose tools are web-requests, because those need
+no script; a declaration which names scripts is handed over together with them, as
+`Other/Examples/MinimalDockerComposeFile` shows.
+
+Without a file at the configured place the server hosts no mcp-server at all; it creates an empty declaration there
+and starts. The folder of that file has to exist - a path whose folder is not there makes the server fail while
+starting instead of being created.
 
 The tools-folder is not the configuration-folder `/Workspace/Configuration`: the latter is where the server writes its
 own configuration-file and the files of its clients, roles and access-tokens. Mount both - the first one to hand the
