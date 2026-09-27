@@ -9,6 +9,10 @@ if [[ -n "${InitialDomain}" ]]; then
     argument+=" --InitialDomain $InitialDomain"
 fi
 
+if [[ -n "${InitialToolsDefinitionFilePath}" ]]; then
+    argument+=" --InitialToolsDefinitionFilePath $InitialToolsDefinitionFilePath"
+fi
+
 if [[ -n "${InitialEnableEndpointAvailabilityCheckValue}" ]]; then
     argument+=" --InitialEnableEndpointAvailabilityCheckValue $InitialEnableEndpointAvailabilityCheckValue"
 fi

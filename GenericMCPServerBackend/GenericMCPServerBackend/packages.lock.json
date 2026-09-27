@@ -21,9 +21,9 @@
       },
       "GRYLibrary": {
         "type": "Direct",
-        "requested": "[2.1.1, 2.1.1]",
-        "resolved": "2.1.1",
-        "contentHash": "NdVpehbg6rhMQgDQKxnkH36wH13CmXIeA0bOgFjPOrXF7nwU3526AcyzY7mtTtGbK4/Pp9kQj7Wn4s5Bo1J0JA=="
+        "requested": "[2.1.3, 2.1.3]",
+        "resolved": "2.1.3",
+        "contentHash": "h8cXNMkE1FBai8t+5zZySIxXdLuV3D4Kz34u9hxzTKQ2UliW4MWjlZqS/5PmXqXXk6HtCRmCeTDOfFMFZQVttg=="
       },
       "Microsoft.AspNetCore.Http": {
         "type": "Direct",
@@ -46,7 +46,7 @@
       },
       "Microsoft.IdentityModel.Tokens": {
         "type": "Direct",
-        "requested": "[8.16.0, )",
+        "requested": "[8.16.0, 8.16.0]",
         "resolved": "8.16.0",
         "contentHash": "rtViGJcGsN7WcfUNErwNeQgjuU5cJNl6FDQsfi9TncwO+Epzn0FTfBsg3YuFW1Q0Ch/KPxaVdjLw3/+5Z5ceFQ==",
         "dependencies": {
@@ -134,7 +134,7 @@
       },
       "Swashbuckle.AspNetCore.SwaggerGen": {
         "type": "Direct",
-        "requested": "[10.2.3, )",
+        "requested": "[10.2.3, 10.2.3]",
         "resolved": "10.2.3",
         "contentHash": "y7t4coDRAeFYChmvlMRiH2OjbiRrm9AVIDgt17fQfs3x9PVAI5PiwWYOhg+4F13R4Q36WDc9lqfoOnNa3tNbGg==",
         "dependencies": {
@@ -143,7 +143,7 @@
       },
       "Swashbuckle.AspNetCore.SwaggerUI": {
         "type": "Direct",
-        "requested": "[10.2.3, )",
+        "requested": "[10.2.3, 10.2.3]",
         "resolved": "10.2.3",
         "contentHash": "nthWONRs/FJ4yyG206g1cC52WEG8EqrjuMWjGdR+5XG7lbjFto6NqcI9EMICgVFom/UivIjUVwI76ZHbHwTPfQ=="
       },

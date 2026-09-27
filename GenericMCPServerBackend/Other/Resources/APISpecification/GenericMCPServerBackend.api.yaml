@@ -75,7 +75,7 @@ paths:
           description: OK
       tags:
       - CommonRoutes
-  /API/v1/Admin/Clients:
+  /API/v2/Admin/Clients:
     get:
       responses:
         '200':
@@ -83,7 +83,7 @@ paths:
       summary: The clients which exist.
       tags:
       - Admin
-  /API/v1/Admin/Clients/{client}:
+  /API/v2/Admin/Clients/{client}:
     delete:
       parameters:
       - in: path
@@ -115,7 +115,7 @@ paths:
         administrates its own access-tokens.
       tags:
       - Admin
-  /API/v1/Admin/Clients/{client}/AdministrationToken:
+  /API/v2/Admin/Clients/{client}/AdministrationToken:
     post:
       description: 'This is what an administrator does when the token of a client
         has to be exchanged - because it leaked,
@@ -141,7 +141,7 @@ paths:
         with it.
       tags:
       - Admin
-  /API/v1/Admin/Clients/{client}/Roles:
+  /API/v2/Admin/Clients/{client}/Roles:
     get:
       parameters:
       - in: path
@@ -155,7 +155,7 @@ paths:
       summary: The roles of one client.
       tags:
       - Admin
-  /API/v1/Admin/Clients/{client}/Roles/{role}:
+  /API/v2/Admin/Clients/{client}/Roles/{role}:
     delete:
       parameters:
       - in: path
@@ -192,7 +192,7 @@ paths:
       summary: Puts a client into a role.
       tags:
       - Admin
-  /API/v1/Admin/Roles:
+  /API/v2/Admin/Roles:
     get:
       responses:
         '200':
@@ -200,7 +200,7 @@ paths:
       summary: The roles which exist.
       tags:
       - Admin
-  /API/v1/Admin/Roles/{role}:
+  /API/v2/Admin/Roles/{role}:
     delete:
       parameters:
       - in: path
@@ -228,7 +228,7 @@ paths:
         and not here.
       tags:
       - Admin
-  /API/v1/ClientAdministration/AccessTokens:
+  /API/v2/ClientAdministration/AccessTokens:
     get:
       responses:
         '200':
@@ -261,7 +261,7 @@ paths:
       summary: Creates an access-token for the own client and answers with it.
       tags:
       - ClientAdministration
-  /API/v1/ClientAdministration/AccessTokens/{hash}:
+  /API/v2/ClientAdministration/AccessTokens/{hash}:
     delete:
       parameters:
       - in: path

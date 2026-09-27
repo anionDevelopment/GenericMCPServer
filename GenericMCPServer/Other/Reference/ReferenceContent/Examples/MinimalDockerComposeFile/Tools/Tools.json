@@ -1,0 +1,25 @@
+{
+    "mcp-servers": [
+        {
+            "url-namespace": "GeneralTools",
+            "anonymous": true,
+            "tools": [
+                {
+                    "tool-name": "get_current_utc_time",
+                    "type": "shell",
+                    "calls": "GetCurrentUTCTime.sh",
+                    "description": "Returns the current point in time in utc.",
+                    "parameters": []
+                },
+                {
+                    "tool-name": "research",
+                    "type": "web-request",
+                    "description": "Returns the content of a page of one of the usual sources of a developer (documentation, package-registries, repository-hosters and question-and-answer-sites). The address is stated without a protocol, for example \"stackoverflow.com/questions/11227809\".",
+                    "allowed-urls": [
+                        "github\\.com(/.*)?"
+                    ]
+                }
+            ]
+        }
+    ]
+}

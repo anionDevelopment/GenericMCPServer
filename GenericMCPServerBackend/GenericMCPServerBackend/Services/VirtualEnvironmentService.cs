@@ -6,15 +6,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Core.Services
 {
     /// <summary>
-    /// Provides the python-interpreter a tool is run with.
+    /// Provides the python-interpreter a tool, a resource, a prompt or a completion is run with.
     ///
-    /// Every python-tool gets a virtual environment of its own, named after the tool. That is what makes the
-    /// requirements of two tools independent of each other: without it, the tools would share the packages of the
-    /// system and two tools which need two versions of the same package could not both work.
+    /// Every python-declaration gets a virtual environment of its own, named after that declaration. That is what
+    /// makes the requirements of two of them independent of each other: without it, they would share the packages of
+    /// the system and two of them which need two versions of the same package could not both work.
     ///
     /// The environment is built when it is needed and not when the server starts, so that a server which offers ten
     /// tools does not build ten environments before it answers anything.
@@ -37,12 +38,12 @@ namespace GenericMCPServerBackend.Core.Services
         private readonly string _Folder;
 
         /// <summary>
-        /// One lock per tool: two calls of the same tool must not build the same environment at the same time, while
-        /// two calls of two different tools have nothing to do with each other.
+        /// One lock per environment: two calls which use the same environment must not build it at the same time,
+        /// while two calls which use two different ones have nothing to do with each other.
         /// </summary>
         private readonly ConcurrentDictionary<string, object> _Locks = new ConcurrentDictionary<string, object>();
 
-        /// <param name="folder">The folder which contains the environments, one subfolder per tool.</param>
+        /// <param name="folder">The folder which contains the environments, one subfolder per declaration.</param>
         public VirtualEnvironmentService(string folder)
         {
             if (string.IsNullOrWhiteSpace(folder))
@@ -53,22 +54,23 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// Returns the python-interpreter which belongs to the given tool, and builds its environment if it does not
-        /// exist yet or was built with other requirements than the declared ones.
+        /// Returns the python-interpreter which belongs to the given environment, and builds that environment if it
+        /// does not exist yet or was built with other requirements than the declared ones.
         ///
         /// An environment which was built with other requirements is rebuilt and not reused: otherwise an administrator
         /// would change the requirements of a tool, nothing would happen, and the reason for that would be a folder
         /// which nobody looks at.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the environment could not be created or the requirements could not be installed.</exception>
-        public string GetInterpreter(string toolName, IReadOnlyList<string> requirements)
+        /// <param name="nameOfTheEnvironment">The name of the environment, which is the name of its folder and which the declaration it belongs to states.</param>
+        public string GetInterpreter(string nameOfTheEnvironment, IReadOnlyList<string> requirements)
         {
-            string environmentFolder = Path.Combine(this._Folder, toolName);
-            lock (this._Locks.GetOrAdd(toolName, _ => new object()))
+            string environmentFolder = Path.Combine(this._Folder, nameOfTheEnvironment);
+            lock (this._Locks.GetOrAdd(nameOfTheEnvironment, _ => new object()))
             {
                 if (!IsBuiltWith(environmentFolder, requirements))
                 {
-                    Create(environmentFolder, toolName, requirements);
+                    Create(environmentFolder, nameOfTheEnvironment, requirements);
                 }
                 return GetInterpreterFile(environmentFolder);
             }
@@ -108,20 +110,20 @@ namespace GenericMCPServerBackend.Core.Services
         /// Builds the environment from scratch. An environment which could not be completed is removed again, so that
         /// a half-built one can not be mistaken for a working one by the next call.
         /// </summary>
-        private static void Create(string environmentFolder, string toolName, IReadOnlyList<string> requirements)
+        private static void Create(string environmentFolder, string nameOfTheEnvironment, IReadOnlyList<string> requirements)
         {
             EnsureDirectoryDoesNotExist(environmentFolder);
             Directory.CreateDirectory(environmentFolder);
             try
             {
-                Run(GetSystemInterpreter(), new string[] { "-m", "venv", environmentFolder }, environmentFolder, $"The virtual environment of the tool \"{toolName}\"");
+                Run(GetSystemInterpreter(), new string[] { "-m", "venv", environmentFolder }, environmentFolder, $"The virtual environment \"{nameOfTheEnvironment}\"");
                 string requirementsFile = Path.Combine(environmentFolder, RequirementsFileName);
                 File.WriteAllLines(requirementsFile, requirements);
                 if (0 < requirements.Count)
                 {
                     // "--no-input" keeps pip from waiting for an answer nobody can give here, and
                     // "--disable-pip-version-check" keeps a note about a newer pip out of the output of a failure.
-                    Run(GetInterpreterFile(environmentFolder), new string[] { "-m", "pip", "install", "--no-input", "--disable-pip-version-check", "--requirement", requirementsFile }, environmentFolder, $"The requirements of the tool \"{toolName}\"");
+                    Run(GetInterpreterFile(environmentFolder), new string[] { "-m", "pip", "install", "--no-input", "--disable-pip-version-check", "--requirement", requirementsFile }, environmentFolder, $"The requirements of the virtual environment \"{nameOfTheEnvironment}\"");
                 }
             }
             catch (Exception)
@@ -151,7 +153,10 @@ namespace GenericMCPServerBackend.Core.Services
             {
                 startInfo.ArgumentList.Add(argument);
             }
-            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, CreationTimeoutInSeconds, description);
+            // The building of an environment is not cancellable, although a tool-call which needs it can be cancelled:
+            // the environment belongs to the declaration and not to the call, so throwing the half-finished work away
+            // would make every other caller of that declaration wait for it to be built again.
+            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, CreationTimeoutInSeconds, description, CancellationToken.None);
             if (result.ExitCode != 0)
             {
                 throw new InvalidOperationException($"{description} could not be created (exit-code {result.ExitCode}): {(string.IsNullOrWhiteSpace(result.ErrorOutput) ? result.Output : result.ErrorOutput).Trim()}");

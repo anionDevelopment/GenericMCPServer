@@ -2,8 +2,9 @@
 
 ## Purpose
 
-Defines the property which makes this product generic: it offers tools without knowing any of them. The product provides
-the means to declare an mcp-server with its tools; which of them exist is decided by an administrator and never by the
+Defines the property which makes this product generic: it offers tools, resources and prompts without knowing any of
+them. The product provides the means to declare an mcp-server with its tools, its resources, its prompts and the values
+which the arguments of those prompts can have; which of them exist is decided by an administrator and never by the
 product itself.
 
 This is not an implementation-detail but the reason the product exists. A tool which was built into the product would
@@ -14,8 +15,8 @@ turn the product into an application for one purpose instead of a server for arb
 
 ### Requirement: The product contains no tool of its own
 
-The source-code of this product SHALL NOT contain any tool. The set of tools which is offered SHALL be determined
-exclusively by the tool-definitions-file the server is configured with.
+The source-code of this product SHALL NOT contain any tool, any resource and any prompt. The set of tools, resources and
+prompts which is offered SHALL be determined exclusively by the tool-definitions-file the server is configured with.
 
 #### Scenario: A new tool is needed
 
@@ -37,10 +38,50 @@ exclusively by the tool-definitions-file the server is configured with.
 #### Scenario: The resolved tool-definitions-file does not exist
 
 - **WHEN** the server is started and the file its configuration points at (its persisted configuration-value
-  `ToolDefinitionsFile`, which defaults to `./Tools.json` the first time that file is generated) does not exist at its
-  resolved location
+  `ToolDefinitionsFile`, which states the whole path of that file and is generated as the path of "Tools.json" in the
+  tools-folder) does not exist there
 - **THEN** it starts and offers nothing, exactly as if no tool-definitions-file was configured at all, because a
   freshly set up server which nobody pointed at a declaration yet is an expected state and not a mistake
+
+#### Scenario: The folder of the configured tool-definitions-file does not exist
+
+- **WHEN** the server is started and the folder which the configured tool-definitions-file lies in does not exist
+- **THEN** the server fails while starting and states that folder, because a declaration which is missing is one
+  nobody wrote yet while a folder which is missing is a path that names a place which is not there
+
+#### Scenario: The declaration is handed over as a single file
+
+- **WHEN** a tool-definitions-file is handed to the server as a single file in the tools-folder instead of as that
+  whole folder (for a container: as a single mounted file)
+- **THEN** the server uses exactly that file, without a folder of the host being handed over with it and without the
+  rest of the tools-folder being covered by that mount
+
+#### Scenario: The first configuration-file is generated
+
+- **WHEN** the server starts for the first time and generates its configuration-file, and the initial path of the
+  tool-definitions-file was stated from outside
+- **THEN** that path is what the generated file states instead of the default, while every later start reads the path
+  from that file alone - so stating it again afterwards changes nothing and the configuration-file stays the single
+  place this is read from
+
+### Requirement: What an administrator declares and what the server writes lie in two folders
+
+The tool-definitions-file and the scripts it names SHALL lie in a tools-folder of the server, and the configuration-file
+of the server together with the files of its clients, its roles and its access-tokens SHALL lie in a configuration-folder
+which is a different folder. Handing the declaration over SHALL therefore not hand the state of the server over with it.
+
+#### Scenario: An operator hands the declaration over
+
+- **WHEN** an operator gives somebody access to the folder which holds the declaration and its scripts (for a container:
+  mounts it as a volume)
+- **THEN** that access covers no file the server wrote about itself, because the configuration-file and the files of the
+  clients, the roles and the access-tokens lie in another folder
+
+#### Scenario: The declaration is replaced
+
+- **WHEN** the content of the tools-folder is replaced
+- **THEN** the clients, the roles and the access-tokens of the server stay as they were, because none of them lies in
+  that folder
 
 ### Requirement: One process hosts several mcp-servers which are separated from each other
 
@@ -83,6 +124,243 @@ its parameters. The server SHALL offer exactly those values to its clients.
 
 - **WHEN** a client calls a declared tool with values for its parameters
 - **THEN** what the declaration names is run with those values, and what it answers is the result of the call
+
+### Requirement: A resource is declared like a tool and is read by its uri
+
+An mcp-server SHALL offer the resources which its declaration states. Such a declaration SHALL state the uri the
+resource is read by, its name, the type of its content and what implements it, which is one of the same types a tool is
+implemented by. A resource SHALL take no parameter of the client, and the server SHALL hand the uri of the resource to
+the script which implements it.
+
+#### Scenario: A client asks which resources exist
+
+- **WHEN** a client asks an mcp-server which resources it offers
+- **THEN** it receives, per declared resource, the declared uri, the declared name, the declared description and the
+  declared type of the content
+
+#### Scenario: A client reads a resource
+
+- **WHEN** a client reads a declared resource by its uri
+- **THEN** what the declaration names is run, it receives the uri of that resource, and what it answers is the content
+  of the resource together with the declared type of that content
+
+#### Scenario: An mcp-server declares no resource
+
+- **WHEN** an mcp-server declares no resource
+- **THEN** it does not offer the resources of the protocol at all, so that a client of it does not ask for a list which
+  is empty by definition
+
+#### Scenario: A resource states parameters
+
+- **WHEN** a declaration of a resource states parameters
+- **THEN** the server fails while starting, because a resource is read by its uri and there is no value which a client
+  could choose
+
+#### Scenario: The same uri is declared twice within one mcp-server
+
+- **WHEN** two resources of one mcp-server declare the same uri
+- **THEN** the server fails while starting, because it would not be decidable which of them a client means
+
+#### Scenario: A resource is requested from an address
+
+- **WHEN** a resource of the type "web-request" is read
+- **THEN** its own uri is the address which is requested, it states no rules for allowed addresses, and an answer whose
+  status-code is no success is a failed read and not a content
+
+#### Scenario: A read of a resource does not work
+
+- **WHEN** a read of a resource does not work
+- **THEN** it is answered as an error of the protocol whose message states the reason, and not as a content, because a
+  client which asked for a document must not receive the reason of a failure as if it were that document
+
+### Requirement: A prompt is declared like a tool and is asked for by its name
+
+An mcp-server SHALL offer the prompts which its declaration states. Such a declaration SHALL state the name the prompt
+is asked for by, its type, what implements it and the arguments it takes. A prompt SHALL be implemented by a script, and
+the server SHALL hand the values which a client states for the declared arguments to that script in the same way in
+which it hands the values of a tool to its script.
+
+#### Scenario: A client asks which prompts exist
+
+- **WHEN** a client asks an mcp-server which prompts it offers
+- **THEN** it receives, per declared prompt, the declared name, the declared description and the declared arguments,
+  each of them as a required one
+
+#### Scenario: A client asks for a prompt
+
+- **WHEN** a client asks for a declared prompt and states the values of its arguments
+- **THEN** what the declaration names is run with those values, and what it wrote is the text of the prompt, handed over
+  as one message of the role "user"
+
+#### Scenario: An mcp-server declares no prompt
+
+- **WHEN** an mcp-server declares no prompt
+- **THEN** it does not offer the prompts of the protocol at all, so that a client of it does not ask for a list which is
+  empty by definition
+
+#### Scenario: A prompt is declared as one which requests an address
+
+- **WHEN** a declaration of a prompt states the type "web-request"
+- **THEN** the server fails while starting, because such a declaration takes the address it requests either from the
+  client or from its own uri and a prompt has neither, so the type would have to invent one of the two for it
+
+#### Scenario: The same prompt-name is declared twice within one mcp-server
+
+- **WHEN** two prompts of one mcp-server declare the same name
+- **THEN** the server fails while starting, because it would not be decidable which of them a client means
+
+#### Scenario: A prompt could not be built
+
+- **WHEN** the script of a prompt does not work
+- **THEN** it is answered as an error of the protocol whose message states the reason, and not as a message of the
+  prompt, because a client which asked for a prompt must not hand the reason of a failure to its model as if it were
+  that prompt
+
+### Requirement: The values which an argument of a prompt can have are declared with that argument
+
+A declaration of a prompt MAY state, per argument, what provides the values which that argument can have. Such a
+declaration SHALL be stated under the name of the argument it belongs to, and that name SHALL be one of the arguments
+which the prompt declares. The server SHALL hand the script which provides those values the argument it is asked about
+and the value which the client entered so far, in the same way in which it hands the values of a tool to its script,
+and SHALL offer what that script wrote as the possible values of that argument.
+
+#### Scenario: A client asks which values an argument can have
+
+- **WHEN** a client asks which values an argument of a declared prompt can have and states the value which was entered
+  so far
+- **THEN** what the declaration names is run, it receives that argument and that value, and every non-empty line it
+  wrote is one of the values the client receives
+
+#### Scenario: An argument declares no values
+
+- **WHEN** a client asks which values an argument can have which declares no such provider, or asks about something
+  which is no prompt of that mcp-server
+- **THEN** it is answered with no value and not with a failure, because "which values are possible" is a question a
+  client may ask about anything and "none are known here" is an answer to it
+
+#### Scenario: There are more values than one answer carries
+
+- **WHEN** the script writes more values than the protocol allows one answer to carry
+- **THEN** the client receives as many of them as the protocol allows together with how many there are in total, so
+  that it can tell a complete list from a cut off one
+
+#### Scenario: An mcp-server declares no such provider
+
+- **WHEN** no prompt of an mcp-server declares the values of one of its arguments
+- **THEN** that mcp-server does not offer the completions of the protocol at all, so that a client of it does not ask
+  for values which are empty by definition
+
+#### Scenario: Values are declared for an argument which the prompt does not take
+
+- **WHEN** such a declaration stands under a name which is none of the arguments of its prompt
+- **THEN** the server fails while starting, because it would describe a script which nobody ever calls
+
+#### Scenario: Such a declaration states the type "web-request", parameters or a description
+
+- **WHEN** such a declaration states the type "web-request", states parameters or states a description
+- **THEN** the server fails while starting: it is asked which values an argument can have, so it has no address which a
+  client could ask for, which values its script receives is decided by the mechanism, and a client asks about an
+  argument it already chose and never chooses such a declaration itself
+
+#### Scenario: Such a script does not work
+
+- **WHEN** the script which provides the values does not work
+- **THEN** it is answered as an error of the protocol whose message states the reason, and not as a value, because a
+  client which asked which values are possible must not receive the reason of a failure as if it were one of them
+
+### Requirement: A tool may declare the shape of its answer
+
+A declaration of a tool MAY state the shape of its answer as a json-schema. The server SHALL offer that schema to the
+clients of that tool, SHALL check the answer of the tool against it and SHALL hand the answer over as the structured
+content of the result next to the text of the answer. A tool which states no such schema SHALL answer with text alone.
+
+#### Scenario: A client asks which tools exist
+
+- **WHEN** a client asks an mcp-server which tools it offers
+- **THEN** it receives the declared schema with every tool which declared one, and no schema with a tool which
+  declared none
+
+#### Scenario: A tool which declared a schema answers
+
+- **WHEN** a client calls such a tool and what the tool wrote fits the declared schema
+- **THEN** the result carries that document as its structured content and, next to it, what the tool wrote as text, so
+  that a client which reads no structured content receives what it received before
+
+#### Scenario: An answer does not fit the declared schema
+
+- **WHEN** what the tool wrote is no json-document or does not fit the declared schema
+- **THEN** the call fails with a message which states what did not fit, because a client which was promised data of a
+  known shape must not receive something else under that promise
+
+#### Scenario: A declared schema is not usable
+
+- **WHEN** a declaration states a schema which is no json-object or which is no usable json-schema
+- **THEN** the server fails while starting, because a schema which checks nothing would let every answer pass
+
+#### Scenario: Something which is no tool declares such a schema
+
+- **WHEN** a resource, a prompt or a completion states such a schema
+- **THEN** the server fails while starting: a resource states the type of its content, a prompt writes the text of the
+  prompt and a completion writes one value per line, so none of them answers with something whose shape a client reads
+  as data
+
+### Requirement: A tool-call which its client cancelled is stopped
+
+A client SHALL be able to stop a tool-call which is still running by cancelling the request it sent that call with. The
+server SHALL stop the program behind that call and SHALL NOT require anything of the declaration or of the script for
+it. Such a cancellation SHALL only be able to stop a call of the same mcp-server and of the same client.
+
+#### Scenario: A client cancels a call which is running
+
+- **WHEN** a client cancels the request of a tool-call which is still running
+- **THEN** the program behind that call is stopped - the script together with everything it started, respectively the
+  request which is waiting for a foreign service - and the call is answered with that reason
+
+#### Scenario: The script started a program which started another one
+
+- **WHEN** the script of a cancelled call had started a program which itself had started another one, and one of them
+  has already ended by the time the call is cancelled
+- **THEN** every program of that call is stopped nevertheless, because what is ended is the whole tree and not a chain
+  which is walked from one living program to the next - a program which ended on its own must not be able to hide the
+  programs below it
+
+#### Scenario: A declared tool is cancellable without stating anything for it
+
+- **WHEN** a tool is declared
+- **THEN** a call of it is cancellable without the declaration stating anything for it: the tool takes no additional
+  parameter, it sends nothing back and it does not even learn that it is cancellable
+
+#### Scenario: A cancellation names a call of another client or of another mcp-server
+
+- **WHEN** a cancellation states the id of a request which another client sent, or reaches another mcp-server than the
+  call it names
+- **THEN** nothing is stopped, because the id of a request is only unambiguous within the client which chose it, so
+  which mcp-server and which client are meant is taken from the request the cancellation arrived with and not from the
+  cancellation itself
+
+#### Scenario: A cancellation names a call which is not running
+
+- **WHEN** a cancellation names a call which is not running
+- **THEN** nothing is stopped and nothing fails, because a client cancels a call it has no answer for yet, so a
+  cancellation which arrives after the call ended is the normal case of one which arrives too late
+
+#### Scenario: A cancelled call is no failed call
+
+- **WHEN** a call was stopped because its client cancelled it
+- **THEN** it is answered with that reason and with the status-code of a normal answer and not with the 502 of a failed
+  tool-call, because the 502 states that the program behind this server failed and nothing failed here
+
+#### Scenario: A cancellation names something which is no tool-call
+
+- **WHEN** a cancellation names a request which was a read of a resource, a prompt or a completion
+- **THEN** nothing is stopped, because such a request is answered in one go and a cancellation names the id of a
+  request and not what that request was about
+
+#### Scenario: A call was stopped
+
+- **WHEN** a call was stopped because its client cancelled it
+- **THEN** that is written to the log of the server, because a cancellation is answered with nothing at all and would
+  otherwise leave no trace for the operator
 
 ### Requirement: The type of a tool is declared and not guessed
 
@@ -156,8 +434,8 @@ starting.
 #### Scenario: A declaration is incomplete or ambiguous
 
 - **WHEN** a tool-definitions-file declares an mcp-server without a url-namespace, a tool without a name, a tool without
-  a type, a parameter without a name or the same tool-name more than once within one mcp-server, or is not a valid
-  json-document
+  a type, a parameter without a name, the same tool-name more than once within one mcp-server or a prompt which states
+  no name, no type or no script, or is not a valid json-document
 - **THEN** the server fails while starting, so that the mistake is visible immediately instead of only when somebody
   happens to call the affected tool
 

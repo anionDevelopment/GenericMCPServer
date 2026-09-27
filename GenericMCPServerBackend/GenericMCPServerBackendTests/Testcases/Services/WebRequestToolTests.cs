@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Tests.Testcases.Services
 {
@@ -84,7 +85,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/something" } }));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/something" } }, CancellationToken.None));
 
                 // assert
                 StringAssert.Contains(exception.Message, "does not allow");
@@ -110,8 +111,8 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act & assert
-                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/?x=example.com/page" } }), "An address which contains an allowed one must not be allowed.");
-                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com.other.com/page" } }), "A host which only starts with an allowed one must not be allowed.");
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "other.com/?x=example.com/page" } }, CancellationToken.None), "An address which contains an allowed one must not be allowed.");
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com.other.com/page" } }, CancellationToken.None), "A host which only starts with an allowed one must not be allowed.");
             }
             finally
             {
@@ -134,7 +135,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "http://example.com/page" } }));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "http://example.com/page" } }, CancellationToken.None));
 
                 // assert
                 StringAssert.Contains(exception.Message, WebRequestService.Protocol);
@@ -160,7 +161,7 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act & assert
-                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com@other.com/page" } }));
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "example.com@other.com/page" } }, CancellationToken.None));
             }
             finally
             {

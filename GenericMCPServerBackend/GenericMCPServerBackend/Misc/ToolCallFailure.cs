@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using System;
 
 namespace GenericMCPServerBackend.Core.Misc
@@ -22,7 +21,7 @@ namespace GenericMCPServerBackend.Core.Misc
         /// </summary>
         internal static void Report(IServiceProvider services)
         {
-            HttpContext httpContext = services?.GetService<IHttpContextAccessor>()?.HttpContext;
+            HttpContext httpContext = Utilities.GetHttpContextOf(services);
             if (httpContext != null)
             {
                 httpContext.Items[ItemKey] = true;

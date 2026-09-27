@@ -1,83 +1,369 @@
 # GenericMCPServer
 
+![Docker Pulls](https://img.shields.io/docker/pulls/aniondev/genericmcpserver)
+![Coverage](./GenericMCPServerBackend/Other/Resources/TestCoverageBadges/badge_shieldsio_linecoverage_blue.svg)
+
+### General information
+
 GenericMCPServer hosts MCP-servers which are reachable over HTTP.
+It offers exactly the tools, the resources and the prompts which an administrator declares - each of them implemented
+by a python-script, by a shell-script or by a web-request - and brings none of them of its own along, which is what
+makes it generic.
+It also offers an authorization-system which hosts several MCP-servers in one process and lets certain clients reach
+certain MCP-servers, depending on the roles of the client.
 
-It offers exactly the tools which an administrator declares: a declaration names what implements a tool, what the tool
-does and which parameters it takes. The product itself brings no tool along, which is what makes it generic.
+GenericMCPServer is supposed to run on a server using HTTP to communicate.
+Running it locally for testing- and development-purposes is possible too.
+Of course it is recommended to use HTTPS for the communication instead of HTTP.
+For this purpose a simple reverse-proxy which manage the certificates and TLS-termination can be used.
 
-## Features
+GenericMCPServer allows you to host multiple MCP-servers at once.
+This is useful to separate multiple tool-sets for different AI-clients.
+For this reason, every MCP-server needs a name which is part of the MCP-server URL.
+This guide shows a simple minimal example configuration with one MCP-server without the requirement of authentication.
+The commands to set role based authentication is described below anyway.
 
-| Feature | Description |
-| ------- | ----------- |
-| Tools are declared, not built in | Which tools exist is decided by a declaration-file of an administrator. A new tool needs an entry there and no change of this product, no new version and no restart of anything but the server itself. |
-| Three kinds of tools | A tool is implemented by a **python-script**, by a **shell-script** or by a **web-request** whose reachable addresses the declaration restricts. |
-| A virtual environment per python-tool | The packages a python-tool needs are declared as its requirements and installed into an environment which belongs to that tool alone, so two tools can need two versions of the same package. |
-| Web-requests with a whitelist | A tool of the kind web-request reaches exactly the addresses which the rules of its declaration match; everything else is denied. The protocol is always https and redirects are not followed. |
-| Credentials per tool | A tool receives the accesses which its declaration assigns to it (from an environment-variable of the server or from a docker-secret), and no tool receives the accesses of another one. |
-| **Several mcp-servers at the same time** | One process hosts as many mcp-servers as are declared. Each one has its **own tools** and its own address `<domain>/<url-namespace>`, so a client of one of them can neither see nor reach the tools of another one - even the same tool-name may exist in two of them. |
-| **Several clients, each with several access-tokens** | An administrator creates a client and hands over its client-administration-token; whoever runs that client creates its access-tokens with it. **A client can hold several valid tokens at the same time**, which is what makes an exchange possible without an interruption, and every token ends at a stated point in time. Only the hash of a token is stored. |
-| **Administration over the api** | An administrator manages clients, roles and assignments over routes which the admin-token of the server opens; a client manages its own access-tokens and nothing else. |
-| **Roles decide who may use what** | **A client is in none, one or several roles**, and an mcp-server declares **which roles** may use it. Who is in a role and what a role may do are therefore two decisions in two places: a new client needs no change of the declaration, and a changed declaration needs no new client. |
-| **Anonymous mcp-servers** | An mcp-server can be declared as one which everybody may use. It then needs no token at all, while the other mcp-servers of the same process stay behind theirs. |
-| Failures are visible | A tool-call which did not work is answered with the message of the failure and with the http-status-code 502, because the failure comes from the program behind this server. |
-
-## Codeunits
-
-| Codeunit | Description |
-| -------- | ----------- |
-| [GenericMCPServerBackend](./GenericMCPServerBackend/ReadMe.md) | The backend which implements the MCP-protocol and runs the declared tools. |
-| [GenericMCPServer](./GenericMCPServer/ReadMe.md) | The container-image which packages the backend. |
+GenericMCPServer does not provide any tools itself.
+It is only a wrapper to easily provide tools in a generic way.
+Any tool which should be available by the AI-client must be added/configured by you.
 
 ## Getting started
 
-The image is available on docker hub as
-[aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver), so it can be used without building
-this repository. Building it yourself and starting the example works like this:
+### Install MCP-server
 
-```
-task bb
-cd GenericMCPServer\Other\Examples\MinimalDockerComposeFile
-python RunExample.py
-```
+Let us create a MCP-server with a simple tool to retrieve the current time as an example.
 
-The example declares three mcp-servers and mounts them into the container:
+The image is available on docker-hub as [aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver).
 
-| mcp-server | Address | Who may use it | Tools |
-| ---------- | ------- | -------------- | ----- |
-| `GeneralTools` | `http://127.0.0.1:8080/GeneralTools` | everybody (anonymous) | the current point in time |
-| `Security` | `http://127.0.0.1:8080/Security` | the role `security` | the details of a CVE |
-| `DeveloperTools` | `http://127.0.0.1:8080/DeveloperTools` | the roles `developer` and `security` | the available versions of a maven-, NuGet-, PyPI- and npm-package, the metadata of a PyPI-package and a research-tool for the usual sources of a developer |
+An example docker-compose file can look like this:
 
-`GeneralTools` works right away. For the other two, a client needs an access-token. The server generates a token for
-its administrator at the first start and writes it to the console; only its hash is stored, so it can not be looked
-up later.
-With it, an administrator creates a role, a client and the assignment:
-
-```
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Roles/developer -H "X-Admin-Token: <admin-token>"
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Clients/my-client -H "X-Admin-Token: <admin-token>"
-curl -X POST http://127.0.0.1:8080/API/v1/Admin/Clients/my-client/Roles/developer -H "X-Admin-Token: <admin-token>"
+```yml
+name: 'genericmcpserver'
+services:
+  genericmcpserver:
+    image: genericmcpserver:latest
+    container_name: 'genericmcpserver'
+    environment:
+      EnforceVerbose: 'true'
+      InitialToolsDefinitionFilePath: '/Workspace/Tools/Tools.json'
+    volumes:
+      - ./Tools:/Workspace/Tools
+      - ./Configuration:/Workspace/Configuration
+      - ./Logs:/Workspace/Logs
+    ports:
+      - "1222:80"
 ```
 
-The second call answers with the **client-administration-token** of that client, and only that answer contains it. It
-is handed to whoever runs the client, who creates access-tokens with it:
+Additionally, create a simple `Tools.json` which provides a tool to query the current timestamp for demonstration purposes.
+For the beginning, the following minimal content is enough:
+
+```json
+{
+    "mcp-servers": [
+        {
+            "url-namespace": "GeneralTools",
+            "anonymous": true,
+            "tools": [
+                {
+                    "tool-name": "get_current_utc_time",
+                    "type": "shell",
+                    "calls": "./GetCurrentUTCTime.sh",
+                    "description": "Returns the current point in time in utc.",
+                    "parameters": []
+                }
+            ]
+        }
+    ]
+}
+```
+
+Because of `"url-namespace": "GeneralTools"` we can reach the MCP-server then under the URL `<server-URL>/GeneralTools`.
+
+As a simple proof-of-concept-tool we use `GetCurrentUTCTime.sh` with the following content:
+
+```bash
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+Save this files in a folder structure like this:
 
 ```
-curl -X POST "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: <client-administration-token>"
+docker-compose.yml
+Tools/
+    GetCurrentUTCTime.sh
+    Tools.json
 ```
 
-That access-token is sent to an mcp-server as `Authorization: Bearer <token>`.
+After `docker compose up -d` your MCP-server is technically available and can be configured.
+Only on the first run the admin-token is printed in the container-output (not in the logs).
+Use `docker logs genericmcpserver` for example to get the admin-token.
+You can recognize this token by the token-prefix `gmcpadmin_`.
+Save this token in your password-manager, you will need it later for administration via REST-API.
 
-How a tool is declared is described in the
-[reference of the backend](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
+For this example MCP-server which requires no kind of authentication and authorization due to `"anonymous": true` it can be used directly by clients.
+If this is enough for you then you can directly jump to the section [Configure MCP-server on client](#configure-mcp-server-on-client).
+
+Now we can configure clients and roles for granular authorization control.
+The next configuration steps to use role based authorization, let us first save the most important variables in env-variables:
+
+```bash
+export MCP_SERVER_URL="http://127.0.0.1:1222"
+export MCP_ADMIN_TOKEN="gmcpadmin_xxx"
+```
+
+### Configure MCP-server
+
+#### Create and administrate Clients
+
+First of all:
+For any MCP-server which does not have `"anonymous": true` you need a "client".
+A client can then create an access-token for this own.
+Only with an access-token a client can use non-anonymous MCP-servers hosted by GenericMVPServer.
+
+All administration routes require `X-Admin-Token`.
+
+Let us say, as an admin we now want to create a client called `myclient`:
+
+```bash
+export CLIENT_NAME="myclient"
+```
+
+##### Manage Clients
+
+List clients, their roles, and the number of access tokens:
+
+```bash
+curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients"
+```
+
+Create a client:
+
+```bash
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME"
+```
+
+When you created a client, then the server returns a client-administration-token for the client.
+Store the returned clientAdministrationToken immediately
+With this client-administration-token a client can then organize his access-token.
+Let us store it like this:
+
+```bash
+export CLIENT_ADMIN_TOKEN="gmcpclientadmin_xxx"
+```
+
+Replace a leaked or expired client-administration token:
+
+```bash
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/AdministrationToken"
+```
+
+The following API-endpoints may also be important to know for future administration:
+
+Delete a client, including its access tokens and role assignments:
+
+```bash
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME"
+```
+
+##### Manage roles
+
+List all roles:
+
+```bash
+curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles"
+```
+
+In this example the role is called `developer`, so let us store it:
+
+```bash
+export ROLE_NAME="developer"
+```
+
+Create the role:
+
+```bash
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/$ROLE_NAME"
+```
+
+Delete a role:
+
+```bash
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/$ROLE_NAME"
+```
+
+Assign a role to a client:
+
+```bash
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/$ROLE_NAME"
+```
+
+Unassign a role from a client:
+
+```bash
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/$ROLE_NAME"
+```
+
+List all roles of a client:
+
+```bash
+curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles"
+```
+
+#### Manage Access-token of a client
+
+Now with the client-admin-token the client can do the following things:
+
+List access tokens:
+
+```sh
+curl -X GET $MCP_SERVER_URL/API/v2/ClientAdministration/AccessTokens -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+```
+
+Create access token:
+
+```sh
+curl -X POST "$MCP_SERVER_URL/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+```
+
+This command returns a token which looks like `gmcp_xxx`.
+This token can now be used to configure your AI-client using the configuration below.
+The API-client can then use all MCP-servers which are authorized for the roles the client have.
+
+Delete access token:
+
+```sh
+curl -X DELETE "$MCP_SERVER_URL/API/v2/ClientAdministration/AccessTokens/<hash>" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+```
+
+#### Configure MCP-server on client
+
+The following configurations show examples for MCP-server-configuration for your AI-agents with 3 MCP-server:
+The examples have multiple MCP-servers which fits the `Tools.json` from the [advanced example](./GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile/ReadMe.md):
+One with anonymous access (`GeneralTools`) and two which require authentication (`Security` and `DeveloperTools`).
+Dependent on your actual available `Tools.json` you must adapt this config to match your requirements.
+
+##### Configure MCP-server for GitHub Copilot
+
+###### GitHub Copilot for CLI
+
+Create `~/.copilot/mcp-config.json` and add the MCP servers under `mcpServers`.
+The content should look like this:
+
+```json
+{
+	"mcpServers": {
+		"general-tools": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/GeneralTools"
+		},
+		"security": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/Security",
+			"headers": {
+				"Authorization": "Bearer gmcp_xxx"
+			}
+		},
+		"developer": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/DeveloperTools",
+			"headers": {
+				"Authorization": "Bearer gmcp_xxx"
+			}
+		}
+	}
+}
+```
+
+###### GitHub Copilot for VSCode
+
+In VS Code, run `MCP: Open User Configuration` and add the following to the opened `mcp.json` file.
+The content should look like this:
+
+```json
+{
+	"servers": {
+		"general-tools": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/GeneralTools"
+		},
+		"security": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/Security",
+			"headers": {
+				"Authorization": "Bearer gmcp_xxx"
+			}
+		},
+		"developer": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/DeveloperTools",
+			"headers": {
+				"Authorization": "Bearer gmcp_xxx"
+			}
+		}
+	}
+}
+```
+
+##### Configure MCP-server for Claude
+
+In your `~/.claude.json`-file, the `mcpServers`-settings should look like this:
+
+```json
+{
+    //...
+    "mcpServers": {
+    "now327-GeneralTools": {
+      "type": "http",
+      "url": "https://mymcpserver.example.com/GeneralTools"
+    },
+    "now327-Security": {
+      "type": "http",
+      "url": "https://mymcpserver.example.com/Security",
+      "headers": {
+        "X-Authorization": "gmcp_xxx"
+      }
+    },
+    "now327-DeveloperTools": {
+      "type": "http",
+      "url": "https://mymcpserver.example.com/DeveloperTools",
+      "headers": {
+        "X-Authorization": "gmcp_xxx"
+      }
+    }
+  }
+}
+```
+
+## About the tools
+
+The tools provided in the examples are just for testing- and demonstration purposes.
+In general the tools must be added and configured by the administrator of the GenericMCPServer.
+GenericMCPServer only provides the overhead to make tools usable in a simple way for AI-agents.
+
+## Security hints
+
+GenericMCPServer runs tools.
+There tools are just scripts you have to define.
+Never use untrusted tools.
+Never use tools which can somehow cause damage.
+You must ensure that your script is not exploitable by an AI-agent by using unexpected values for parameter for example.
+
+The reason is:
+GenericMCPServer does not run the tools in a sandbox or in a container.
+So, use only tools which are technically just not able to damage your system somehow.
+If you want to use untrusted code as tool then you must put it in a sandbox of course and set a call-tool-in-sandbox-script as tool.
+To do this and to ensure the untrusted code can not escape from the sandbox is task of the admin.
+GenericMCPServer does not provide any sandbox-environment for tools yet.
 
 ## Reference
 
-The reference of the repository as a whole can be found [here](./Other/Reference/ReadMe.md).
+The general reference of the repository can be found [here](./Other/Reference/ReadMe.md).
+The technical reference of the backend can be found [here](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
+The technical reference of the docker-image can be found [here](./GenericMCPServer/Other/Reference/ReferenceContent/index.md).
 
-## Development-state
+## Changelog
 
-Active development.
+See the [Changelog-folder](./Other/Resources/Changelog).
 
 ## License
 
