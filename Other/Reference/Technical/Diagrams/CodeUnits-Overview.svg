@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" data-diagram-type="DESCRIPTION" style="width:1094px;height:297px;background:#FFFFFF;" width="1094px" height="297px" viewBox="0 0 1094 297" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">
+  <defs />
+  <g font-family="sans-serif" lengthAdjust="spacing">
+    <g class="title" data-source-line="2">
+      <text x="417.403" y="22.995" fill="#000" font-size="14" textLength="252.95" font-weight="700" font-family="'DejaVu Sans'">CodeUnits of GenericMCPServer</text>
+    </g>
+    <g class="entity" data-qualified-name="GenericMCPServerBackend" id="ent0001" data-source-line="4">
+      <rect x="71.21" y="150.597" width="230.859" height="46.297" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" rx="2.5" ry="2.5" />
+      <rect x="282.069" y="155.597" width="15" height="10" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" />
+      <rect x="280.069" y="157.597" width="4" height="2" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" />
+      <rect x="280.069" y="161.597" width="4" height="2" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" />
+      <text x="86.21" y="183.592" fill="#000" font-size="14" textLength="190.859" font-family="'DejaVu Sans'">GenericMCPServerBackend</text>
+    </g>
+    <g class="entity" data-qualified-name="GenericMCPServerBackendNote" id="ent0002" data-source-line="6">
+      <path d="M6,256.897 L6,282.03 A0,0 0 0 0 6,282.03 L367.285,282.03 A0,0 0 0 0 367.285,282.03 L367.285,266.897 L357.285,256.897 L190.64,256.897 L186.64,196.957 L182.64,256.897 L6,256.897 A0,0 0 0 0 6,256.897" style="stroke:#181818;stroke-width:0.5;" fill="#FEFFDD" />
+      <path d="M357.285,256.897 L357.285,266.897 L367.285,266.897 L357.285,256.897" style="stroke:#181818;stroke-width:0.5;" fill="#FEFFDD" />
+      <text x="12" y="273.964" fill="#000" font-size="13" textLength="340.285" font-family="'DejaVu Sans'">GenericMCPServerBackend is a generic MCP-Server.</text>
+    </g>
+    <g class="entity" data-qualified-name="GenericMCPServer" id="ent0004" data-source-line="10">
+      <rect x="362.39" y="44.297" width="170.498" height="46.297" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" rx="2.5" ry="2.5" />
+      <rect x="512.888" y="49.297" width="15" height="10" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" />
+      <rect x="510.888" y="51.297" width="4" height="2" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" />
+      <rect x="510.888" y="55.297" width="4" height="2" fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;" />
+      <text x="377.39" y="77.292" fill="#000" font-size="14" textLength="130.498" font-family="'DejaVu Sans'">GenericMCPServer</text>
+    </g>
+    <g class="entity" data-qualified-name="GenericMCPServerNote" id="ent0005" data-source-line="12">
+      <path d="M337.53,161.177 L337.53,186.31 A0,0 0 0 0 337.53,186.31 L1079.757,186.31 A0,0 0 0 0 1079.757,186.31 L1079.757,171.177 L1069.757,161.177 L682.51,161.177 L504.28,91.077 L674.51,161.177 L337.53,161.177 A0,0 0 0 0 337.53,161.177" style="stroke:#181818;stroke-width:0.5;" fill="#FEFFDD" />
+      <path d="M1069.757,161.177 L1069.757,171.177 L1079.757,171.177 L1069.757,161.177" style="stroke:#181818;stroke-width:0.5;" fill="#FEFFDD" />
+      <text x="343.53" y="178.244" fill="#000" font-size="13" textLength="721.227" font-family="'DejaVu Sans'">GenericMCPServer is the container-image which packages the backend which hosts the declared MCP-servers.</text>
+    </g>
+    <g class="link" data-entity-1="ent0004" data-entity-2="ent0001" id="lnk7" data-source-line="16" data-link-type="dependency">
+      <path d="M391.01,91.077 C347.23,108.577 291.563,130.822 247.813,148.302" style="stroke:#181818;stroke-width:1;" fill="none" id="GenericMCPServer-to-GenericMCPServerBackend" />
+      <polygon points="243.17,150.157,253.012,150.532,247.813,148.302,250.044,143.103,243.17,150.157" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;" />
+    </g>
+  </g>
+</svg>

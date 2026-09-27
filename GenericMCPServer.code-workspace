@@ -26,7 +26,7 @@
         "args": [],
         "type": "shell",
         "options": {
-          "cwd": "${workspaceFolder}/ConSurv/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
         },
         "aliases": [
           "bma"
@@ -39,7 +39,7 @@
         "args": [],
         "type": "shell",
         "options": {
-          "cwd": "${workspaceFolder}/ConSurv/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
         },
         "aliases": [
           "bmat"
@@ -52,7 +52,7 @@
         "args": [],
         "type": "shell",
         "options": {
-          "cwd": "${workspaceFolder}/ConSurv/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
         },
         "aliases": [
           "bae"
@@ -65,7 +65,7 @@
         "args": [],
         "type": "shell",
         "options": {
-          "cwd": "${workspaceFolder}/ConSurv/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
         },
         "aliases": [
           "baet"
