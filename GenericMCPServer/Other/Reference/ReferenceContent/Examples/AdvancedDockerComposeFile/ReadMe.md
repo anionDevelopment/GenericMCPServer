@@ -1,5 +1,13 @@
 # Advanced docker compose example
 
+The following files will be used in this example:
+
+- [docker-compose.yml](./docker-compose.yml)
+- [Tools.json](./Tools/Tools.json)
+- Tool-scripts beside the `Tools.json`
+
+Startable by `task bae`.
+Stoppable by `task baet`.
 
 | MCP-server       | Address                                | Who may use it         | Tools                                                                                                                                                                                    |
 | ---------------- | -------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

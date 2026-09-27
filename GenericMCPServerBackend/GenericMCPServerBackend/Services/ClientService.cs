@@ -68,27 +68,25 @@ namespace GenericMCPServerBackend.Core.Services
             return this.GetClients().Any(existing => string.Equals(existing, client, StringComparison.OrdinalIgnoreCase));
         }
 
+        /// <remarks>
+        /// Whether the name is still free is decided by the business-logic-service and not here, so this adds the row it
+        /// is asked to add. A check at this place as well would be a second one for the same rule.
+        /// </remarks>
         /// <exception cref="ArgumentException">Thrown when the name is not usable.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when a client of that name already exists. It is not replaced silently, because that would take the access of the existing one away without anybody stating that.</exception>
         public string CreateClient(string client)
         {
             AssertIsUsableClientName(client);
-            if (this.ClientExists(client))
-            {
-                throw new InvalidOperationException($"A client with the name \"{client}\" already exists.");
-            }
             string token = Token.Create(Token.PrefixOfAClientAdministrationToken);
             this._File.AppendRow(client, Token.GetHash(token));
             return token;
         }
 
-        /// <exception cref="InvalidOperationException">Thrown when no client of that name exists.</exception>
+        /// <remarks>
+        /// Whether the client exists is decided by the business-logic-service and not here, for the same reason it
+        /// decides whether a name is still free when a client is created.
+        /// </remarks>
         public string RenewAdministrationToken(string client)
         {
-            if (!this.ClientExists(client))
-            {
-                throw new InvalidOperationException($"A client with the name \"{client}\" does not exist.");
-            }
             string token = Token.Create(Token.PrefixOfAClientAdministrationToken);
             string hash = Token.GetHash(token);
             // The row is replaced and no second one is added: a client has exactly one token with which it

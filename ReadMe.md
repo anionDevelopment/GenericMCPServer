@@ -1,5 +1,10 @@
 # GenericMCPServer
 
+![Docker Pulls](https://img.shields.io/docker/pulls/aniondev/genericmcpserver)
+![Coverage](./GenericMCPServerBackend/Other/Resources/TestCoverageBadges/badge_shieldsio_linecoverage_blue.svg)
+
+### General information
+
 GenericMCPServer hosts MCP-servers which are reachable over HTTP.
 It offers exactly the tools, the resources and the prompts which an administrator declares - each of them implemented
 by a python-script, by a shell-script or by a web-request - and brings none of them of its own along, which is what
@@ -7,12 +12,28 @@ makes it generic.
 It also offers an authorization-system which hosts several MCP-servers in one process and lets certain clients reach
 certain MCP-servers, depending on the roles of the client.
 
+GenericMCPServer is supposed to run on a server using HTTP to communicate.
+Running it locally for testing- and development-purposes is possible too.
+Of course it is recommended to use HTTPS for the communication instead of HTTP.
+For this purpose a simple reverse-proxy which manage the certificates and TLS-termination can be used.
+
+GenericMCPServer allows you to host multiple MCP-servers at once.
+This is useful to separate multiple tool-sets for different AI-clients.
+For this reason, every MCP-server needs a name which is part of the MCP-server URL.
+This guide shows a simple minimal example configuration with one MCP-server without the requirement of authentication.
+The commands to set role based authentication is described below anyway.
+
+GenericMCPServer does not provide any tools itself.
+It is only a wrapper to easily provide tools in a generic way.
+Any tool which should be available by the AI-client must be added/configured by you.
+
 ## Getting started
 
 ### Install MCP-server
 
-The image is available on docker-hub as
-[aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver).
+Let us create a MCP-server with a simple tool to retrieve the current time as an example.
+
+The image is available on docker-hub as [aniondev/genericmcpserver](https://hub.docker.com/r/aniondev/genericmcpserver).
 
 An example docker-compose file can look like this:
 
@@ -33,168 +54,218 @@ services:
       - "1222:80"
 ```
 
-On first run the admin-token is printed in the container-output (not in the logs) on the first run.
-You can recognize this token by the token-prefix `gmcpadmin_`.
+Additionally, create a simple `Tools.json` which provides a tool to query the current timestamp for demonstration purposes.
+For the beginning, the following minimal content is enough:
 
-For the next configuration steps, let us first save the most important variables in env-variables:
+```json
+{
+    "mcp-servers": [
+        {
+            "url-namespace": "GeneralTools",
+            "anonymous": true,
+            "tools": [
+                {
+                    "tool-name": "get_current_utc_time",
+                    "type": "shell",
+                    "calls": "./GetCurrentUTCTime.sh",
+                    "description": "Returns the current point in time in utc.",
+                    "parameters": []
+                }
+            ]
+        }
+    ]
+}
+```
+
+Because of `"url-namespace": "GeneralTools"` we can reach the MCP-server then under the URL `<server-URL>/GeneralTools`.
+
+As a simple proof-of-concept-tool we use `GetCurrentUTCTime.sh` with the following content:
+
+```bash
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+Save this files in a folder structure like this:
+
+```
+docker-compose.yml
+Tools/
+    GetCurrentUTCTime.sh
+    Tools.json
+```
+
+After `docker compose up -d` your MCP-server is technically available and can be configured.
+Only on the first run the admin-token is printed in the container-output (not in the logs).
+Use `docker logs genericmcpserver` for example to get the admin-token.
+You can recognize this token by the token-prefix `gmcpadmin_`.
+Save this token in your password-manager, you will need it later for administration via REST-API.
+
+For this example MCP-server which requires no kind of authentication and authorization due to `"anonymous": true` it can be used directly by clients.
+If this is enough for you then you can directly jump to the section [Configure MCP-server on client](#configure-mcp-server-on-client).
+
+Now we can configure clients and roles for granular authorization control.
+The next configuration steps to use role based authorization, let us first save the most important variables in env-variables:
 
 ```bash
 export MCP_SERVER_URL="http://127.0.0.1:1222"
 export MCP_ADMIN_TOKEN="gmcpadmin_xxx"
 ```
 
-```bash
-curl -X POST http://127.0.0.1:1222/API/v2/Admin/Roles/developer -H "X-Admin-Token: $MCP_ADMIN_TOKEN"
-curl -X POST http://127.0.0.1:1222/API/v2/Admin/Clients/$CLIENT_NAME -H "X-Admin-Token: $MCP_ADMIN_TOKEN"
-curl -X POST http://127.0.0.1:1222/API/v2/Admin/Clients/$CLIENT_NAME/Roles/developer -H "X-Admin-Token: $MCP_ADMIN_TOKEN"
-```
-
-The second call answers with the **client-administration-token** of that client, and only that answer contains it. It
-is handed to whoever runs the client, who creates access-tokens with it:
-
-```bash
-curl -X POST "http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
-```
-
-That access-token is sent to an MCP-server as `Authorization: Bearer <token>`.
-
-How a tool, how a resource, how a prompt and how the completion of an argument of a prompt is declared is described
-in the [reference of the backend](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
-
 ### Configure MCP-server
 
 #### Create and administrate Clients
 
-Set the server URL and administrator token once per terminal session:
-
-```bash
-export CLIENT_NAME="myclient"
-export CLIENT_ADMIN_TOKEN="gmcpclientadmin_xxx"
-export CLIENT_TOKEN="gmcp_xxx"
-```
+First of all:
+For any MCP-server which does not have `"anonymous": true` you need a "client".
+A client can then create an access-token for this own.
+Only with an access-token a client can use non-anonymous MCP-servers hosted by GenericMVPServer.
 
 All administration routes require `X-Admin-Token`.
 
-##### Manage Clients
+Let us say, as an admin we now want to create a client called `myclient`:
 
 ```bash
-# List clients, their roles, and the number of access tokens.
+export CLIENT_NAME="myclient"
+```
+
+##### Manage Clients
+
+List clients, their roles, and the number of access tokens:
+
+```bash
 curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients"
+```
 
-# Create a client. Store the returned clientAdministrationToken immediately.
+Create a client:
+
+```bash
 curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME"
+```
 
-# Replace a leaked or expired client-administration token.
+When you created a client, then the server returns a client-administration-token for the client.
+Store the returned clientAdministrationToken immediately
+With this client-administration-token a client can then organize his access-token.
+Let us store it like this:
+
+```bash
+export CLIENT_ADMIN_TOKEN="gmcpclientadmin_xxx"
+```
+
+Replace a leaked or expired client-administration token:
+
+```bash
 curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/AdministrationToken"
+```
 
-# Delete a client, including its access tokens and role assignments.
+The following API-endpoints may also be important to know for future administration:
+
+Delete a client, including its access tokens and role assignments:
+
+```bash
 curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME"
 ```
 
 ##### Manage roles
 
+List all roles:
+
 ```bash
-# List all roles.
 curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles"
-
-# Create or delete a role.
-curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/developer"
-
-curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/developer"
 ```
+
+In this example the role is called `developer`, so let us store it:
 
 ```bash
-# List the roles of a client.
+export ROLE_NAME="developer"
+```
+
+Create the role:
+
+```bash
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/$ROLE_NAME"
+```
+
+Delete a role:
+
+```bash
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Roles/$ROLE_NAME"
+```
+
+Assign a role to a client:
+
+```bash
+curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/$ROLE_NAME"
+```
+
+Unassign a role from a client:
+
+```bash
+curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/$ROLE_NAME"
+```
+
+List all roles of a client:
+
+```bash
 curl --fail-with-body -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles"
-
-# Assign or remove a role for a client.
-curl --fail-with-body -X POST -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/developer"
-
-curl --fail-with-body -X DELETE -H "X-Admin-Token: $MCP_ADMIN_TOKEN" "$MCP_SERVER_URL/API/v2/Admin/Clients/$CLIENT_NAME/Roles/developer"
 ```
 
-#### Manage Access-token
+#### Manage Access-token of a client
 
-##### List access tokens
+Now with the client-admin-token the client can do the following things:
+
+List access tokens:
 
 ```sh
-curl -X GET http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+curl -X GET $MCP_SERVER_URL/API/v2/ClientAdministration/AccessTokens -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
-##### Create access token
+Create access token:
 
 ```sh
-curl -X POST "http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+curl -X POST "$MCP_SERVER_URL/API/v2/ClientAdministration/AccessTokens?validForDays=90" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
-##### Delete access token
+This command returns a token which looks like `gmcp_xxx`.
+This token can now be used to configure your AI-client using the configuration below.
+The API-client can then use all MCP-servers which are authorized for the roles the client have.
+
+Delete access token:
 
 ```sh
-curl -X DELETE "http://127.0.0.1:1222/API/v2/ClientAdministration/AccessTokens/<hash>" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
+curl -X DELETE "$MCP_SERVER_URL/API/v2/ClientAdministration/AccessTokens/<hash>" -H "X-Client-Administration-Token: $CLIENT_ADMIN_TOKEN"
 ```
 
-#### Configure Access-token on client
+#### Configure MCP-server on client
 
-##### Configure Access-token for GitHub Copilot
+The following configurations show examples for MCP-server-configuration for your AI-agents with 3 MCP-server:
+The examples have multiple MCP-servers which fits the `Tools.json` from the [advanced example](./GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile/ReadMe.md):
+One with anonymous access (`GeneralTools`) and two which require authentication (`Security` and `DeveloperTools`).
+Dependent on your actual available `Tools.json` you must adapt this config to match your requirements.
 
-###### GitHub Copilot on MacOS for VSCode
+##### Configure MCP-server for GitHub Copilot
 
-In VS Code, run `MCP: Open User Configuration` and add the following to the opened `~/Library/Application Support/Code/User/mcp.json` file:
+###### GitHub Copilot for CLI
 
-```json
-{
-	"servers": {
-		"general-tools": {
-			"type": "http",
-			"url": "http://127.0.0.1:1222/GeneralTools"
-		},
-		"security": {
-			"type": "http",
-			"url": "http://127.0.0.1:1222/Security",
-			"headers": {
-				"Authorization": "Bearer gmcp_xxx"
-			}
-		},
-		"developer": {
-			"type": "http",
-			"url": "http://127.0.0.1:1222/DeveloperTools",
-			"headers": {
-				"Authorization": "Bearer gmcp_xxx"
-			}
-		}
-	}
-}
-```
-
-Copilot can then use the anonymous `GeneralTools` server. Replace `<base64(username:password)>` with the Base64 encoding of the Basic Auth credentials for `Security`; for example, run `printf '%s' 'username:password' | base64`. The `Security` and `DeveloperTools` servers require credentials with the corresponding role. Do not use the administrator token in the mcp-configuration on the client.
-
-Available namespaces:
-
-- `GeneralTools`: 1 anonymous tool
-- `Security`: 1 tool, role `security`
-- `DeveloperTools`: 8 tools, roles `developer` or `security`
-
-###### GitHub Copilot on MacOS for CLI
-
-Create `~/.copilot/mcp-config.json` and add the MCP servers under `mcpServers`:
+Create `~/.copilot/mcp-config.json` and add the MCP servers under `mcpServers`.
+The content should look like this:
 
 ```json
 {
 	"mcpServers": {
 		"general-tools": {
 			"type": "http",
-			"url": "http://127.0.0.1:1222/GeneralTools"
+			"url": "https://mymcpserver.example.com/GeneralTools"
 		},
 		"security": {
 			"type": "http",
-			"url": "http://127.0.0.1:1222/Security",
+			"url": "https://mymcpserver.example.com/Security",
 			"headers": {
 				"Authorization": "Bearer gmcp_xxx"
 			}
 		},
 		"developer": {
 			"type": "http",
-			"url": "http://127.0.0.1:1222/DeveloperTools",
+			"url": "https://mymcpserver.example.com/DeveloperTools",
 			"headers": {
 				"Authorization": "Bearer gmcp_xxx"
 			}
@@ -203,13 +274,92 @@ Create `~/.copilot/mcp-config.json` and add the MCP servers under `mcpServers`:
 }
 ```
 
-##### Configure Access-token for Claude
+###### GitHub Copilot for VSCode
 
-TODO
+In VS Code, run `MCP: Open User Configuration` and add the following to the opened `mcp.json` file.
+The content should look like this:
+
+```json
+{
+	"servers": {
+		"general-tools": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/GeneralTools"
+		},
+		"security": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/Security",
+			"headers": {
+				"Authorization": "Bearer gmcp_xxx"
+			}
+		},
+		"developer": {
+			"type": "http",
+			"url": "https://mymcpserver.example.com/DeveloperTools",
+			"headers": {
+				"Authorization": "Bearer gmcp_xxx"
+			}
+		}
+	}
+}
+```
+
+##### Configure MCP-server for Claude
+
+In your `~/.claude.json`-file, the `mcpServers`-settings should look like this:
+
+```json
+{
+    //...
+    "mcpServers": {
+    "now327-GeneralTools": {
+      "type": "http",
+      "url": "https://mymcpserver.example.com/GeneralTools"
+    },
+    "now327-Security": {
+      "type": "http",
+      "url": "https://mymcpserver.example.com/Security",
+      "headers": {
+        "X-Authorization": "gmcp_xxx"
+      }
+    },
+    "now327-DeveloperTools": {
+      "type": "http",
+      "url": "https://mymcpserver.example.com/DeveloperTools",
+      "headers": {
+        "X-Authorization": "gmcp_xxx"
+      }
+    }
+  }
+}
+```
+
+## About the tools
+
+The tools provided in the examples are just for testing- and demonstration purposes.
+In general the tools must be added and configured by the administrator of the GenericMCPServer.
+GenericMCPServer only provides the overhead to make tools usable in a simple way for AI-agents.
+
+## Security hints
+
+GenericMCPServer runs tools.
+There tools are just scripts you have to define.
+Never use untrusted tools.
+Never use tools which can somehow cause damage.
+You must ensure that your script is not exploitable by an AI-agent by using unexpected values for parameter for example.
+
+The reason is:
+GenericMCPServer does not run the tools in a sandbox or in a container.
+So, use only tools which are technically just not able to damage your system somehow.
+If you want to use untrusted code as tool then you must put it in a sandbox of course and set a call-tool-in-sandbox-script as tool.
+To do this and to ensure the untrusted code can not escape from the sandbox is task of the admin.
+GenericMCPServer does not provide any sandbox-environment for tools yet.
 
 ## Reference
 
-The reference of the repository can be found [here](./Other/Reference/ReadMe.md).
+The general reference of the repository can be found [here](./Other/Reference/ReadMe.md).
+The technical reference of the backend can be found [here](./GenericMCPServerBackend/Other/Reference/ReferenceContent/index.md).
+The technical reference of the docker-image can be found [here](./GenericMCPServer/Other/Reference/ReferenceContent/index.md).
 
 ## Changelog
 

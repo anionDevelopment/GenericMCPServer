@@ -58,6 +58,24 @@ namespace GenericMCPServerBackend.Core.Services
 
         private readonly CredentialsService _CredentialsService;
 
+        /// <summary>
+        /// Serializes every access to the csv-files of the configuration (the clients, their roles, their access-tokens
+        /// and the token of the administrator).
+        ///
+        /// It is taken by every method of this service which touches one of those files, which is the only place they
+        /// are reached from while the server is running. That makes a whole operation atomic and not only the single
+        /// read or write inside it, which is what the administration needs: creating a client asks whether its name is
+        /// free and writes it afterwards, and deleting one writes into three files in a row. Without this, two requests
+        /// which arrive at the same time could both pass the question and both write.
+        ///
+        /// It is static, because what is serialized is the access to the files and not the use of one instance.
+        ///
+        /// **A method which holds it must not call another method which takes it as well**: this is a semaphore and no
+        /// monitor, so it is not re-entrant and such a call would wait for itself forever. A method of this service
+        /// which needs something from another one reaches the services below directly, the way the ones here do.
+        /// </summary>
+        private static readonly SemaphoreSlim _AccessToTheConfigurationFiles = new SemaphoreSlim(1, 1);
+
         private readonly IClientService _ClientService;
 
         private readonly IRolesService _RolesService;
@@ -125,6 +143,28 @@ namespace GenericMCPServerBackend.Core.Services
         /// tool, to a resource and to a prompt in the same way, so every one of them has to be known where the assigned
         /// credentials are collected.
         /// </summary>
+        /// <summary>
+        /// Takes the exclusive access to the csv-files of the configuration until the returned object is disposed, so
+        /// that an operation which consists of several reads and writes is one operation for everybody else as well.
+        /// </summary>
+        private static IDisposable ExclusiveAccessToTheConfigurationFiles()
+        {
+            _AccessToTheConfigurationFiles.Wait();
+            return new ReleaseOfTheConfigurationFiles();
+        }
+
+        /// <summary>
+        /// Releases the access to the csv-files of the configuration again, which is what ends the using-block of
+        /// <see cref="ExclusiveAccessToTheConfigurationFiles"/>.
+        /// </summary>
+        private sealed class ReleaseOfTheConfigurationFiles : IDisposable
+        {
+            public void Dispose()
+            {
+                _AccessToTheConfigurationFiles.Release();
+            }
+        }
+
         private static IEnumerable<CallableDefinition> GetCallables(MCPServerDefinition mcpServer)
         {
             return mcpServer.Tools.Cast<CallableDefinition>().Concat(mcpServer.Resources).Concat(mcpServer.Prompts).Concat(mcpServer.Prompts.SelectMany(prompt => prompt.Completions.Values));
@@ -148,12 +188,18 @@ namespace GenericMCPServerBackend.Core.Services
 
         public bool RequestIsFromAnAdministrator(string adminToken)
         {
-            return this._AdminTokenService.Matches(adminToken);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._AdminTokenService.Matches(adminToken);
+            }
         }
 
         public bool TryGetClientOfAdministrationToken(string clientAdministrationToken, out string client)
         {
-            return this._ClientService.TryGetClientOfAdministrationToken(clientAdministrationToken, out client);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._ClientService.TryGetClientOfAdministrationToken(clientAdministrationToken, out client);
+            }
         }
 
         /// <summary>
@@ -162,27 +208,59 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         public bool ClientMayReachMCPServer(MCPServerDefinition mcpServer, string accessToken, out string client)
         {
-            if (!this._AccessTokenService.TryGetClient(accessToken, out client))
+            using (ExclusiveAccessToTheConfigurationFiles())
             {
-                return false;
+                if (!this._AccessTokenService.TryGetClient(accessToken, out client))
+                {
+                    return false;
+                }
+                IReadOnlyCollection<string> rolesOfTheClient = this._RolesService.GetRolesOf(client);
+                return mcpServer.AuthorizedRoles.Any(role => rolesOfTheClient.Contains(role, StringComparer.OrdinalIgnoreCase));
             }
-            IReadOnlyCollection<string> rolesOfTheClient = this._RolesService.GetRolesOf(client);
-            return mcpServer.AuthorizedRoles.Any(role => rolesOfTheClient.Contains(role, StringComparer.OrdinalIgnoreCase));
         }
 
         public IReadOnlyCollection<ClientOverview> GetClients()
         {
-            return this._ClientService.GetClients().Select(client => new ClientOverview(client, this._RolesService.GetRolesOf(client), this._AccessTokenService.GetAccessTokensOf(client).Count)).ToList();
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._ClientService.GetClients().Select(client => new ClientOverview(client, this._RolesService.GetRolesOf(client), this._AccessTokenService.GetAccessTokensOf(client).Count)).ToList();
+            }
         }
 
+        /// <summary>
+        /// Whether the name is still free is decided here and not where the clients are stored: it is a rule about the
+        /// domain (a name identifies exactly one client) and not a property of the file the clients happen to lie in.
+        /// It is checked in one place only, so a caller receives one failure with one reason and not two of them.
+        /// </summary>
         public string CreateClient(string client)
         {
-            return this._ClientService.CreateClient(client);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                if (this._ClientService.ClientExists(client))
+                {
+                    // The existing client is not replaced: that would hand out a new administration-token for a name
+                    // which somebody else already holds and would take the access of that client away, without anybody
+                    // stating it.
+                    throw new InvalidOperationException($"A client with the name \"{client}\" already exists.");
+                }
+                return this._ClientService.CreateClient(client);
+            }
         }
 
+        /// <summary>
+        /// Whether the client exists is decided here, for the same reason it is decided here when a client is created:
+        /// it is a rule about the domain and not a property of the file the clients lie in.
+        /// </summary>
         public string RenewClientAdministrationToken(string client)
         {
-            return this._ClientService.RenewAdministrationToken(client);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                if (!this._ClientService.ClientExists(client))
+                {
+                    throw new InvalidOperationException($"A client with the name \"{client}\" does not exist.");
+                }
+                return this._ClientService.RenewAdministrationToken(client);
+            }
         }
 
         /// <summary>
@@ -191,68 +269,98 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         public bool DeleteClient(string client)
         {
-            if (!this._ClientService.DeleteClient(client))
+            using (ExclusiveAccessToTheConfigurationFiles())
             {
-                return false;
+                if (!this._ClientService.DeleteClient(client))
+                {
+                    return false;
+                }
+                this._AccessTokenService.RemoveAccessTokensOf(client);
+                this._RolesService.RemoveAllRolesOf(client);
+                return true;
             }
-            this._AccessTokenService.RemoveAccessTokensOf(client);
-            this._RolesService.RemoveAllRolesOf(client);
-            return true;
         }
 
         public IReadOnlyCollection<string> GetRoles()
         {
-            return this._RolesService.GetRoles();
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._RolesService.GetRoles();
+            }
         }
 
         public bool CreateRole(string role)
         {
-            return this._RolesService.CreateRole(role);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._RolesService.CreateRole(role);
+            }
         }
 
         public bool DeleteRole(string role)
         {
-            return this._RolesService.DeleteRole(role);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._RolesService.DeleteRole(role);
+            }
         }
 
         public IReadOnlyCollection<string> GetRolesOfClient(string client)
         {
-            if (!this._ClientService.ClientExists(client))
+            using (ExclusiveAccessToTheConfigurationFiles())
             {
-                return null;
+                if (!this._ClientService.ClientExists(client))
+                {
+                    return null;
+                }
+                return this._RolesService.GetRolesOf(client);
             }
-            return this._RolesService.GetRolesOf(client);
         }
 
         /// <exception cref="InvalidOperationException">Thrown when the client does not exist (the role itself is checked by <see cref="IRolesService.AssignRole"/>, which is also where this comes from).</exception>
         public bool AssignRole(string client, string role)
         {
-            if (!this._ClientService.ClientExists(client))
+            using (ExclusiveAccessToTheConfigurationFiles())
             {
-                throw new InvalidOperationException($"A client with the name \"{client}\" does not exist.");
+                if (!this._ClientService.ClientExists(client))
+                {
+                    throw new InvalidOperationException($"A client with the name \"{client}\" does not exist.");
+                }
+                return this._RolesService.AssignRole(client, role);
             }
-            return this._RolesService.AssignRole(client, role);
         }
 
         public bool RemoveRoleOfClient(string client, string role)
         {
-            return this._RolesService.RemoveRoleOfClient(client, role);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._RolesService.RemoveRoleOfClient(client, role);
+            }
         }
 
         public IReadOnlyList<AccessTokenOverview> GetAccessTokensOf(string client)
         {
             DateTime now = this._TimeService.GetCurrentTimeInUTCAsDateTimeOffset().UtcDateTime;
-            return this._AccessTokenService.GetAccessTokensOf(client).Select(accessToken => new AccessTokenOverview(accessToken.Hash, accessToken.ValidUntil, accessToken.IsValidAt(now))).ToList();
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._AccessTokenService.GetAccessTokensOf(client).Select(accessToken => new AccessTokenOverview(accessToken.Hash, accessToken.ValidUntil, accessToken.IsValidAt(now))).ToList();
+            }
         }
 
         public string CreateAccessToken(string client, int validForDays)
         {
-            return this._AccessTokenService.CreateAccessToken(client, validForDays);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._AccessTokenService.CreateAccessToken(client, validForDays);
+            }
         }
 
         public bool RemoveAccessToken(string client, string hash)
         {
-            return this._AccessTokenService.RemoveAccessToken(client, hash);
+            using (ExclusiveAccessToTheConfigurationFiles())
+            {
+                return this._AccessTokenService.RemoveAccessToken(client, hash);
+            }
         }
 
         /// <summary>

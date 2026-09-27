@@ -14,6 +14,9 @@ namespace GenericMCPServerBackend.Core.Services
 
         /// <summary>
         /// Creates the given client and returns the token with which it administrates its own access-tokens.
+        ///
+        /// Whether a client of that name already exists is decided by the business-logic-service before this is called,
+        /// so an implementation stores what it is asked to store instead of checking that rule a second time.
         /// </summary>
         /// <returns>The client-administration-token. This is the only moment at which it exists in a readable form, because only its hash is stored.</returns>
         string CreateClient(string client);
@@ -21,6 +24,9 @@ namespace GenericMCPServerBackend.Core.Services
         /// <summary>
         /// Creates a new client-administration-token for the given client and returns it. The previous one stops
         /// working at once.
+        ///
+        /// Whether that client exists is decided by the business-logic-service before this is called, so an
+        /// implementation replaces the row it is asked to replace instead of checking that rule a second time.
         /// </summary>
         /// <returns>The new token. This is the only moment at which it exists in a readable form, because only its hash is stored.</returns>
         string RenewAdministrationToken(string client);

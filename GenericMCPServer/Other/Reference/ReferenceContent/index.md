@@ -46,7 +46,7 @@ Because the configured value names a file and not a folder, the declaration can 
 Nothing else of the host-folder around that file reaches the container then, and nothing the image keeps in
 `/Workspace/Tools` is covered by the mount. This fits a declaration whose tools are web-requests, because those need
 no script; a declaration which names scripts is handed over together with them, as
-`Other/Examples/MinimalDockerComposeFile` shows.
+`Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile` shows.
 
 Without a file at the configured place the server hosts no mcp-server at all; it creates an empty declaration there
 and starts. The folder of that file has to exist - a path whose folder is not there makes the server fail while
@@ -67,8 +67,8 @@ server uses lies below `/Workspace`:
 
 See:
 
-- [Minimal example](../../Examples/MinimalDockerComposeFile/ReadMe.md)
-- [Advanced example](../../Examples/AdvancedDockerComposeFile/ReadMe.md)
+- [Minimal example](./Examples/MinimalDockerComposeFile/ReadMe.md)
+- [Advanced example](./Examples/AdvancedDockerComposeFile/ReadMe.md)
 
 ## Health-check
 

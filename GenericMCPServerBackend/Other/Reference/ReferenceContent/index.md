@@ -775,11 +775,12 @@ result - and a client which has already stopped listening ignores it.
 
 ## Example
 
-`GenericMCPServer/Other/Examples/MinimalDockerComposeFile/Tools` contains the scripts and the declaration which turns
-them into three mcp-servers: `GeneralTools` (anonymous, the current point in time), `Security` (the role `security`,
-the details of a CVE) and `DeveloperTools` (the roles `developer` and `security`, the available versions of a maven-,
-nuget-, pypi- and npm-package, the metadata of a pypi-package and a research-tool for the usual sources of a
-developer). None of these tools is known to this codeunit; they are an example of what can be declared.
+`GenericMCPServer/Other/Reference/ReferenceContent/Examples` contains two of them. The advanced one declares three
+mcp-servers: `GeneralTools` (anonymous, the current point in time and the content of a web-page its declaration
+allows), `Security` (the role `security`, the details of a CVE) and `DeveloperTools` (the roles `developer` and
+`security`, the available versions of a maven-, nuget-, pypi- and npm-package, the release-notes of a nuget-package,
+where the changelog of a pypi-package stands and the metadata of a pypi-package). The minimal one declares
+`GeneralTools` alone. None of these tools is known to this codeunit; they are an example of what can be declared.
 
 ## How to use it in a MCP-client
 
