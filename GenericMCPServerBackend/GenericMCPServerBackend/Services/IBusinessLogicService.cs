@@ -1,11 +1,14 @@
 using GenericMCPServerBackend.Core.Model;
+using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Core.Services
 {
     /// <summary>
-    /// The business-logic of this codeunit. It contains no tool of its own: it makes the mcp-servers available which an
-    /// administrator declared, and it runs the tool which belongs to one of them.
+    /// The business-logic of this codeunit. It contains no tool, no resource and no prompt of its own: it makes the
+    /// mcp-servers available which an administrator declared, and it runs the tool, reads the resource respectively
+    /// builds the prompt which belongs to one of them.
     /// </summary>
     public interface IBusinessLogicService
     {
@@ -28,8 +31,45 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="urlNamespace">The namespace of the mcp-server the tool belongs to.</param>
         /// <param name="toolName">The name of the tool, which has to be one of the tools of that mcp-server.</param>
         /// <param name="arguments">The values of the parameters of the tool, keyed by the name of the parameter.</param>
+        /// <param name="cancellationToken">Stops the tool while it runs, which is how a client that cancelled its call reaches the running script respectively the running web-request.</param>
         /// <returns>What the tool answered.</returns>
-        string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments);
+        string RunTool(string urlNamespace, string toolName, IReadOnlyDictionary<string, string> arguments, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Reads the resource of the given mcp-server which is declared under the given uri.
+        ///
+        /// A resource takes no argument: its uri is the whole request, so what it answers is decided by the
+        /// declaration alone.
+        /// </summary>
+        /// <param name="urlNamespace">The namespace of the mcp-server the resource belongs to.</param>
+        /// <param name="uri">The uri of the resource, which has to be one of the resources of that mcp-server.</param>
+        /// <returns>The content of the resource.</returns>
+        string ReadResource(string urlNamespace, string uri);
+
+        /// <summary>
+        /// Builds the prompt of the given mcp-server with the given arguments.
+        ///
+        /// A prompt is run like a tool and differs in what a client does with the answer: it hands it to its model
+        /// instead of reading it as the result of something which was done.
+        /// </summary>
+        /// <param name="urlNamespace">The namespace of the mcp-server the prompt belongs to.</param>
+        /// <param name="promptName">The name of the prompt, which has to be one of the prompts of that mcp-server.</param>
+        /// <param name="arguments">The values of the arguments of the prompt, keyed by the name of the argument.</param>
+        /// <returns>The text of the prompt.</returns>
+        string GetPrompt(string urlNamespace, string promptName, IReadOnlyDictionary<string, string> arguments);
+
+        /// <summary>
+        /// Returns the values which the given argument of the given prompt of the given mcp-server can have.
+        ///
+        /// The completion which is declared for that argument is run like a tool and is told which argument it is
+        /// asked about and which value was entered so far; every non-empty line it writes is one value.
+        /// </summary>
+        /// <param name="urlNamespace">The namespace of the mcp-server the prompt belongs to.</param>
+        /// <param name="promptName">The name of the prompt the argument belongs to.</param>
+        /// <param name="argumentName">The name of the argument whose values are asked for.</param>
+        /// <param name="argumentValue">The value which was entered so far, which the completion uses to decide which values it offers.</param>
+        /// <returns>The possible values; empty when that argument declares no completion or when no prompt of that name is declared.</returns>
+        IReadOnlyList<string> GetCompletions(string urlNamespace, string promptName, string argumentName, string argumentValue);
 
         /// <summary>
         /// Removes the values of the credentials from a text which is about to be handed to a client.

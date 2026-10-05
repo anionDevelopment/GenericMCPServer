@@ -1,0 +1,15 @@
+name: 'genericmcpserver_minimal_example'
+
+services:
+  genericmcpserver:
+    image: genericmcpserver:2.0.2
+    container_name: 'genericmcpserver'
+    environment:
+      EnforceVerbose: 'true'
+      InitialToolsDefinitionFilePath: '/Workspace/Tools/Tools.json'
+    volumes:
+      - ./Tools:/Workspace/Tools
+      - ./Configuration:/Workspace/Configuration
+      - ./Logs:/Workspace/Logs
+    ports:
+      - "1222:80"

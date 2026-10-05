@@ -44,6 +44,25 @@ namespace GenericMCPServerBackend.Core.Misc
         /// </summary>
         internal const string ClientInformationName = "Client";
 
+        /// <summary>
+        /// The client which the given request authenticated itself as.
+        ///
+        /// This is the counterpart of where that information is remembered, so that the name under which it is kept is
+        /// known in one place only.
+        /// </summary>
+        /// <returns>
+        /// The client, or null when there is none - which is the case for a request to an mcp-server that is declared
+        /// as anonymous: such an mcp-server has no clients at all, so everybody who reaches it is the same caller.
+        /// </returns>
+        internal static string GetClientOf(HttpContext httpContext)
+        {
+            if (httpContext == null || !httpContext.Items.TryGetValue(ClientInformationName, out object client))
+            {
+                return null;
+            }
+            return client as string;
+        }
+
         /// <summary>The way a MCP-client sends its access-token.</summary>
         private const string AuthorizationHeaderName = "Authorization";
 

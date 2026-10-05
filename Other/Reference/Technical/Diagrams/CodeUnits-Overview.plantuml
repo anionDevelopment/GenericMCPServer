@@ -1,0 +1,19 @@
+@startuml CodeUnits-Overview
+skinparam defaultFontName "DejaVu Sans"
+title CodeUnits of GenericMCPServer
+
+[GenericMCPServerBackend]
+note as GenericMCPServerBackendNote
+  GenericMCPServerBackend is a generic MCP-Server.
+end note
+GenericMCPServerBackend .. GenericMCPServerBackendNote
+
+[GenericMCPServer]
+note as GenericMCPServerNote
+  GenericMCPServer is the container-image which packages the backend which hosts the declared MCP-servers.
+end note
+GenericMCPServer .. GenericMCPServerNote
+
+GenericMCPServer --> GenericMCPServerBackend
+
+@enduml

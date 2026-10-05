@@ -21,15 +21,54 @@
         "allowcustomarguments": true
       },
       {
-        "label": "Run: the example which starts the built image",
-        "command": "python RunExample.py",
+        "label": "Base: Minimal example",
+        "command": "python StartExample.py",
         "args": [],
         "type": "shell",
         "options": {
-          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Examples/MinimalDockerComposeFile"
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
         },
         "aliases": [
-          "re"
+          "bma"
+        ],
+        "allowcustomarguments": true
+      },
+      {
+        "label": "Base: Minimal example terminate",
+        "command": "python StopExample.py",
+        "args": [],
+        "type": "shell",
+        "options": {
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
+        },
+        "aliases": [
+          "bmat"
+        ],
+        "allowcustomarguments": true
+      },
+      {
+        "label": "Base: Advanced example",
+        "command": "python StartExample.py",
+        "args": [],
+        "type": "shell",
+        "options": {
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
+        },
+        "aliases": [
+          "bae"
+        ],
+        "allowcustomarguments": true
+      },
+      {
+        "label": "Base: Advanced example terminate",
+        "command": "python StopExample.py",
+        "args": [],
+        "type": "shell",
+        "options": {
+          "cwd": "${workspaceFolder}/GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
+        },
+        "aliases": [
+          "baet"
         ],
         "allowcustomarguments": true
       }

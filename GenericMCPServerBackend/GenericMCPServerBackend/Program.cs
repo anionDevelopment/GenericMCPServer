@@ -65,15 +65,12 @@ namespace GenericMCPServerBackend.Core
         internal APIServerConfiguration<CodeUnitSpecificConstants, CodeUnitSpecificConfiguration, CommandlineParameter>? _Constants;
 
         /// <summary>
-        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the configuration-folder of this run is known and - for a test-run -
-        /// after GRYLibrary has wiped and recreated it, but before the configuration-file (and therefore the default of
-        /// <see cref="Configuration.CodeUnitSpecificConfiguration.ToolDefinitionsFile"/>) is read. Firing it any earlier (for example right where the
-        /// folder becomes known, during initialization) would have it write into a folder GRYLibrary deletes and recreates for every test-run right
-        /// afterwards, which silently discards whatever was written and is exactly the bug this timing avoids. A test which wants the server to find a
-        /// declaration without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder
-        /// in time; production code has no need for it and leaves it null.
+        /// Fired synchronously, still inside <see cref="MainImplementation"/>, once the tools-folder of this run exists, but before the declaration
+        /// (see <see cref="Configuration.CodeUnitSpecificConfiguration.ToolDefinitionsFile"/>) is read. A test which wants the server to find a declaration
+        /// without configuring anything explicitly (see IntegrationTestFramework in the test-project) sets this to write it into that folder in time,
+        /// because that is where the configuration-file is generated to point at; production code has no need for it and leaves it null.
         /// </summary>
-        internal Action<string>? OnConfigurationFolderResolved { get; set; }
+        internal Action<string>? OnToolsFolderResolved { get; set; }
 
         public Program()
         {
@@ -97,14 +94,28 @@ namespace GenericMCPServerBackend.Core
             // registered.
             string virtualEnvironmentsFolder = null;
             string administrationFolder = null;
+            string toolsFolder = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
                 apiServerConfiguration.SetInitializationInformationAction = (initializationInformation) =>
                 {
-                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString("./Tools.json");
                     virtualEnvironmentsFolder = Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments");
                     administrationFolder = initializationInformation.ApplicationConstants.GetConfigurationFolder();
+                    // The declaration and the scripts it names belong to the administrator, while the configuration-folder holds what the server itself
+                    // writes (its configuration-file and the files of its clients, roles and tokens). They are therefore two folders next to each other
+                    // below the base-folder, exactly like the data- and the log-folder are: an operator hands the tools-folder over (for a container: as a
+                    // volume) without handing over the state of the server with it.
+                    toolsFolder = Path.Combine(initializationInformation.ApplicationConstants.BaseFolder, GeneralConstants.ToolsFolderName);
+                    // What the configuration-file is generated with, and nothing else: from the second start on that file is what the server reads, so an
+                    // operator who states the parameter afterwards changes nothing. It is the whole path of the file and not a folder the file is looked
+                    // for in - which is what lets a container receive the declaration as a single file mounted into the tools-folder instead of as a whole
+                    // mounted folder which would cover everything else in it. Where it belongs stays the tools-folder: the scripts of a declaration are
+                    // resolved relative to it and have to stay inside its folder, so that folder is what a declaration is able to reach.
+                    string initialToolDefinitionsFile = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath)
+                        ? Path.Combine(toolsFolder, GeneralConstants.DefaultToolDefinitionsFileName)
+                        : initializationInformation.CommandlineParameter.InitialToolsDefinitionFilePath;
+                    initializationInformation.InitialApplicationConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile = AbstractFilePath.FromString(initialToolDefinitionsFile);
                     initializationInformation.ApplicationConstants.CustomMiddlewares1.Add(typeof(AccessTokenValidatorMiddleware));
                     initializationInformation.ApplicationConstants.CustomMiddlewares2.Add(typeof(ToolCallFailureStatusCodeMiddleware));
                     string domain = string.IsNullOrWhiteSpace(initializationInformation.CommandlineParameter.InitialDomain) ? Tools.GetDefaultDomainValue(GeneralConstants.CodeUnitName) : initializationInformation.CommandlineParameter.InitialDomain;
@@ -149,9 +160,10 @@ namespace GenericMCPServerBackend.Core
                 };
                 apiServerConfiguration.SetFunctionalInformationAction = (functionalInformation) => //technical initialization for every run
                 {
-                    // For a test-run GRYLibrary wipes and recreates the configuration-folder between the initialization- and the functional-phase (so
-                    // every test-run starts clean), so this has to fire here and not during initialization - see the doc-comment of OnConfigurationFolderResolved.
-                    this.OnConfigurationFolderResolved?.Invoke(administrationFolder);
+                    // The tools-folder is created by this codeunit and not by GRYLibrary (which only knows the configuration-, the data- and the
+                    // log-folder), so it has to exist before anything is written into it or read from it.
+                    GRYLibrary.Core.Misc.Utilities.EnsureDirectoryExists(toolsFolder);
+                    this.OnToolsFolderResolved?.Invoke(toolsFolder);
                     this._Log = functionalInformation.Logger;//this is now server.log
                     this._Log.Log("Run initialization...");
 
@@ -182,31 +194,78 @@ namespace GenericMCPServerBackend.Core
                     // written to the log while doing so - that is the one moment it is readable.
                     this._AdminTokenService = new AdminTokenService(AdminTokenService.GetDefaultFile(administrationFolder), this._Log);
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton(functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration);
-                    // Resolved against the configuration-folder (the same base every other configurable path of this server, e.g. CertificateFolder, uses),
-                    // so a relative value in the configuration-file (like the default "./Tools.json") is not accidentally resolved against the
-                    // process' working-directory instead. If the resolved file does not exist (for example because nobody declared any tool yet), the
-                    // server still starts and simply offers no tool, exactly like it did before this was configurable at all - it does not abort with
-                    // FileNotFoundException, because "no tools declared yet" is an expected, valid state of a freshly set up server.
-                    string toolDefinitionsFile = functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile.GetPath(administrationFolder);
+                    // The configuration-file states the whole path of the declaration, so this usually resolves to exactly that path. A value which is
+                    // relative nevertheless is resolved against the tools-folder and not against the working-directory the process happens to be started
+                    // from, because the working-directory is nothing an administrator who wrote that value had in mind.
+                    string toolDefinitionsFile = functionalInformation.PersistedAPIServerConfiguration.ApplicationSpecificConfiguration.ToolDefinitionsFile.GetPath(toolsFolder);
                     if (!File.Exists(toolDefinitionsFile))
                     {
+                        // A declaration which does not exist yet is created as an empty one and the server starts while offering no tool, because a
+                        // freshly set up server which nobody pointed at a declaration yet is an expected, valid state. A folder which does not exist is
+                        // a different matter: it is a path which names a place that is not there, and creating it would hide exactly that mistake.
+                        string folderOfTheDeclaration = Path.GetDirectoryName(toolDefinitionsFile);
+                        if (!Directory.Exists(folderOfTheDeclaration))
+                        {
+                            throw new InvalidOperationException($"The declaration is configured as \"{toolDefinitionsFile}\", but the folder \"{folderOfTheDeclaration}\" does not exist.");
+                        }
                         GRYLibrary.Core.Misc.Utilities.EnsureFileExists(toolDefinitionsFile);
                         File.WriteAllText(toolDefinitionsFile, "{}");
                     }
                     BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
-                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
+                    this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s), {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s), {mcpServers.Sum(mcpServer => mcpServer.Prompts.Count)} prompt(s) and {mcpServers.Sum(mcpServer => mcpServer.Prompts.Sum(prompt => prompt.Completions.Count))} completion(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace
                     // of its route, so the same tool-name may exist in two mcp-servers without becoming ambiguous.
                     Dictionary<string, McpServerPrimitiveCollection<McpServerTool>> toolsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerTool>>(StringComparer.OrdinalIgnoreCase);
+                    // The resources are kept the same way. Only an mcp-server which declares at least one of them
+                    // appears here: a server without an entry offers no resources at all and does not claim that
+                    // capability of the protocol, which keeps a client from asking for a list which is empty by
+                    // definition.
+                    Dictionary<string, McpServerResourceCollection> resourcesOfTheMCPServers = new Dictionary<string, McpServerResourceCollection>(StringComparer.OrdinalIgnoreCase);
+                    // The prompts are kept the same way and for the same reason: only an mcp-server which declares at
+                    // least one of them appears here, so a server without an entry does not claim the
+                    // prompts-capability of the protocol.
+                    Dictionary<string, McpServerPrimitiveCollection<McpServerPrompt>> promptsOfTheMCPServers = new Dictionary<string, McpServerPrimitiveCollection<McpServerPrompt>>(StringComparer.OrdinalIgnoreCase);
+                    // A completion is no primitive of the SDK: the protocol has one request for all of them, so what
+                    // is kept here is one handler per mcp-server and not one object per declaration. Only an mcp-server
+                    // which declares at least one completion appears here, for the same reason as above: a server
+                    // without an entry does not claim the completions-capability of the protocol.
+                    Dictionary<string, ScriptCompletionHandler> completionHandlersOfTheMCPServers = new Dictionary<string, ScriptCompletionHandler>(StringComparer.OrdinalIgnoreCase);
+                    // The tool-calls which are running right now. There is exactly one of these for the whole process,
+                    // because the transport is stateless: a tool-call and the "notifications/cancelled" which cancels
+                    // it arrive as two http-requests which are answered by two instances of the server of the SDK, so
+                    // this registry is the only thing both of them reach.
+                    RunningToolCalls runningToolCalls = new RunningToolCalls();
                     foreach (MCPServerDefinition mcpServer in mcpServers)
                     {
                         McpServerPrimitiveCollection<McpServerTool> tools = new McpServerPrimitiveCollection<McpServerTool>();
                         foreach (ToolDefinition definition in mcpServer.Tools)
                         {
-                            tools.Add(new ScriptTool(businessLogicService, mcpServer.UrlNamespace, definition));
+                            tools.Add(new ScriptTool(businessLogicService, runningToolCalls, mcpServer.UrlNamespace, definition));
                         }
                         toolsOfTheMCPServers[mcpServer.UrlNamespace] = tools;
+                        if (0 < mcpServer.Resources.Count)
+                        {
+                            McpServerResourceCollection resources = new McpServerResourceCollection();
+                            foreach (ResourceDefinition definition in mcpServer.Resources)
+                            {
+                                resources.Add(new ScriptResource(businessLogicService, mcpServer.UrlNamespace, definition));
+                            }
+                            resourcesOfTheMCPServers[mcpServer.UrlNamespace] = resources;
+                        }
+                        if (0 < mcpServer.Prompts.Count)
+                        {
+                            McpServerPrimitiveCollection<McpServerPrompt> prompts = new McpServerPrimitiveCollection<McpServerPrompt>();
+                            foreach (PromptDefinition definition in mcpServer.Prompts)
+                            {
+                                prompts.Add(new ScriptPrompt(businessLogicService, mcpServer.UrlNamespace, definition));
+                            }
+                            promptsOfTheMCPServers[mcpServer.UrlNamespace] = prompts;
+                        }
+                        if (mcpServer.Prompts.Any(prompt => 0 < prompt.Completions.Count))
+                        {
+                            completionHandlersOfTheMCPServers[mcpServer.UrlNamespace] = new ScriptCompletionHandler(businessLogicService, mcpServer.UrlNamespace);
+                        }
                     }
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IBusinessLogicService>(businessLogicService);
                     // The maintenance-route which reports the initialization-state asks this service, so it has to
@@ -216,7 +275,8 @@ namespace GenericMCPServerBackend.Core
                     functionalInformation.WebApplicationBuilder.Services.AddSingleton<IInitializationService>(serviceProvider => serviceProvider.GetRequiredService<IInitializationService<CommandlineParameter>>());
 
                     // The whole MCP-protocol (the initialize-handshake, "tools/list", "tools/call" and the
-                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools.
+                    // error-handling) is implemented by the SDK. This codeunit only hands it the tools, the resources,
+                    // the prompts and what answers a request for the possible values of an argument.
                     functionalInformation.WebApplicationBuilder.Services.AddMcpServer()
                         .WithHttpTransport(options =>
                         {
@@ -231,6 +291,17 @@ namespace GenericMCPServerBackend.Core
                             {
                                 MCPServerDefinition mcpServer = businessLogicService.GetMCPServerOfRoute(httpContext.Request.Path);
                                 serverOptions.ToolCollection = mcpServer == null ? null : toolsOfTheMCPServers[mcpServer.UrlNamespace];
+                                serverOptions.ResourceCollection = mcpServer != null && resourcesOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerResourceCollection resources) ? resources : null;
+                                serverOptions.PromptCollection = mcpServer != null && promptsOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out McpServerPrimitiveCollection<McpServerPrompt> prompts) ? prompts : null;
+                                // The handler is set for every request and not only where one exists, so that an
+                                // mcp-server which declares no completion never inherits the handler of one which
+                                // does, no matter how the transport reuses the options of a request.
+                                serverOptions.Handlers.CompleteHandler = mcpServer != null && completionHandlersOfTheMCPServers.TryGetValue(mcpServer.UrlNamespace, out ScriptCompletionHandler completionHandler) ? completionHandler.HandleAsync : null;
+                                // A "notifications/cancelled" of the client stops the tool-call it names. The handler is
+                                // built per request and not once, because the request is what states who is cancelling:
+                                // a cancellation may only stop a call of the same mcp-server and of the same client, and
+                                // the notification itself states nothing but a request-id.
+                                serverOptions.Handlers.NotificationHandlers = mcpServer == null ? null : ToolCallCancellationHandler.CreateHandlersFor(runningToolCalls, this._Log, mcpServer.UrlNamespace, httpContext);
                                 return Task.CompletedTask;
                             };
                         });

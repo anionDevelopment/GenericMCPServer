@@ -1,4 +1,7 @@
 using GRYLibrary.Core.APIServer.ConcreteEnvironments;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Collections.Generic;
 
 namespace GenericMCPServerBackend.Core.Misc
@@ -25,6 +28,19 @@ namespace GenericMCPServerBackend.Core.Misc
 #else
             throw new KeyNotFoundException("Unknown environmenttargettype.");
 #endif
+        }
+
+        /// <summary>
+        /// The http-request which the given services belong to.
+        ///
+        /// A tool, a resource, a prompt and a completion are run deep inside the SDK, which hands them the services of
+        /// the request and nothing else, so this is the only way from one of them to the request it is running in.
+        /// </summary>
+        /// <param name="services">The services of a request of the protocol.</param>
+        /// <returns>The request, or null when there is none (which is the case when the code is not running inside one).</returns>
+        internal static HttpContext GetHttpContextOf(IServiceProvider services)
+        {
+            return services?.GetService<IHttpContextAccessor>()?.HttpContext;
         }
     }
 }

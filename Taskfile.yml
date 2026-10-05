@@ -2,6 +2,26 @@ version: '3'
 
 tasks:
 
+  BaseAdvancedExample:
+    desc: "Base: Advanced example"
+    silent: true
+    dir: "./GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
+    cmds:
+      - "python StartExample.py {{.CLI_ARGS}}"
+    aliases:
+      - baseadvancedexample
+      - bae
+
+  BaseAdvancedExampleTerminate:
+    desc: "Base: Advanced example terminate"
+    silent: true
+    dir: "./GenericMCPServer/Other/Reference/ReferenceContent/Examples/AdvancedDockerComposeFile"
+    cmds:
+      - "python StopExample.py {{.CLI_ARGS}}"
+    aliases:
+      - baseadvancedexampleterminate
+      - baet
+
   BaseBuildAllCodeunits:
     desc: "Base: Build all codeunits"
     silent: true
@@ -12,12 +32,22 @@ tasks:
       - basebuildallcodeunits
       - bb
 
-  RunExample:
-    desc: "Run: the example which starts the built image"
+  BaseMinimalExample:
+    desc: "Base: Minimal example"
     silent: true
-    dir: "./GenericMCPServer/Other/Examples/MinimalDockerComposeFile"
+    dir: "./GenericMCPServer/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
     cmds:
-      - "python RunExample.py {{.CLI_ARGS}}"
+      - "python StartExample.py {{.CLI_ARGS}}"
     aliases:
-      - runexample
-      - re
+      - baseminimalexample
+      - bma
+
+  BaseMinimalExampleTerminate:
+    desc: "Base: Minimal example terminate"
+    silent: true
+    dir: "./GenericMCPServer/Other/Reference/ReferenceContent/Examples/MinimalDockerComposeFile"
+    cmds:
+      - "python StopExample.py {{.CLI_ARGS}}"
+    aliases:
+      - baseminimalexampleterminate
+      - bmat

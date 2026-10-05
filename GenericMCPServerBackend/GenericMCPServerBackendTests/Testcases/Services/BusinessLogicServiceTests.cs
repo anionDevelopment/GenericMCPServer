@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GenericMCPServerBackend.Tests.Testcases.Services
 {
@@ -129,7 +130,7 @@ sys.stdout.write(sys.executable)
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act
-                string result = businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", "hello" } });
+                string result = businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", "hello" } }, CancellationToken.None);
 
                 // assert
                 Assert.AreEqual("hello", result);
@@ -165,7 +166,7 @@ sys.stdout.write(sys.executable)
                 }");
 
                 // act
-                string usedInterpreter = businessLogicService.RunTool(UrlNamespace, "interpreter", new Dictionary<string, string>());
+                string usedInterpreter = businessLogicService.RunTool(UrlNamespace, "interpreter", new Dictionary<string, string>(), CancellationToken.None);
 
                 // assert
                 StringAssert.StartsWith(usedInterpreter, Path.Combine(_VirtualEnvironmentsFolder, "interpreter"), "The tool has to run in the virtual environment which is named after it.");
@@ -213,11 +214,11 @@ sys.stdout.write(sys.executable)
             try
             {
                 IBusinessLogicService withoutRequirements = CreateBusinessLogicService(folder, toolWithoutRequirements);
-                Assert.AreEqual("hello", withoutRequirements.RunTool(UrlNamespace, "repeat_with_requirements", new Dictionary<string, string>() { { "value", "hello" } }), "The environment has to exist before the requirements are changed.");
+                Assert.AreEqual("hello", withoutRequirements.RunTool(UrlNamespace, "repeat_with_requirements", new Dictionary<string, string>() { { "value", "hello" } }, CancellationToken.None), "The environment has to exist before the requirements are changed.");
                 IBusinessLogicService withRequirements = CreateBusinessLogicService(folder, toolWithRequirements);
 
                 // act
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => withRequirements.RunTool(UrlNamespace, "repeat_with_requirements", new Dictionary<string, string>() { { "value", "hello" } }));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => withRequirements.RunTool(UrlNamespace, "repeat_with_requirements", new Dictionary<string, string>() { { "value", "hello" } }, CancellationToken.None));
 
                 // assert
                 StringAssert.Contains(exception.Message, "repeat_with_requirements");
@@ -255,11 +256,11 @@ sys.stdout.write(sys.executable)
                 // act & assert
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    Assert.AreEqual("hello", businessLogicService.RunTool(UrlNamespace, "repeat_shell", new Dictionary<string, string>() { { "value", "hello" } }));
+                    Assert.AreEqual("hello", businessLogicService.RunTool(UrlNamespace, "repeat_shell", new Dictionary<string, string>() { { "value", "hello" } }, CancellationToken.None));
                 }
                 else
                 {
-                    Assert.ThrowsException<PlatformNotSupportedException>(() => businessLogicService.RunTool(UrlNamespace, "repeat_shell", new Dictionary<string, string>() { { "value", "hello" } }));
+                    Assert.ThrowsException<PlatformNotSupportedException>(() => businessLogicService.RunTool(UrlNamespace, "repeat_shell", new Dictionary<string, string>() { { "value", "hello" } }, CancellationToken.None));
                 }
             }
             finally
@@ -286,7 +287,7 @@ sys.stdout.write(sys.executable)
                 string valueWhichLooksLikeACommand = "a; echo b && echo c | echo d > e $(echo f) `echo g` --help";
 
                 // act
-                string result = businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", valueWhichLooksLikeACommand } });
+                string result = businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", valueWhichLooksLikeACommand } }, CancellationToken.None);
 
                 // assert
                 Assert.AreEqual(valueWhichLooksLikeACommand, result, "The script has to receive the value unchanged and as one single argument.");
@@ -312,7 +313,7 @@ sys.stdout.write(sys.executable)
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act
-                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", "fail" } }));
+                InvalidOperationException exception = Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "repeat", new Dictionary<string, string>() { { "value", "fail" } }, CancellationToken.None));
 
                 // assert
                 StringAssert.Contains(exception.Message, "the value must not be fail");
@@ -334,7 +335,7 @@ sys.stdout.write(sys.executable)
                 IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, OneTool);
 
                 // act & assert
-                Assert.ThrowsException<KeyNotFoundException>(() => businessLogicService.RunTool(UrlNamespace, "something-else", new Dictionary<string, string>()));
+                Assert.ThrowsException<KeyNotFoundException>(() => businessLogicService.RunTool(UrlNamespace, "something-else", new Dictionary<string, string>(), CancellationToken.None));
             }
             finally
             {

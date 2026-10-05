@@ -9,6 +9,7 @@ RUN mkdir /Workspace && \
     mkdir /Workspace/Application && \
     mkdir /Workspace/Application/Backend && \
     mkdir /Workspace/Configuration && \
+    mkdir /Workspace/Tools && \
     mkdir /Workspace/Logs && \
     mkdir /Workspace/Other && \
     mkdir /Workspace/Other/EntryPoint && \
