@@ -19,7 +19,6 @@ For this purpose a simple reverse-proxy which manage the certificates and TLS-te
 
 ## TODO
 
-- fix problem of python tools: "python" vs "python3" executable.
 - tool-ausgabe soll jeweils in "<toolname>.log" geloggt werden.
 
 ## Features
@@ -345,6 +344,10 @@ In your `~/.claude.json`-file, the `mcpServers`-settings should look like this:
 The tools provided in the examples are just for testing- and demonstration purposes.
 In general the tools must be added and configured by the administrator of the GenericMCPServer.
 GenericMCPServer only provides the overhead to make tools usable in a simple way for AI-agents.
+
+A tool of the type `python` needs a python-interpreter to build its virtual environment.
+The official image already ships one (it installs `python3`), so nothing has to be done there.
+Only if you run GenericMCPServer outside of that image you have to make sure that the interpreter is available: `python3` on a linux- or mac-system, `python` on a windows-system.
 
 ## Security hints
 
