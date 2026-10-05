@@ -813,6 +813,23 @@ A call which the **client itself cancelled** is neither of those two. It is answ
 server failed, and nothing failed here. The client is told about it all the same - it asked for a result and gets no
 result - and a client which has already stopped listening ignores it.
 
+## The log of a tool-call
+
+Every run of a script is logged, so that an operator can see afterwards what a tool was called with and what it
+answered. The exact invocation (the program and its arguments, one token per value as `--name=value`) and the output
+are appended to `<name>.log` in the log-folder, next to the server-log - `<name>` is the tool-name, so a tool
+`get_cve_details` writes to `get_cve_details.log`. A resource, a prompt and a completion are logged the same way, under
+their own name.
+
+The **environment of the script is deliberately not logged**. It carries the credentials and the declared
+environment-variables, which are an access and a configuration of the operator and not part of the invocation, so they
+would have no place in a log which states what a tool was called with. What a script itself writes into its output is
+logged as it is; a script which writes its own credential there is the responsibility of whoever declared it, exactly
+as it is for the answer which reaches the client.
+
+Writing the log never makes a tool-call fail: a log-file which could not be written is a lost convenience and not a
+failed call.
+
 ## Example
 
 `GenericMCPServer/Other/Reference/ReferenceContent/Examples` contains two of them. The advanced one declares three

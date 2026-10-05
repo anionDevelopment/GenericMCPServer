@@ -78,6 +78,10 @@ missing *folder* makes the server fail while starting, because such a path is a 
   `optional-env-variables`: environment-variables of the server which reach the script. A mandatory one has to be set
   (the call fails otherwise), an optional one is handed over only when it is available. A script receives none of the
   server's environment by itself - only these, the credentials and a few os-variables (`PATH`, `HOME`, …).
+- Every run of a script is logged to `<name>.log` in the log-folder (`GetLogFolder()`): the exact invocation (program
+  plus arguments) and the output. The environment is not logged, so no credential and no declared
+  environment-variable ends up there. Writing the log never fails a tool-call. The folder is passed into
+  `BusinessLogicService`; the writing lives in `AppendToToolLog`.
 - Next to `tools` an mcp-server may declare `resources` (read by a `uri`, no `parameters` - the uri is the whole
   request and reaches the script as `--uri=<uri>`), `prompts` (a text, `parameters` like a tool, handed over as one
   message of the role `user`) and, per prompt, `completions` (keyed by an argument of that prompt; the script is told

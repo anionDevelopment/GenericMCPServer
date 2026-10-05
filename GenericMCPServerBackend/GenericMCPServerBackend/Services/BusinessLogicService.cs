@@ -3,11 +3,14 @@ using GenericMCPServerBackend.Core.Misc;
 using GenericMCPServerBackend.Core.Model;
 using GRYLibrary.Core.APIServer.Services.Interfaces;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 
 namespace GenericMCPServerBackend.Core.Services
@@ -96,16 +99,31 @@ namespace GenericMCPServerBackend.Core.Services
         private readonly ITimeService _TimeService;
 
         /// <summary>
+        /// The folder the log-file of a script-callable is written into, or null/empty when no log is kept (which is
+        /// what a testcase which is not about the log uses). The exact invocation and the output of every run are
+        /// appended to "&lt;name&gt;.log" in it, so that an operator can see afterwards what a tool was called with and
+        /// what it answered.
+        /// </summary>
+        private readonly string _LogFolder;
+
+        /// <summary>
+        /// One lock per log-file, so that two calls of the same tool which run at the same time do not write into its
+        /// log-file at once. Two calls of two different tools write into two files and do not wait for each other.
+        /// </summary>
+        private readonly ConcurrentDictionary<string, object> _LogLocks = new ConcurrentDictionary<string, object>(StringComparer.Ordinal);
+
+        /// <summary>
         /// Creates the business-logic for the tools which are declared in the given file, without the administration
         /// of clients, roles and tokens. This is what a testcase which is only about the tools uses; the server itself
         /// uses the constructor below, because it needs both.
         /// </summary>
         /// <param name="toolDefinitionsFile">The file which declares the tools, or null/empty if none was configured. In that case the server offers no tool at all, which is deliberate: a tool exists because an administrator declared it and not because this codeunit brings it along.</param>
         /// <param name="virtualEnvironmentsFolder">The folder which contains the virtual environments of the python-tools. It is not the folder of the declarations, because an environment is data of the server and not something an administrator edits.</param>
+        /// <param name="logFolder">The folder the log-file of a script-callable is written into, or null/empty to keep no log.</param>
         /// <exception cref="FileNotFoundException">Thrown when a file was configured but does not exist.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the file does not declare valid tools or when a declared credential is not available.</exception>
-        public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder)
-            : this(toolDefinitionsFile, virtualEnvironmentsFolder, null, null, null, null, null)
+        public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder, string logFolder = null)
+            : this(toolDefinitionsFile, virtualEnvironmentsFolder, null, null, null, null, null, logFolder)
         {
         }
 
@@ -120,9 +138,10 @@ namespace GenericMCPServerBackend.Core.Services
         /// <param name="accessTokenService">Where the access-tokens of the clients are kept.</param>
         /// <param name="adminTokenService">Where the token of the administrator of this server is kept.</param>
         /// <param name="timeService">Where the current point in time comes from, so that a testcase can state which point in time it is.</param>
+        /// <param name="logFolder">The folder the log-file of a script-callable is written into, or null/empty to keep no log.</param>
         /// <exception cref="FileNotFoundException">Thrown when a file was configured but does not exist.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the file does not declare valid tools or when a declared credential is not available.</exception>
-        public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder, IClientService clientService, IRolesService rolesService, IAccessTokenService accessTokenService, IAdminTokenService adminTokenService, ITimeService timeService)
+        public BusinessLogicService(string toolDefinitionsFile, string virtualEnvironmentsFolder, IClientService clientService, IRolesService rolesService, IAccessTokenService accessTokenService, IAdminTokenService adminTokenService, ITimeService timeService, string logFolder = null)
         {
             this._VirtualEnvironmentService = new VirtualEnvironmentService(virtualEnvironmentsFolder);
             if (string.IsNullOrWhiteSpace(toolDefinitionsFile))
@@ -145,6 +164,7 @@ namespace GenericMCPServerBackend.Core.Services
             this._AccessTokenService = accessTokenService;
             this._AdminTokenService = adminTokenService;
             this._TimeService = timeService;
+            this._LogFolder = logFolder;
         }
 
         /// <summary>
@@ -563,12 +583,88 @@ namespace GenericMCPServerBackend.Core.Services
                 }
             }
             string description = $"The script of the {definition.Kind} \"{definition.Name}\"";
-            ProcessExecutionResult result = ProcessExecutor.Run(startInfo, ToolScriptTimeoutInSeconds, description, cancellationToken);
+            ProcessExecutionResult result;
+            try
+            {
+                result = ProcessExecutor.Run(startInfo, ToolScriptTimeoutInSeconds, description, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                // A run which could not be finished (it ran into its timeout or was cancelled) is logged as well, so
+                // that the log states that the tool was called and why nothing came back.
+                this.AppendToToolLog(definition, startInfo, null, null, exception.Message);
+                throw;
+            }
+            this.AppendToToolLog(definition, startInfo, result.ExitCode, result.Output, result.ErrorOutput);
             if (result.ExitCode != 0)
             {
                 throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" failed (exit-code {result.ExitCode}): {result.ErrorOutput.Trim()}");
             }
             return result.Output;
+        }
+
+        /// <summary>
+        /// Appends the exact invocation and the output of one run to the log-file of the given callable, named
+        /// "&lt;name&gt;.log" in the log-folder.
+        ///
+        /// The environment of the script is deliberately not written: it carries the credentials and the declared
+        /// environment-variables, which are not part of the invocation and must not end up in a log. Only the program
+        /// and its arguments (the values a client passed, as "--name=value") and what the script wrote are logged.
+        ///
+        /// A failure to write the log is swallowed: the log is a convenience for the operator, and a tool-call must not
+        /// fail because its log-file could not be written.
+        /// </summary>
+        private void AppendToToolLog(CallableDefinition definition, ProcessStartInfo startInfo, int? exitCode, string output, string errorOutput)
+        {
+            if (string.IsNullOrWhiteSpace(this._LogFolder))
+            {
+                return;
+            }
+            try
+            {
+                Directory.CreateDirectory(this._LogFolder);
+                string file = Path.Combine(this._LogFolder, SanitizeFileName(definition.Name) + ".log");
+                DateTime now = (this._TimeService?.GetCurrentTimeInUTCAsDateTimeOffset() ?? DateTimeOffset.UtcNow).UtcDateTime;
+                StringBuilder entry = new StringBuilder();
+                entry.Append('[').Append(now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture)).Append("] call: ").Append(DescribeInvocation(startInfo)).Append('\n');
+                if (exitCode.HasValue)
+                {
+                    entry.Append("exit-code: ").Append(exitCode.Value.ToString(CultureInfo.InvariantCulture)).Append('\n');
+                }
+                entry.Append("output:\n").Append(output ?? string.Empty).Append('\n');
+                if (!string.IsNullOrEmpty(errorOutput))
+                {
+                    entry.Append("error-output:\n").Append(errorOutput).Append('\n');
+                }
+                entry.Append('\n');
+                lock (this._LogLocks.GetOrAdd(file, _ => new object()))
+                {
+                    File.AppendAllText(file, entry.ToString());
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        /// <summary>
+        /// The exact call as one line: the program and every argument, each argument quoted when it contains
+        /// whitespace, so that a reader can tell where one argument ends and the next begins.
+        /// </summary>
+        private static string DescribeInvocation(ProcessStartInfo startInfo)
+        {
+            IEnumerable<string> tokens = new[] { startInfo.FileName }.Concat(startInfo.ArgumentList);
+            return string.Join(" ", tokens.Select(token => token.Any(char.IsWhiteSpace) ? $"\"{token}\"" : token));
+        }
+
+        /// <summary>
+        /// Keeps the name of the callable usable as a file-name. A tool-, resource- and prompt-name consists of
+        /// letters, digits, underscores and hyphens already, but a completion is named after its prompt and argument -
+        /// and a name which carried a path-separator would otherwise point the log somewhere else entirely.
+        /// </summary>
+        private static string SanitizeFileName(string name)
+        {
+            return new string(name.Select(character => char.IsLetterOrDigit(character) || character == '_' || character == '-' || character == '.' ? character : '_').ToArray());
         }
 
         /// <summary>

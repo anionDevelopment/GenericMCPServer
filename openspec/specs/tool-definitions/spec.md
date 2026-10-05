@@ -589,6 +589,30 @@ environment-variable of the server.
 - **THEN** the server fails while starting, because a web-request runs no script which an environment-variable could
   reach
 
+### Requirement: The invocation and the output of a tool-call are logged
+
+When a script of a declaration is run, the server SHALL append the exact invocation and the output of that run to a
+log-file named after the declaration in the log-folder, and SHALL NOT write the environment of the script into it. A
+failure to write the log SHALL NOT make the call fail.
+
+#### Scenario: A tool is called
+
+- **WHEN** a tool is called
+- **THEN** the exact invocation (the program and its arguments) and the output of the run are appended to
+  "&lt;tool-name&gt;.log" in the log-folder
+
+#### Scenario: A tool has a credential or an environment-variable
+
+- **WHEN** a tool which receives a credential or a declared environment-variable is called
+- **THEN** the value of that credential respectively that environment-variable is not written into the log, because the
+  environment of the script is not part of the invocation
+
+#### Scenario: The log can not be written
+
+- **WHEN** the log-file of a tool-call can not be written
+- **THEN** the tool-call is answered as if no log were kept, because the log is a convenience for the operator and not
+  part of the result
+
 ### Requirement: A failed tool-call is visible in the answer and in its status-code
 
 A tool-call which did not work SHALL be answered as a failed call of the protocol whose message states the reason, and
