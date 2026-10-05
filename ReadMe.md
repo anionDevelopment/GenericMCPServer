@@ -19,7 +19,6 @@ For this purpose a simple reverse-proxy which manage the certificates and TLS-te
 
 ## TODO
 
-- required und optional env variables for tools
 - fix problem of python tools: "python" vs "python3" executable.
 - tool-ausgabe soll jeweils in "<toolname>.log" geloggt werden.
 

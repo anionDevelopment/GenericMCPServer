@@ -74,6 +74,10 @@ missing *folder* makes the server fail while starting, because such a path is a 
 - `calls` is resolved against the folder of the declaration and has to stay inside it.
 - Every entry of `parameters` reaches the script as `--<name>=<value>` and is offered to the client as a required
   string.
+- A declaration which runs a script (type `python` or `shell`) may state `mandatory-env-variables` and
+  `optional-env-variables`: environment-variables of the server which reach the script. A mandatory one has to be set
+  (the call fails otherwise), an optional one is handed over only when it is available. A script receives none of the
+  server's environment by itself - only these, the credentials and a few os-variables (`PATH`, `HOME`, …).
 - Next to `tools` an mcp-server may declare `resources` (read by a `uri`, no `parameters` - the uri is the whole
   request and reaches the script as `--uri=<uri>`), `prompts` (a text, `parameters` like a tool, handed over as one
   message of the role `user`) and, per prompt, `completions` (keyed by an argument of that prompt; the script is told
@@ -151,9 +155,11 @@ server (or a file a `<NAME>_FILE`-variable points at, which is how a docker-secr
 assigns it to a tool with two names - the one the tool sees and the one of the variable. A python-tool receives it as
 an environment-variable, a web-request-tool uses it in a header with `${<name>}`, a shell-tool receives none.
 
-The variables which credentials are read from are removed from the environment of every started script before the ones
-of that tool are added, so no tool can read the access of another. A missing credential keeps the server from starting,
-and the values are removed from the message of a failed tool-call.
+The variables which credentials are read from are removed from the environment of every started script, because a
+script does not inherit the environment of the server at all: it is cleared and rebuilt from a few os-variables
+(`PATH`, `HOME`, …), the credentials and the declared environment-variables (`mandatory-env-variables` /
+`optional-env-variables`), so no tool can read the access or the configuration of another. A missing credential keeps
+the server from starting, and the values are removed from the message of a failed tool-call.
 
 ## Security-model of the arguments
 

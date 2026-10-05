@@ -93,6 +93,30 @@ namespace GenericMCPServerBackend.Core.Model
         public IDictionary<string, string> Credentials { get; set; } = new Dictionary<string, string>();
 
         /// <summary>
+        /// The environment-variables of the server which the script of this declaration needs and which therefore have
+        /// to be set: every one of them has to exist and to carry a value with at least one visible character when the
+        /// script is run, and a declaration which names one that is missing fails. This is how a configuration which an
+        /// operator sets - in the compose-file, for example - reaches a script which can not run without it.
+        ///
+        /// A script receives none of the environment of the server by itself (see
+        /// <see cref="Services.BusinessLogicService"/>), so a variable which is not stated here or in
+        /// <see cref="OptionalEnvironmentVariables"/> is not visible to it. Only a declaration which runs a script (the
+        /// type <see cref="ToolType.Python"/> or <see cref="ToolType.Shell"/>) has them, because a web-request runs no
+        /// script which an environment-variable could reach.
+        /// </summary>
+        [JsonPropertyName("mandatory-env-variables")]
+        public IList<string> MandatoryEnvironmentVariables { get; set; } = new List<string>();
+
+        /// <summary>
+        /// The environment-variables of the server which the script of this declaration is handed if they are
+        /// available: one which exists and carries a value with at least one visible character is handed over, and one
+        /// which is missing or empty is left out without keeping the script from running. This is the difference to
+        /// <see cref="MandatoryEnvironmentVariables"/>, which a script can not run without.
+        /// </summary>
+        [JsonPropertyName("optional-env-variables")]
+        public IList<string> OptionalEnvironmentVariables { get; set; } = new List<string>();
+
+        /// <summary>
         /// The headers which a declaration of the type <see cref="ToolType.WebRequest"/> sends. A value may refer to a
         /// credential of its own declaration with "${&lt;name&gt;}" (for example "Bearer ${TOKEN}"); a value without
         /// such a reference is a fixed header.

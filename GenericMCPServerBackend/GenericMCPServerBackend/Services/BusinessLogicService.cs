@@ -45,6 +45,15 @@ namespace GenericMCPServerBackend.Core.Services
         /// </summary>
         private const string ShellInterpreter = "/bin/sh";
 
+        /// <summary>
+        /// The environment-variables which every started script keeps, no matter what it declares: a program needs them
+        /// to run at all - its executables are found over the path, its locale and its temporary-folder are stated here
+        /// - and none of them is a secret or a configuration of this server. Everything else of the environment of the
+        /// server is removed, so that a variable which is set for the server does not reach a tool which did not
+        /// declare it.
+        /// </summary>
+        private static readonly IReadOnlyList<string> EnvironmentVariablesWhichAreAlwaysKept = new List<string>() { "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TMP", "TZ" };
+
         private readonly IReadOnlyList<MCPServerDefinition> _MCPServers;
 
         /// <summary>
@@ -544,7 +553,7 @@ namespace GenericMCPServerBackend.Core.Services
                 FileName = this.GetInterpreter(definition, type),
                 WorkingDirectory = this._ScriptFolder,
             };
-            this.SetCredentials(startInfo, definition);
+            this.SetEnvironment(startInfo, definition);
             startInfo.ArgumentList.Add(scriptFile);
             foreach (string parameter in definition.Parameters)
             {
@@ -563,21 +572,50 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// Puts the credentials of the declaration into the environment of the script.
+        /// Builds the environment of the script of the given declaration.
         ///
-        /// A script inherits the environment of the server, so the variables which the credentials are read from would
-        /// otherwise be readable by every tool. They are therefore removed first and only the ones the tool declared
-        /// are added afterwards, under the name the declaration gave them. Everything else of the environment (PATH,
-        /// HOME, ...) stays untouched: a script needs it, and it is no secret of another tool.
+        /// A started script does not inherit the environment of the server: a variable which an operator sets for the
+        /// server (in the compose-file, for example) would otherwise be readable by every tool, including the ones
+        /// which have nothing to do with it. The environment is therefore emptied and rebuilt from exactly the sources
+        /// a declaration states: the few operating-system-variables a program needs to run at all
+        /// (<see cref="EnvironmentVariablesWhichAreAlwaysKept"/>), the environment-variables the declaration states as
+        /// mandatory, the ones it states as optional which are actually available, and the credentials.
         /// </summary>
-        private void SetCredentials(ProcessStartInfo startInfo, CallableDefinition definition)
+        /// <exception cref="InvalidOperationException">Thrown when a mandatory environment-variable is not set or carries no value with a visible character.</exception>
+        private void SetEnvironment(ProcessStartInfo startInfo, CallableDefinition definition)
         {
-            foreach (string name in this._CredentialsService.GetNames())
+            // Reading the environment the first time fills it from the server-process; it is emptied so that only what
+            // is added below reaches the script and nothing the server happens to be configured with.
+            startInfo.Environment.Clear();
+            foreach (string name in EnvironmentVariablesWhichAreAlwaysKept)
             {
-                startInfo.Environment.Remove(name);
-                // The variable which states the file a credential is read from is removed as well: it is the way to
-                // the secret, even though it is not the secret itself.
-                startInfo.Environment.Remove(name + CredentialsService.NameSuffixForAFile);
+                string value = Environment.GetEnvironmentVariable(name);
+                if (value != null)
+                {
+                    startInfo.Environment[name] = value;
+                }
+            }
+            foreach (string name in definition.MandatoryEnvironmentVariables)
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                // A mandatory variable has to carry an actual value. A variable which is missing or holds only
+                // whitespace is one the script can not work with, so this is said instead of running the script with a
+                // value which is not there.
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" declares the mandatory environment-variable \"{name}\", but it is not set or carries no value.");
+                }
+                startInfo.Environment[name] = value;
+            }
+            foreach (string name in definition.OptionalEnvironmentVariables)
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                // An optional variable is handed over when it carries a value and left out otherwise; its absence does
+                // not keep the script from running.
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    startInfo.Environment[name] = value;
+                }
             }
             foreach (KeyValuePair<string, string> credential in definition.Credentials)
             {

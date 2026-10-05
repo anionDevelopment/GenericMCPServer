@@ -75,15 +75,6 @@ namespace GenericMCPServerBackend.Core.Services
             throw new InvalidOperationException($"The credential \"{name}\" is declared by a tool but is not available: neither the environment-variable \"{name}\" nor \"{nameOfTheFileVariable}\" is set.");
         }
 
-        /// <summary>
-        /// The names of all variables the credentials are read from. They are removed from the environment of every
-        /// script which is started, so that a tool can not read a credential which belongs to another tool.
-        /// </summary>
-        public IReadOnlyCollection<string> GetNames()
-        {
-            return (IReadOnlyCollection<string>)this._Values.Keys;
-        }
-
         /// <exception cref="KeyNotFoundException">Thrown when no credential of that name was read. That can not happen for a declared one, because every declared name is read while starting.</exception>
         public string GetValue(string name)
         {
