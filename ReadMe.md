@@ -5,6 +5,12 @@ GenericMCPServer hosts MCP-servers which are reachable over HTTP.
 It offers exactly the tools which an administrator declares: a declaration names what implements a tool, what the tool
 does and which parameters it takes. The product itself brings no tool along, which is what makes it generic.
 
+## TODO
+
+- required und optional env variables for tools
+- fix problem of python tools: "python" vs "python3" executable.
+- tool-ausgabe soll jeweils in "<toolname>.log" geloggt werden.
+
 ## Features
 
 | Feature | Description |
