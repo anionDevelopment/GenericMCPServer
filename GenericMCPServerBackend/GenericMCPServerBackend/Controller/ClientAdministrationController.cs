@@ -69,6 +69,11 @@ namespace GenericMCPServerBackend.Core.Controller
         /// A client can hold several valid tokens at the same time, which is what makes an exchange possible without an
         /// interruption: the new token is created, whatever uses it is switched over, and only then the old one is
         /// removed.
+        ///
+        /// <example>
+        /// curl -X POST "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90" -H
+        /// "X-Client-Administration-Token: &lt;client-administration-token&gt;"
+        /// </example>
         /// </remarks>
         [HttpPost]
         [Route("AccessTokens")]
@@ -94,6 +99,11 @@ namespace GenericMCPServerBackend.Core.Controller
         /// <summary>
         /// Removes one access-token of the own client. The token is stated by its hash, which the list of the tokens
         /// contains.
+        ///
+        /// <example>
+        /// curl -X DELETE "http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens/&lt;hash&gt;" -H
+        /// "X-Client-Administration-Token: &lt;client-administration-token&gt;"
+        /// </example>
         /// </summary>
         [HttpDelete]
         [Route("AccessTokens/{hash}")]

@@ -167,6 +167,7 @@ namespace GenericMCPServerBackend.Core.Services
                     ValidateParameters(definition, file);
                     ValidateRequirements(definition, file);
                     ValidateCredentials(definition, file);
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.Shell:
                     ValidateScript(definition, file);
@@ -175,6 +176,7 @@ namespace GenericMCPServerBackend.Core.Services
                     // A shell-tool receives no credential yet. Handing one over is a decision of its own, so it is
                     // stated here instead of being silently possible.
                     RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.WebRequest:
                     ValidateWebRequestTool(definition, file);
@@ -262,11 +264,13 @@ namespace GenericMCPServerBackend.Core.Services
                     ValidateScript(definition, file);
                     ValidateRequirements(definition, file);
                     ValidateCredentials(definition, file);
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.Shell:
                     ValidateScript(definition, file);
                     RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
                     RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.WebRequest:
                     ValidateWebRequestResource(definition, file);
@@ -303,12 +307,14 @@ namespace GenericMCPServerBackend.Core.Services
                     ValidateParameters(definition, file);
                     ValidateRequirements(definition, file);
                     ValidateCredentials(definition, file);
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.Shell:
                     ValidateScript(definition, file);
                     ValidateParameters(definition, file);
                     RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
                     RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.WebRequest:
                     // A declaration of that type requests an address, and that address comes either from the client
@@ -374,11 +380,13 @@ namespace GenericMCPServerBackend.Core.Services
                     ValidateScript(definition, file);
                     ValidateRequirements(definition, file);
                     ValidateCredentials(definition, file);
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.Shell:
                     ValidateScript(definition, file);
                     RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
                     RejectDeclaredValues(definition.Credentials.Count, "credentials", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.WebRequest}\" receives credentials");
+                    ValidateEnvironmentVariables(definition, file);
                     break;
                 case ToolType.WebRequest:
                     // Such a declaration takes the address it requests from the client (a tool) or from its own uri (a
@@ -486,6 +494,44 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
+        /// Checks the environment-variables a declaration hands to its script. Each name becomes an
+        /// environment-variable of the script, so it has to be usable as one; a name may not be stated as mandatory and
+        /// as optional at once, because that would be two contradicting statements about the same variable; and it may
+        /// not collide with a credential, which is set under the same kind of name and would otherwise silently win.
+        /// </summary>
+        private static void ValidateEnvironmentVariables(CallableDefinition definition, string file)
+        {
+            foreach (string name in definition.MandatoryEnvironmentVariables.Concat(definition.OptionalEnvironmentVariables))
+            {
+                if (!CredentialNameRegex.IsMatch(name ?? string.Empty))
+                {
+                    throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" declares the environment-variable \"{name}\", whose name is not usable. Such a name may consist of letters, digits and underscores and may not begin with a digit.");
+                }
+            }
+            string statedAsBoth = definition.MandatoryEnvironmentVariables.Intersect(definition.OptionalEnvironmentVariables, StringComparer.Ordinal).FirstOrDefault();
+            if (statedAsBoth != null)
+            {
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" states the environment-variable \"{statedAsBoth}\" as mandatory and as optional at once, so it would not be decidable whether it has to be set.");
+            }
+            string collidesWithACredential = definition.MandatoryEnvironmentVariables.Concat(definition.OptionalEnvironmentVariables).Intersect(definition.Credentials.Keys, StringComparer.Ordinal).FirstOrDefault();
+            if (collidesWithACredential != null)
+            {
+                throw new InvalidOperationException($"The {definition.Kind} \"{definition.Name}\" in \"{file}\" states \"{collidesWithACredential}\" both as an environment-variable and as a credential, which the script would see under the same name.");
+            }
+        }
+
+        /// <summary>
+        /// Rejects environment-variables which were declared for a type which runs no script. A web-request has no
+        /// script which an environment-variable could reach, so stating one is a misunderstanding and not something
+        /// which is silently ignored.
+        /// </summary>
+        private static void RejectEnvironmentVariables(CallableDefinition definition, string file)
+        {
+            RejectDeclaredValues(definition.MandatoryEnvironmentVariables.Count, "mandatory-env-variables", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.Shell}\" runs a script which receives environment-variables");
+            RejectDeclaredValues(definition.OptionalEnvironmentVariables.Count, "optional-env-variables", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" or \"{ToolTypes.Shell}\" runs a script which receives environment-variables");
+        }
+
+        /// <summary>
         /// Checks the headers of a declaration. A header may refer to a credential of its own declaration, and only to
         /// one of them: a reference which points at nothing would otherwise become a request whose header is
         /// incomplete without anybody noticing.
@@ -529,6 +575,7 @@ namespace GenericMCPServerBackend.Core.Services
             RejectDeclaredScript(definition, file);
             RejectDeclaredValues(definition.Parameters.Count, "parameters", definition, file, $"a tool of the type \"{ToolTypes.WebRequest}\" has exactly the parameter \"{WebRequestService.UrlParameterName}\"");
             RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
+            RejectEnvironmentVariables(definition, file);
             if (definition.AllowedUrls.Count == 0)
             {
                 throw new InvalidOperationException($"The tool \"{definition.ToolName}\" in \"{file}\" allows no address. Everything which no rule allows is denied, so this tool could request nothing at all.");
@@ -563,6 +610,7 @@ namespace GenericMCPServerBackend.Core.Services
             RejectDeclaredScript(definition, file);
             RejectDeclaredValues(definition.Requirements.Count, "requirements", definition, file, $"only a declaration of the type \"{ToolTypes.Python}\" installs requirements");
             RejectDeclaredValues(definition.AllowedUrls.Count, "allowed-urls", definition, file, $"a resource of the type \"{ToolTypes.WebRequest}\" is requested from its own uri, so there is no address which a client could ask for");
+            RejectEnvironmentVariables(definition, file);
             if (!definition.Uri.StartsWith($"{WebRequestService.Protocol}://", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException($"The resource \"{definition.ResourceName}\" in \"{file}\" is of the type \"{ToolTypes.WebRequest}\", so its uri \"{definition.Uri}\" is the address which is requested and has to state the protocol \"{WebRequestService.Protocol}\".");

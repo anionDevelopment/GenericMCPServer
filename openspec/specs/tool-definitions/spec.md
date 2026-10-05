@@ -551,6 +551,68 @@ SHALL hand a tool exactly the assigned accesses and SHALL NOT hand it any other.
 - **WHEN** the message of a failed tool-call contains the value of an access
 - **THEN** the value is replaced before the message reaches the client
 
+### Requirement: A script receives only the environment-variables which are declared for it
+
+A declaration which runs a script (a declaration of the type `python` or `shell`) MAY state environment-variables of
+the server as mandatory or as optional. The server SHALL hand the script exactly those which are declared, next to the
+credentials and a fixed set of operating-system-variables a program needs to run, and SHALL NOT hand it any other
+environment-variable of the server.
+
+#### Scenario: A mandatory environment-variable is available
+
+- **WHEN** a script is run whose declaration states a mandatory environment-variable which is set and carries a value
+  with at least one visible character
+- **THEN** the script receives that variable with its value
+
+#### Scenario: A mandatory environment-variable is missing or empty
+
+- **WHEN** a script is run whose declaration states a mandatory environment-variable which is not set or carries only
+  whitespace
+- **THEN** the call fails and names the variable, so that the script is not run with a value which is not there
+
+#### Scenario: An optional environment-variable is available or not
+
+- **WHEN** a script is run whose declaration states an optional environment-variable
+- **THEN** the script receives it when it is set and carries a value with at least one visible character, and it runs
+  without it otherwise
+
+#### Scenario: A variable of the server is not declared
+
+- **WHEN** a script is run while the server has an environment-variable set which the declaration neither states nor
+  reads as a credential
+- **THEN** the script does not receive that variable, so that a configuration of the server does not reach a tool which
+  did not declare it
+
+#### Scenario: Environment-variables are declared for a web-request
+
+- **WHEN** the server is started with a declaration of the type `web-request` which states environment-variables
+- **THEN** the server fails while starting, because a web-request runs no script which an environment-variable could
+  reach
+
+### Requirement: The invocation and the output of a tool-call are logged
+
+When a script of a declaration is run, the server SHALL append the exact invocation and the output of that run to a
+log-file named after the declaration in the log-folder, and SHALL NOT write the environment of the script into it. A
+failure to write the log SHALL NOT make the call fail.
+
+#### Scenario: A tool is called
+
+- **WHEN** a tool is called
+- **THEN** the exact invocation (the program and its arguments) and the output of the run are appended to
+  "&lt;tool-name&gt;.log" in the log-folder
+
+#### Scenario: A tool has a credential or an environment-variable
+
+- **WHEN** a tool which receives a credential or a declared environment-variable is called
+- **THEN** the value of that credential respectively that environment-variable is not written into the log, because the
+  environment of the script is not part of the invocation
+
+#### Scenario: The log can not be written
+
+- **WHEN** the log-file of a tool-call can not be written
+- **THEN** the tool-call is answered as if no log were kept, because the log is a convenience for the operator and not
+  part of the result
+
 ### Requirement: A failed tool-call is visible in the answer and in its status-code
 
 A tool-call which did not work SHALL be answered as a failed call of the protocol whose message states the reason, and
