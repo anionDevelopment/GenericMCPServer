@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <codeunit xmlns="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" codeunitspecificationversion="3.0.0" xsi:schemaLocation="https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/tree/main/Conventions/RepositoryStructure/CommonProjectStructure https://projects.aniondev.de/PublicProjects/Common/ProjectTemplates/-/raw/v3.0.0/Conventions/RepositoryStructure/CommonProjectStructure/codeunit.xsd" enabled="true">
   <name>GenericMCPServerBackend</name>
-  <version>2.0.2</version>
+  <version>2.0.3</version>
   <codeunitownername>Marius Göcke</codeunitownername>
   <codeunitowneremailaddress>marius.goecke@gmail.com</codeunitowneremailaddress>
   <properties codeunithastestablesourcecode="true" codeunithasupdatabledependencies="true" throwexceptionifcodeunitfilecannotbevalidated="false" developmentstate="Active development" description="GenericMCPServerBackend is a generic MCP-Server.">
