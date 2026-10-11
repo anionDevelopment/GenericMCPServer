@@ -148,6 +148,8 @@ something which is ignored, because ignoring it would let an administrator belie
 | `parameters` | The names of the parameters. Each of them is passed to the script as `--<name>=<value>`, so a name here has to be the name of an option the script accepts. |
 | `requirements` | Optional. The packages the script needs, in the notation of a requirements.txt. |
 | `credentials` | Optional. The accesses the script needs; they arrive as environment-variables. See [Credentials](#credentials). |
+| `mandatory-env-variables` | Optional. Environment-variables of the server the script needs; each has to be set. See [Environment-variables](#environment-variables). |
+| `optional-env-variables` | Optional. Environment-variables of the server the script is handed if they are available. See [Environment-variables](#environment-variables). |
 
 ```json
 {
@@ -185,6 +187,8 @@ data-folder; the server offers no commandline-parameter to move them somewhere e
 | ----- | ------- |
 | `calls` | The script which implements the tool, resolved like the script of a python-tool. |
 | `parameters` | The names of the parameters. Each of them is passed to the script as `--<name>=<value>`. |
+| `mandatory-env-variables` | Optional. Environment-variables of the server the script needs; each has to be set. See [Environment-variables](#environment-variables). |
+| `optional-env-variables` | Optional. Environment-variables of the server the script is handed if they are available. See [Environment-variables](#environment-variables). |
 
 ```json
 {
@@ -323,6 +327,8 @@ so nothing which a client sends influences what it receives.
 | `calls` | For `python` and `shell`: the script which implements the resource, resolved like the script of a tool. |
 | `requirements` | Optional, only for `python`: the packages the script needs. |
 | `credentials` | Optional, for `python` and `web-request`: the accesses which are needed. See [Credentials](#credentials). |
+| `mandatory-env-variables` | Optional, for `python` and `shell`: environment-variables of the server the script needs. See [Environment-variables](#environment-variables). |
+| `optional-env-variables` | Optional, for `python` and `shell`: environment-variables of the server the script is handed if they are available. See [Environment-variables](#environment-variables). |
 | `headers` | Optional, only for `web-request`: the headers the request carries. |
 
 ```json
@@ -403,6 +409,8 @@ like a tool takes the values of its parameters.
 | `parameters` | Optional. The names of the arguments of the prompt. Each of them is passed to the script as `--<name>=<value>`, exactly like the parameter of a tool, and each of them is offered to the client as a required one. |
 | `requirements` | Optional, only for `python`: the packages the script needs. |
 | `credentials` | Optional, only for `python`: the accesses which are needed. See [Credentials](#credentials). |
+| `mandatory-env-variables` | Optional, for `python` and `shell`: environment-variables of the server the script needs. See [Environment-variables](#environment-variables). |
+| `optional-env-variables` | Optional, for `python` and `shell`: environment-variables of the server the script is handed if they are available. See [Environment-variables](#environment-variables). |
 | `completions` | Optional. What provides the possible values of the arguments of this prompt, keyed by the name of the argument. See [How a completion is declared](#how-a-completion-is-declared). |
 
 ```json
@@ -470,6 +478,8 @@ whose values a client states without being offered any.
 | `calls` | The script which writes the possible values, resolved like the script of a tool. |
 | `requirements` | Optional, only for `python`: the packages the script needs. |
 | `credentials` | Optional, only for `python`: the accesses which are needed. See [Credentials](#credentials). |
+| `mandatory-env-variables` | Optional, for `python` and `shell`: environment-variables of the server the script needs. See [Environment-variables](#environment-variables). |
+| `optional-env-variables` | Optional, for `python` and `shell`: environment-variables of the server the script is handed if they are available. See [Environment-variables](#environment-variables). |
 
 The key under which the completion stands has to be one of the `parameters` of its prompt and may consist of letters,
 digits, underscores and hyphens; a completion for an argument which the prompt does not take would be a script nobody
@@ -648,7 +658,8 @@ A tool of the type `web-request` uses its accesses in its headers, where `${<nam
 }
 ```
 
-A tool of the type `shell` receives no credentials. A resource and a prompt are assigned their accesses in exactly the
+A tool of the type `shell` receives no credentials, but it can receive environment-variables (see
+[Environment-variables](#environment-variables)). A resource and a prompt are assigned their accesses in exactly the
 same way and with the same rules, because a credential belongs to the declaration and not to what a client does with
 the answer.
 
@@ -672,9 +683,12 @@ secrets:
 
 ### What the server guarantees - and what it does not
 
-- **A tool receives exactly its own credentials.** A script inherits the environment of the server, so the variables
-  which credentials are read from are removed from it before the declared ones are added under their own names. Every
-  other variable (`PATH`, `HOME`, …) stays untouched.
+- **A script receives only what its declaration states.** A started script does not inherit the environment of the
+  server: it is cleared and rebuilt from a small set of operating-system-variables a program needs to run (`PATH`,
+  `HOME`, the locale, the temporary-folder, `TZ`), the environment-variables the declaration states (see
+  [Environment-variables](#environment-variables)) and the credentials. A variable which an operator sets for the
+  server therefore reaches a tool only when that tool declared it, and no tool can read the access or the configuration
+  of another one.
 - **A missing credential keeps the server from starting**, with the name of the credential in the message. A forgotten
   secret is therefore visible while deploying and not when a model happens to call the affected tool.
 - **A value never reaches a client through a message.** The message of a failed tool-call is handed to the client, so
@@ -682,6 +696,32 @@ secrets:
   never write its access into its output, because the answer of a successful call is not searched.
 - **This is no sandbox.** All tools run as the same user in the same container. The separation is about what is handed
   over, not about what a script could reach if it went looking for it.
+
+## Environment-variables
+
+Next to its credentials a declaration can state environment-variables of the server which its script needs. This is how
+a configuration which an operator sets - in the compose-file, for example - reaches a script, without that script
+seeing everything else the server happens to be configured with.
+
+```json
+"mandatory-env-variables": [ "HTTP_PROXY" ],
+"optional-env-variables": [ "NO_PROXY" ]
+```
+
+- A **mandatory** variable has to be set and to carry a value with at least one visible character when the script is
+  run. One which is missing or holds only whitespace makes the call fail, with the name of the variable in the message:
+  a script which can not run without it does not run with a value which is not there.
+- An **optional** variable is handed over when it carries such a value and left out otherwise; its absence does not keep
+  the script from running.
+
+Only a declaration which runs a script has them - the type `python` or `shell`. A `web-request` runs no script which an
+environment-variable could reach, so stating one there is a mistake which makes the server fail while starting. A name
+which is stated as mandatory and as optional at once, or which collides with a credential (both would reach the script
+under the same name), is a mistake for the same reason.
+
+The difference to a credential is what the value is for: a credential is an access to a foreign service whose value is
+removed from failure-messages, while an environment-variable is a piece of configuration which is handed over as it is.
+Both reach the script as environment-variables and both belong to the operator and not to the client.
 
 ## Security
 
@@ -772,6 +812,23 @@ A call which the **client itself cancelled** is neither of those two. It is answ
 `isError` and that reason, and with the status-code of a normal answer: the 502 states that the program behind this
 server failed, and nothing failed here. The client is told about it all the same - it asked for a result and gets no
 result - and a client which has already stopped listening ignores it.
+
+## The log of a tool-call
+
+Every run of a script is logged, so that an operator can see afterwards what a tool was called with and what it
+answered. The exact invocation (the program and its arguments, one token per value as `--name=value`) and the output
+are appended to `<name>.log` in the log-folder, next to the server-log - `<name>` is the tool-name, so a tool
+`get_cve_details` writes to `get_cve_details.log`. A resource, a prompt and a completion are logged the same way, under
+their own name.
+
+The **environment of the script is deliberately not logged**. It carries the credentials and the declared
+environment-variables, which are an access and a configuration of the operator and not part of the invocation, so they
+would have no place in a log which states what a tool was called with. What a script itself writes into its output is
+logged as it is; a script which writes its own credential there is the responsibility of whoever declared it, exactly
+as it is for the answer which reaches the client.
+
+Writing the log never makes a tool-call fail: a log-file which could not be written is a lost convenience and not a
+failed call.
 
 ## Example
 

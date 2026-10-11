@@ -17,6 +17,7 @@ Running it locally for testing- and development-purposes is possible too.
 Of course it is recommended to use HTTPS for the communication instead of HTTP.
 For this purpose a simple reverse-proxy which manage the certificates and TLS-termination can be used.
 
+## Features
 GenericMCPServer allows you to host multiple MCP-servers at once.
 This is useful to separate multiple tool-sets for different AI-clients.
 For this reason, every MCP-server needs a name which is part of the MCP-server URL.
@@ -339,6 +340,12 @@ In your `~/.claude.json`-file, the `mcpServers`-settings should look like this:
 The tools provided in the examples are just for testing- and demonstration purposes.
 In general the tools must be added and configured by the administrator of the GenericMCPServer.
 GenericMCPServer only provides the overhead to make tools usable in a simple way for AI-agents.
+
+A tool of the type `python` needs a python-interpreter to build its virtual environment.
+The official image already ships one (it installs `python3`), so nothing has to be done there.
+Only if you run GenericMCPServer outside of that image you have to make sure that the interpreter is available: `python3` on a linux- or mac-system, `python` on a windows-system.
+
+Every tool-call is logged: the exact invocation and the output are appended to `<tool-name>.log` in the log-folder (the `Logs`-folder which is mounted in the example above), so that you can see afterwards what a tool was called with and what it answered.
 
 ## Security hints
 

@@ -95,6 +95,7 @@ namespace GenericMCPServerBackend.Core
             string virtualEnvironmentsFolder = null;
             string administrationFolder = null;
             string toolsFolder = null;
+            string logFolder = null;
             this.IsRunning = true;
             int result = Tools.RunAPIServer<CommandlineParameter, CodeUnitSpecificConstants, CodeUnitSpecificConfiguration>(GeneralConstants.CodeUnitName, GeneralConstants.CodeUnitDescription, GRYLibrary.Core.Misc.Version3.Parse(GeneralConstants.CodeUnitVersion), GenericMCPServerBackend.Core.Misc.Utilities.GetEnvironmentTargetType(), GRYLibrary.Core.Misc.Utilities.GetExecutionMode(commandlineArguments), commandlineArguments, null, (apiServerConfiguration) =>
             {
@@ -102,6 +103,10 @@ namespace GenericMCPServerBackend.Core
                 {
                     virtualEnvironmentsFolder = Path.Combine(initializationInformation.ApplicationConstants.GetDataFolder(), "VirtualEnvironments");
                     administrationFolder = initializationInformation.ApplicationConstants.GetConfigurationFolder();
+                    // The exact invocation and the output of every tool-call are logged into "<tool-name>.log" in the
+                    // log-folder, next to the server-log, so that an operator can see afterwards what a tool was called
+                    // with and what it answered.
+                    logFolder = initializationInformation.ApplicationConstants.GetLogFolder();
                     // The declaration and the scripts it names belong to the administrator, while the configuration-folder holds what the server itself
                     // writes (its configuration-file and the files of its clients, roles and tokens). They are therefore two folders next to each other
                     // below the base-folder, exactly like the data- and the log-folder are: an operator hands the tools-folder over (for a container: as a
@@ -211,7 +216,7 @@ namespace GenericMCPServerBackend.Core
                         GRYLibrary.Core.Misc.Utilities.EnsureFileExists(toolDefinitionsFile);
                         File.WriteAllText(toolDefinitionsFile, "{}");
                     }
-                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService);
+                    BusinessLogicService businessLogicService = new BusinessLogicService(toolDefinitionsFile, virtualEnvironmentsFolder, clientService, rolesService, accessTokenService, this._AdminTokenService, timeService, logFolder);
                     IReadOnlyList<MCPServerDefinition> mcpServers = businessLogicService.GetMCPServers();
                     this._Log.Log($"{mcpServers.Count} mcp-server(s) with {mcpServers.Sum(mcpServer => mcpServer.Tools.Count)} tool(s), {mcpServers.Sum(mcpServer => mcpServer.Resources.Count)} resource(s), {mcpServers.Sum(mcpServer => mcpServer.Prompts.Count)} prompt(s) and {mcpServers.Sum(mcpServer => mcpServer.Prompts.Sum(prompt => prompt.Completions.Count))} completion(s) declared in \"{toolDefinitionsFile ?? "<no tool-definitions-file configured>"}\".");
                     // One collection of tools per mcp-server. Which of them a request uses is decided by the namespace
