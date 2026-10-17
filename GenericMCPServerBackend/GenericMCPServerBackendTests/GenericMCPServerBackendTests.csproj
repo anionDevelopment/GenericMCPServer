@@ -61,7 +61,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GenericMCPServerBackend\GenericMCPServerBackend.csproj" />
     <PackageReference Include="coverlet.collector" Version="[6.0.4]" />
-    <PackageReference Include="GRYLibrary" Version="[2.1.5]" />
+    <PackageReference Include="GRYLibrary" Version="[2.1.7]" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="[8.16.0]" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="[17.14.1]" />
     <PackageReference Include="MSTest.TestAdapter" Version="[3.9.3]" />
