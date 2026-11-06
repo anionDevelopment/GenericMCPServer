@@ -159,7 +159,7 @@ namespace GenericMCPServerBackend.Core
                             @$"^/API/Other/Maintenance/Metrics$",
                             @$"^/API/Other/Maintenance/HealthCheck$",
                         },
-                        MaximalLengthofRequestBodies = 500,
+                        MaximalLengthOfRequestBodies = 500,
                         MaximalLengthOfResponseBodies = 500,
                     };
                 };

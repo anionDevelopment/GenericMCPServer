@@ -588,7 +588,7 @@ namespace GenericMCPServerBackend.Core.Services
                 }
                 try
                 {
-                    _ = Regex.Match(string.Empty, "^" + rule + "$");
+                    _ = Regex.Match(string.Empty, "^(?:" + rule + ")$");
                 }
                 catch (ArgumentException exception)
                 {

@@ -17,17 +17,6 @@ Running it locally for testing- and development-purposes is possible too.
 Of course it is recommended to use HTTPS for the communication instead of HTTP.
 For this purpose a simple reverse-proxy which manage the certificates and TLS-termination can be used.
 
-## Features
-GenericMCPServer allows you to host multiple MCP-servers at once.
-This is useful to separate multiple tool-sets for different AI-clients.
-For this reason, every MCP-server needs a name which is part of the MCP-server URL.
-This guide shows a simple minimal example configuration with one MCP-server without the requirement of authentication.
-The commands to set role based authentication is described below anyway.
-
-GenericMCPServer does not provide any tools itself.
-It is only a wrapper to easily provide tools in a generic way.
-Any tool which should be available by the AI-client must be added/configured by you.
-
 ## Getting started
 
 ### Install MCP-server

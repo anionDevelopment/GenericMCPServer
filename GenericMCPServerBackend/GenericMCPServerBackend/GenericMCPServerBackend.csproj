@@ -3,9 +3,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
     <Authors>Marius Göcke</Authors>
-    <Version>2.0.3</Version>
-    <AssemblyVersion>2.0.3</AssemblyVersion>
-    <FileVersion>2.0.3</FileVersion>
+    <Version>2.1.0</Version>
+    <AssemblyVersion>2.1.0</AssemblyVersion>
+    <FileVersion>2.1.0</FileVersion>
     <SelfContained>false</SelfContained>
     <IsPackable>false</IsPackable>
     <PreserveCompilationContext>false</PreserveCompilationContext>
@@ -18,7 +18,7 @@
     <RepositoryUrl>https://github.com/anionDevelopment/GenericMCPServer.git</RepositoryUrl>
     <RootNamespace>GenericMCPServerBackend.Core</RootNamespace>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
     <Configurations>Development;QualityCheck;Productive</Configurations>
     <IsTestProject>false</IsTestProject>
     <LangVersion>11.0</LangVersion>
@@ -63,7 +63,7 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="[2.9.1]" />
     <PackageReference Include="ExtendedXmlSerializer" Version="[3.10.0]" />
-    <PackageReference Include="GRYLibrary" Version="[2.1.5]" />
+    <PackageReference Include="GRYLibrary" Version="[2.1.9]" />
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="[2.3.9]" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="[10.0.3]" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="[8.16.0]" />
@@ -73,9 +73,9 @@
     <PackageReference Include="NJsonSchema" Version="[11.5.2]" />
     <PackageReference Include="NSwag.AspNetCore" Version="[14.6.3]" />
     <PackageReference Include="prometheus-net.AspNetCore" Version="[8.2.1]" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="[10.2.1]" />
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="[10.2.3]" />
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="[10.2.3]" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="[10.3.1]" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="[10.3.1]" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="[10.3.1]" />
     <PackageReference Include="System.Reactive" Version="[6.1.0]" />
   </ItemGroup>
 </Project>

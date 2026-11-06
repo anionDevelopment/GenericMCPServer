@@ -182,7 +182,7 @@ namespace GenericMCPServerBackend.Core.Services
         {
             foreach (string rule in definition.AllowedUrls)
             {
-                if (Regex.IsMatch(address, "^" + rule + "$"))
+                if (Regex.IsMatch(address, "^(?:" + rule + ")$"))
                 {
                     return true;
                 }
