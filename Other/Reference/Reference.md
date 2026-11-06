@@ -5,7 +5,7 @@
 The following table lists the features which can typically be expected from a product of this kind (a generic host for
 MCP-servers). The state is derived from the current sourcecode.
 
-| ID      | State       | Description |
+| id      | state       | description |
 | ------- | ----------- | ----------- |
 | feat-1  | available   | Host multiple independent MCP-servers in one process, each reachable under its own url-namespace. |
 | feat-2  | available   | Fully generic tool-declaration: tools, resources and prompts are declared in a json-file without any change to the sourcecode. |
@@ -36,5 +36,5 @@ MCP-servers). The state is derived from the current sourcecode.
 
 ## Findings
 
-| ID  | State | Description | Impact | Notes |
-| --- | ----- | ----------- | ------ | ----- |
+| Id  | Priority | State | Description | Impact | Notes |
+| --- | -------- | ----- | ----------- | ------ | ----- |

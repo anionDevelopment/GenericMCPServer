@@ -219,10 +219,9 @@ which it hands the values of a tool to its script.
 ### Requirement: The values which an argument of a prompt can have are declared with that argument
 
 A declaration of a prompt MAY state, per argument, what provides the values which that argument can have. Such a
-declaration SHALL be stated under the name of the argument it belongs to, and that name SHALL be one of the arguments
-which the prompt declares. The server SHALL hand the script which provides those values the argument it is asked about
-and the value which the client entered so far, in the same way in which it hands the values of a tool to its script,
-and SHALL offer what that script wrote as the possible values of that argument.
+declaration SHALL be stated under the name of one of the arguments which the prompt declares. The server SHALL hand the
+script the argument it is asked about and the value entered so far, in the same way as the values of a tool, and SHALL
+offer what that script wrote as the possible values of that argument.
 
 #### Scenario: A client asks which values an argument can have
 
