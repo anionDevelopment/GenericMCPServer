@@ -121,6 +121,31 @@ namespace GenericMCPServerBackend.Tests.Testcases.Services
         }
 
         /// <remarks>
+        /// A rule which contains an alternation still has to match the whole address. Without a group around the rule,
+        /// "a\.com|b\.com" would be read as "starts with a.com" or "ends with b.com".
+        /// </remarks>
+        [TestMethod]
+        [TestProperty(nameof(GRYLibrary.Core.Misc.TestKind), nameof(GRYLibrary.Core.Misc.TestKind.UnitTest))]
+        public void ARuleWithAnAlternationHasToMatchTheWholeAddress()
+        {
+            // arrange
+            string folder = CreateFolder();
+            try
+            {
+                string withAlternation = @"{ ""tools"": [ { ""tool-name"": ""example_page"", ""type"": ""web-request"", ""description"": ""x"", ""allowed-urls"": [ ""a\\.com|b\\.com"" ] } ] }";
+                IBusinessLogicService businessLogicService = CreateBusinessLogicService(folder, withAlternation);
+
+                // act & assert
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "a.com.other.com" } }, CancellationToken.None), "An address which only starts with the first alternative must not be allowed.");
+                Assert.ThrowsException<InvalidOperationException>(() => businessLogicService.RunTool(UrlNamespace, "example_page", new Dictionary<string, string>() { { WebRequestService.UrlParameterName, "evil.b.com" } }, CancellationToken.None), "An address which only ends with the second alternative must not be allowed.");
+            }
+            finally
+            {
+                Directory.Delete(folder, true);
+            }
+        }
+
+        /// <remarks>
         /// The protocol is not part of an address here: it is always https. An address which states another one is
         /// therefore not silently corrected but rejected, so that nobody believes an unencrypted request was sent.
         /// </remarks>

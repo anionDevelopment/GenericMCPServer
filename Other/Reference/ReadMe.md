@@ -186,3 +186,4 @@ the advanced one declares three.
 | Which mcp-servers and tools do the examples declare and how are they started? | [Examples](../../GenericMCPServer/Other/Reference/ReferenceContent/Examples) |
 | Which versions of the product are supported? | [InformationAboutSupportedVersions.csv](../Resources/Support/InformationAboutSupportedVersions.csv) |
 | What changed in a version? | [Changelog](../Resources/Changelog) |
+| Which findings of code-reviews, security-checks, bug-searches and other analyses exist and what is their state? | [Findings](./Reference.md#findings) |

@@ -254,7 +254,7 @@
           "ClientAdministration"
         ],
         "summary": "Creates an access-token for the own client and answers with it.",
-        "description": "A client can hold several valid tokens at the same time, which is what makes an exchange possible without an\ninterruption: the new token is created, whatever uses it is switched over, and only then the old one is\nremoved.",
+        "description": "A client can hold several valid tokens at the same time, which is what makes an exchange possible without an\ninterruption: the new token is created, whatever uses it is switched over, and only then the old one is\nremoved.\n            \n<example>\ncurl -X POST \"http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens?validForDays=90\" -H\n\"X-Client-Administration-Token: <client-administration-token>\"\n</example>",
         "parameters": [
           {
             "name": "validForDays",
@@ -279,7 +279,7 @@
         "tags": [
           "ClientAdministration"
         ],
-        "summary": "Removes one access-token of the own client. The token is stated by its hash, which the list of the tokens\ncontains.",
+        "summary": "Removes one access-token of the own client. The token is stated by its hash, which the list of the tokens\ncontains.\n            \n<example>\ncurl -X DELETE \"http://127.0.0.1:8080/API/v1/ClientAdministration/AccessTokens/<hash>\" -H\n\"X-Client-Administration-Token: <client-administration-token>\"\n</example>",
         "parameters": [
           {
             "name": "hash",

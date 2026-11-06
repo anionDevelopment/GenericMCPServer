@@ -2,7 +2,7 @@ name: 'genericmcpserver_advanced_example'
 
 services:
   genericmcpserver:
-    image: genericmcpserver:2.0.2
+    image: genericmcpserver:2.1.0
     container_name: 'genericmcpserver'
     environment:
       EnforceVerbose: 'true'

@@ -3,5 +3,5 @@ Debian;docker.io/library/debian;13.4-slim
 Syft;docker.io/anchore/syft;v1.41.2
 Curl;docker.io/curlimages/curl;8.20.0
 Betterleaks;ghcr.io/betterleaks/betterleaks;v1.4.1
-SCBuilder;aniondev/scbuilder;v1.2.13
+SCBuilder;aniondev/scbuilder;v1.2.19
 PlantUML;plantuml/plantuml;1.2026.8

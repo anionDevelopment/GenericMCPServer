@@ -87,14 +87,20 @@ namespace GenericMCPServerBackend.Core.Services
         }
 
         /// <summary>
-        /// The interpreter which builds an environment. The name differs between the operating-systems: on a
-        /// linux-system "python" is usually not available while "python3" is, and on a windows-system it is the other
-        /// way around.
+        /// The interpreter which builds an environment.
+        ///
+        /// The product runs in the image of the docker-codeunit, whose Dockerfile installs "python3" and
+        /// "python3-venv"; the command there is therefore "python3" and not "python". On a windows-system (where the
+        /// tests and a local run happen) it is the other way around - "python" is the usual name and "python3" is not -
+        /// so the name follows the operating-system. The environment which is built here is afterwards run by its own
+        /// interpreter (<see cref="GetInterpreterFile"/>), which exists under a fixed name inside the environment and
+        /// does not depend on this.
         /// </summary>
         private static string GetSystemInterpreter()
         {
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "python" : "python3";
         }
+
 
         private static bool IsBuiltWith(string environmentFolder, IReadOnlyList<string> requirements)
         {

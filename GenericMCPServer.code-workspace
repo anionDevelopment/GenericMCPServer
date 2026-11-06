@@ -87,6 +87,7 @@
     ]
   },
   "settings": {
+    "dotnet.defaultSolution": "GenericMCPServerBackend/GenericMCPServerBackend.sln",
     "terminal.integrated.cwd": "${workspaceFolder}",
     "window.title": "${dirty} ${rootName}",
     "spellright.documentTypes": [
